@@ -414,7 +414,9 @@ handleExc context exc = return (send "throw" (return throw << exc) context)
 getStack :: a -> (a, CallStack)
 getStack x = let stack = unsafePerformIO 
                          $ do {ccs <- getCurrentCCS (); ccsToStrings ccs}
-             in  (x, reverse (tail stack))
+             in  (x, rev stack)
+        where rev []    = error "empty stack"
+              rev s = reverse (tail s)
 
 ccsToStrings :: Ptr CostCentreStack -> IO [String]
 ccsToStrings ccs0 = go ccs0 []
