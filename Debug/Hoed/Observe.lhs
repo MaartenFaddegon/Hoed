@@ -192,12 +192,15 @@ runO program =
        ; hPutStrLn stderr (showWithStack eqs)
 
        ; hPutStrLn stderr "Constructing tree..."
-       ; let tree1 = buildTree eqs
-       ; writeFile "debugTree.1.dot" (show tree1)
-       ; hPutStrLn stderr "Tree written to 'debugTree.1.dot'."
-       ; tree2 <- debugSession tree1
-       ; hPutStrLn stderr "Tree written to 'debugTree.2.dot'."
-       ; writeFile "debugTree.2.dot" (show tree2)
+       ; let tree = buildTree eqs
+       ; debugSession tree
+       ; return ()
+
+       -- ; writeFile "debugTree.1.dot" (show tree1)
+       -- ; hPutStrLn stderr "Tree written to 'debugTree.1.dot'."
+       -- ; tree2 <- debugSession tree1
+       -- ; hPutStrLn stderr "Tree written to 'debugTree.2.dot'."
+       -- ; writeFile "debugTree.2.dot" (show tree2)
        }
 
 hPutStrList :: (Show a) => Handle -> [a] -> IO()

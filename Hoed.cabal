@@ -19,7 +19,8 @@ library
                        , template-haskell == 2.10.0.0
                        , array == 0.5.0.0, containers == 0.5.5.1
                        , process == 1.2.0.0
-                       ,  threepenny-gui == 0.4.1.1
+                       , threepenny-gui == 0.4.1.1
+                       , filepath
   default-language:    Haskell2010
 
 Executable hoed-examples-IndirectRecursion
