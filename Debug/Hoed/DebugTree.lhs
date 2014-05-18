@@ -12,7 +12,7 @@
 > import qualified Data.Map.Strict as Map
 > import System.IO
 > import Data.List(nub)
-> import System.Process(runCommand)
+> import System.Process(system)
 > import qualified Graphics.UI.Threepenny as UI
 > import Graphics.UI.Threepenny (startGUI,defaultConfig,tpPort,tpStatic
 >                               , Window, UI, (#), (#+), string, on
@@ -142,12 +142,15 @@ Add an edge between the existing values v and w.
 >            } (debugSession' tree rs)
 >        return tree -- MF TODO: now we just return the same tree!
 
+
+MF TODO: from the System.Process documentation: "On Windows, system passes the command to the Windows command interpreter (CMD.EXE or COMMAND.COM), hence Unixy shell tricks will not work."
+
 > debugSession' :: (Show a, Ord a) => Tree a -> [a] -> Window -> UI ()
 > debugSession' tree worklist window
 >   = do return window # UI.set UI.title "Hello World!"
 >
 >        UI.liftIO $ writeFile "debugTree.dot" (show tree)
->        UI.liftIO $ runCommand "dot -Tpng debugTree.dot > wwwroot/debugTree.png"
+>        UI.liftIO $ system "dot -Tpng debugTree.dot > wwwroot/debugTree.png"
 >        -- dir <- UI.liftIO $ getStaticDir
 >        -- url <- UI.loadFile "image/png" (dir </> "debugTree" <.> "png")
 >        url <- UI.loadFile "image/png" "wwwroot/debugTree.png"
