@@ -152,10 +152,29 @@ Add an edge between the existing values v and w.
 >        -- url <- UI.loadFile "image/png" (dir </> "debugTree" <.> "png")
 >        url <- UI.loadFile "image/png" "wwwroot/debugTree.png"
 >        img <- UI.img # UI.set UI.src url
+>        es <- toElems worklist 
 >
 >        b <- UI.button # UI.set UI.text "Hoi!"
->        UI.getBody window #+ [UI.element img, UI.element b]
+>        UI.getBody window #+ (map UI.element $ img : b : es)
 >        on UI.click b $ const $ do UI.element b # UI.set UI.text "I have been clicked!"     
+
+MF TODO: this seems like a foldm job
+
+> toElems :: (Show a) => [a] -> UI [UI.Element]
+> toElems xs = toElems' xs []
+>
+> toElems' :: (Show a) => [a] -> [UI.Element] -> UI [UI.Element]
+> toElems' [] es     = return es
+> toElems' (x:xs) es = do [e1,e2,e3] <- toElem x
+>                         es' <- toElems' xs es
+>                         return (e1 : e2 : e3 : es')
+
+> toElem :: (Show a) => a -> UI [UI.Element]
+> toElem x = do shw <- UI.pre    # UI.set UI.text (show x)
+>               cor <- UI.button # UI.set UI.text "correct"
+>               wrg <- UI.button # UI.set UI.text "wrong"
+>               return [shw,cor,wrg]
+
 
 TODO:  debugSession' tree [] 
 TODO:   = 
