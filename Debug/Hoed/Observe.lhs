@@ -358,7 +358,9 @@ renderEquation (CDSNamed name set)
   where equation    =  pretty 80 (foldr (<>) nil doc)
         (doc,stack) = unzip rendered
         rendered    = map (renderNamedTop name) output
-        output      = (commonOutput . cdssToOutput) set
+        output      = cdssToOutput set
+        -- MF TODO: Do we want to sort?
+        -- output      = (commonOutput . cdssToOutput) set
 renderEquation _ = Equation "??" "??" emptyStack
 
 renderNamedTop :: String -> Output -> (DOC,CallStack)

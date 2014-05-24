@@ -20,7 +20,6 @@
 > import System.FilePath
 > import Control.Monad
 
-
 ---------------------------------------------------------------------------
 -- Path to data dir. (From Threepenny-gui samples/Path.hs)
 
@@ -131,11 +130,14 @@ Add an edge between the existing values v and w.
 > getChildren (Tree _ map) v = children
 >       where Node{children=children} = map ! v
 
+> getNodes :: Tree a -> [a]
+> getNodes (Tree _ map) = Map.keys map
+
 --------------------------------------------------------------------------
 -- Algorithmic debugging
 
 > debugSession :: (Show a, Ord a) => Tree a -> IO (Tree a)
-> debugSession (tree@(Tree rs _)) -- = debugSession' tree rs
+> debugSession (tree@(Tree rs _))
 >   = do startGUI defaultConfig
 >            { tpPort       = Just 10000
 >            , tpStatic     = Just "./wwwroot"
@@ -147,7 +149,7 @@ MF TODO: from the System.Process documentation: "On Windows, system passes the c
 
 > debugSession' :: (Show a, Ord a) => Tree a -> [a] -> Window -> UI ()
 > debugSession' tree worklist window
->   = do return window # UI.set UI.title "Hello World!"
+>   = do return window # UI.set UI.title "Hoed debugging session"
 >
 >        UI.liftIO $ writeFile "debugTree.dot" (show tree)
 >        UI.liftIO $ system "dot -Tpng debugTree.dot > wwwroot/debugTree.png"
@@ -155,28 +157,37 @@ MF TODO: from the System.Process documentation: "On Windows, system passes the c
 >        -- url <- UI.loadFile "image/png" (dir </> "debugTree" <.> "png")
 >        url <- UI.loadFile "image/png" "wwwroot/debugTree.png"
 >        img <- UI.img # UI.set UI.src url
->        es <- toElems worklist 
+>        -- ts <- toElems worklist
+>        ts <- toElems (getNodes tree)
 >
 >        b <- UI.button # UI.set UI.text "Hoi!"
->        UI.getBody window #+ (map UI.element $ img : b : es)
+>        UI.getBody window #+ (map UI.element $ b : img : (flattenElemTriples ts))
 >        on UI.click b $ const $ do UI.element b # UI.set UI.text "I have been clicked!"     
+
+ElemTriple with representation of the equation and the correct/wrong buttons.
+
+> type ElemTriple = (UI.Element,UI.Element,UI.Element)
+>
+> flattenElemTriples :: [ElemTriple] -> [UI.Element]
+> flattenElemTriples = foldl (\es (e1,e2,e3) -> e1 : e2 : e3 : es) []
+
 
 MF TODO: this seems like a foldm job
 
-> toElems :: (Show a) => [a] -> UI [UI.Element]
+> toElems :: (Show a) => [a] -> UI [ElemTriple]
 > toElems xs = toElems' xs []
 >
-> toElems' :: (Show a) => [a] -> [UI.Element] -> UI [UI.Element]
+> toElems' :: (Show a) => [a] -> [ElemTriple] -> UI [ElemTriple]
 > toElems' [] es     = return es
-> toElems' (x:xs) es = do [e1,e2,e3] <- toElem x
->                         es' <- toElems' xs es
->                         return (e1 : e2 : e3 : es')
+> toElems' (x:xs) es = do tup <- toElem x
+>                         tups <- toElems' xs es
+>                         return (tup : tups)
 
-> toElem :: (Show a) => a -> UI [UI.Element]
+> toElem :: (Show a) => a -> UI ElemTriple
 > toElem x = do shw <- UI.pre    # UI.set UI.text (show x)
 >               cor <- UI.button # UI.set UI.text "correct"
 >               wrg <- UI.button # UI.set UI.text "wrong"
->               return [shw,cor,wrg]
+>               return (shw,cor,wrg)
 
 
 TODO:  debugSession' tree [] 
