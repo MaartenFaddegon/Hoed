@@ -15,7 +15,7 @@
 > import System.Process(system)
 > import qualified Graphics.UI.Threepenny as UI
 > import Graphics.UI.Threepenny (startGUI,defaultConfig,tpPort,tpStatic
->                               , Window, UI, (#), (#+), string, on
+>                               , Window, UI, (#), (#+), (#.), string, on
 >                               )
 > import System.FilePath
 > import Control.Monad
@@ -153,12 +153,14 @@ MF TODO: from the System.Process documentation: "On Windows, system passes the c
 > debugSession' :: (Show a, Ord a) => IORef (Tree a) -> Window -> UI ()
 > debugSession' treeRef window
 >   = do return window # UI.set UI.title "Hoed debugging session"
+>        UI.addStyleSheet window "debug.css"
 >        img <- UI.img 
 >        redraw img treeRef
 >        tree <- UI.liftIO $ readIORef treeRef
 >        let ns = getNodes tree
 >        ts <- toElems ns
->        UI.getBody window #+ (map UI.element $ img : (flattenElemTriples ts))
+>        buttons <- UI.div #. "buttons" #+ (map UI.element $ flattenElemTriples ts)
+>        UI.getBody window #+ (map UI.element [img, buttons])
 >        mapM_ (onClick img treeRef Correct) (zip (corButtons ts) ns)
 >        mapM_ (onClick img treeRef Wrong)   (zip (wrnButtons ts) ns)
 
