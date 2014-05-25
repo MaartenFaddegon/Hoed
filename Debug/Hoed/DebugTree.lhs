@@ -19,6 +19,7 @@
 >                               )
 > import System.FilePath
 > import Control.Monad
+> import Data.IORef
 
 ---------------------------------------------------------------------------
 -- Path to data dir. (From Threepenny-gui samples/Path.hs)
@@ -137,45 +138,73 @@ Add an edge between the existing values v and w.
 -- Algorithmic debugging
 
 > debugSession :: (Show a, Ord a) => Tree a -> IO (Tree a)
-> debugSession (tree@(Tree rs _))
->   = do startGUI defaultConfig
+> debugSession tree
+>   = do treeRef <- newIORef tree
+>        startGUI defaultConfig
 >            { tpPort       = Just 10000
 >            , tpStatic     = Just "./wwwroot"
->            } (debugSession' tree rs)
->        return tree -- MF TODO: now we just return the same tree!
+>            } (debugSession' treeRef)
+>        resultTree <- (readIORef treeRef)
+>        return resultTree
 
 
 MF TODO: from the System.Process documentation: "On Windows, system passes the command to the Windows command interpreter (CMD.EXE or COMMAND.COM), hence Unixy shell tricks will not work."
 
-> debugSession' :: (Show a, Ord a) => Tree a -> [a] -> Window -> UI ()
-> debugSession' tree worklist window
+> debugSession' :: (Show a, Ord a) => IORef (Tree a) -> Window -> UI ()
+> debugSession' treeRef window
 >   = do return window # UI.set UI.title "Hoed debugging session"
->
->        UI.liftIO $ writeFile "debugTree.dot" (show tree)
->        UI.liftIO $ system "dot -Tpng debugTree.dot > wwwroot/debugTree.png"
->        -- dir <- UI.liftIO $ getStaticDir
->        -- url <- UI.loadFile "image/png" (dir </> "debugTree" <.> "png")
->        url <- UI.loadFile "image/png" "wwwroot/debugTree.png"
->        img <- UI.img # UI.set UI.src url
->        -- ts <- toElems worklist
->        ts <- toElems (getNodes tree)
->
->        b <- UI.button # UI.set UI.text "Hoi!"
->        UI.getBody window #+ (map UI.element $ b : img : (flattenElemTriples ts))
->        on UI.click b $ const $ do UI.element b # UI.set UI.text "I have been clicked!"     
+>        img <- UI.img 
+>        redraw img treeRef
+>        tree <- UI.liftIO $ readIORef treeRef
+>        let ns = getNodes tree
+>        ts <- toElems ns
+>        UI.getBody window #+ (map UI.element $ img : (flattenElemTriples ts))
+>        mapM_ (onClick img treeRef Correct) (zip (corButtons ts) ns)
+>        mapM_ (onClick img treeRef Wrong)   (zip (wrnButtons ts) ns)
+
+> onClick :: (Show a, Ord a) => UI.Element -> IORef (Tree a) -> Status
+>                            -> (UI.Element,a) -> UI ()
+> onClick img treeRef status (b,n) 
+>   = do on UI.click b $ const $ do updateTree img treeRef 
+>                                       (\tree -> markNode tree n status)
 
 ElemTriple with representation of the equation and the correct/wrong buttons.
 
+> redraw :: (Show a, Ord a) => UI.Element -> IORef (Tree a) -> UI ()
+> redraw img treeRef 
+>   = do tree <- UI.liftIO $ readIORef treeRef
+>        UI.liftIO $ writeFile "debugTree.dot" (show tree)
+>        UI.liftIO $ system "dot -Tpng debugTree.dot > wwwroot/debugTree.png"
+>        url <- UI.loadFile "image/png" "wwwroot/debugTree.png"
+>        UI.element img # UI.set UI.src url
+>        return ()
+
+> updateTree :: (Show a, Ord a) => UI.Element -> IORef (Tree a) 
+>                               -> (Tree a -> Tree a) -> UI ()
+> updateTree img treeRef f
+>   = do tree <- UI.liftIO $ readIORef treeRef
+>        UI.liftIO $ writeIORef treeRef (f tree)
+>        redraw img treeRef
+
+
+> --                 Equation   Correct    Wrong
 > type ElemTriple = (UI.Element,UI.Element,UI.Element)
 >
 > flattenElemTriples :: [ElemTriple] -> [UI.Element]
 > flattenElemTriples = foldl (\es (e1,e2,e3) -> e1 : e2 : e3 : es) []
 
+> corButtons :: [ElemTriple] -> [UI.Element]
+> corButtons = foldl (\es (_,e2,_) -> e2 : es) []
+
+> wrnButtons :: [ElemTriple] -> [UI.Element]
+> wrnButtons = foldl (\es (_,_,e3) -> e3 : es) []
+
 
 MF TODO: this seems like a foldm job
+MF TODO: Why do I need to reverse here?
 
 > toElems :: (Show a) => [a] -> UI [ElemTriple]
-> toElems xs = toElems' xs []
+> toElems xs = toElems' (reverse xs) []
 >
 > toElems' :: (Show a) => [a] -> [ElemTriple] -> UI [ElemTriple]
 > toElems' [] es     = return es
