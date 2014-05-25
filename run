@@ -1,0 +1,8 @@
+OPTS="--PushTruncate +RTS --PushTruncate"
+# OPTS="--PushVanilla +RTS --PushVanilla"
+# EXE="../dist/build/hoed-examples-IndirectRecursion/hoed-examples-IndirectRecursion"
+EXE="../dist/build/hoed-examples-Example3/hoed-examples-Example3"
+
+rm tmp/wwwroot/debugTree.png tmp/debugTree.dot
+cd tmp
+eval $EXE $OPTS | grep -v PUSH

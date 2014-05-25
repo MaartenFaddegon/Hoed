@@ -1,0 +1,1 @@
+cabal configure -w /home/maarten/Code/ghc/inplace/bin/ghc-stage2 --enable-library-profiling --enable-executable-profiling --disable-optimization
