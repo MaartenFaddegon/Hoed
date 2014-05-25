@@ -1,7 +1,7 @@
 OPTS="--PushTruncate +RTS --PushTruncate"
+EXE="../dist/build/hoed-examples-Insort/hoed-examples-Insort"
 # OPTS="--PushVanilla +RTS --PushVanilla"
-# EXE="../dist/build/hoed-examples-IndirectRecursion/hoed-examples-IndirectRecursion"
-EXE="../dist/build/hoed-examples-Example3/hoed-examples-Example3"
+# EXE="../dist/build/hoed-examples-Example3/hoed-examples-Example3"
 
 rm tmp/wwwroot/debugTree.png tmp/debugTree.dot
 cd tmp

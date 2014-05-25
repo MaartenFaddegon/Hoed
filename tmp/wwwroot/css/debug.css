@@ -1,4 +1,7 @@
 .buttons {
-  float:right;
-  width:400px;
+  float:left;
+  width:300px;
+}
+.nowrap {
+  white-space: nowrap;
 }

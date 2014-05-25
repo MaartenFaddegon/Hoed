@@ -160,9 +160,10 @@ MF TODO: from the System.Process documentation: "On Windows, system passes the c
 >        let ns = getNodes tree
 >        ts <- toElems ns
 >        buttons <- UI.div #. "buttons" #+ (map UI.element $ flattenElemTriples ts)
->        UI.getBody window #+ (map UI.element [img, buttons])
->        mapM_ (onClick img treeRef Correct) (zip (corButtons ts) ns)
->        mapM_ (onClick img treeRef Wrong)   (zip (wrnButtons ts) ns)
+>        nowrap  <- UI.div #. "nowrap" #+ (map UI.element [buttons,img])
+>        UI.getBody window #+ [UI.element nowrap]
+>        mapM_ (onClick img treeRef Correct) (zip (corButtons ts) (reverse ns))
+>        mapM_ (onClick img treeRef Wrong)   (zip (wrnButtons ts) (reverse ns))
 
 > onClick :: (Show a, Ord a) => UI.Element -> IORef (Tree a) -> Status
 >                            -> (UI.Element,a) -> UI ()
@@ -176,7 +177,8 @@ ElemTriple with representation of the equation and the correct/wrong buttons.
 > redraw img treeRef 
 >   = do tree <- UI.liftIO $ readIORef treeRef
 >        UI.liftIO $ writeFile "debugTree.dot" (show tree)
->        UI.liftIO $ system "dot -Tpng debugTree.dot > wwwroot/debugTree.png"
+>        UI.liftIO $ system $ "dot -Tpng -Gsize=7,8 -Gdpi=100 debugTree.dot "
+>                           ++ "> wwwroot/debugTree.png"
 >        url <- UI.loadFile "image/png" "wwwroot/debugTree.png"
 >        UI.element img # UI.set UI.src url
 >        return ()
@@ -202,18 +204,9 @@ ElemTriple with representation of the equation and the correct/wrong buttons.
 > wrnButtons = foldl (\es (_,_,e3) -> e3 : es) []
 
 
-MF TODO: this seems like a foldm job
-MF TODO: Why do I need to reverse here?
-
 > toElems :: (Show a) => [a] -> UI [ElemTriple]
-> toElems xs = toElems' (reverse xs) []
+> toElems xs = mapM toElem xs
 >
-> toElems' :: (Show a) => [a] -> [ElemTriple] -> UI [ElemTriple]
-> toElems' [] es     = return es
-> toElems' (x:xs) es = do tup <- toElem x
->                         tups <- toElems' xs es
->                         return (tup : tups)
-
 > toElem :: (Show a) => a -> UI ElemTriple
 > toElem x = do shw <- UI.pre    # UI.set UI.text (show x)
 >               cor <- UI.button # UI.set UI.text "correct"
