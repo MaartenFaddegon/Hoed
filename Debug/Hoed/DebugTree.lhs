@@ -69,12 +69,13 @@
 > showNode :: (Ord a, Show a) => (Map a (Node a)) -> Node a -> String 
 > showNode map (n@Node{value=v,i=i,children=cs,status=s}) 
 >   =  "  " ++ node i ++ " [label=\"" ++ show s ++ buggy
->   ++ ": " ++ (escape . show) v ++ "\"]\n"
+>   ++ ":\\l" ++ (escape . show) v ++ "\"]\n"
 >   where node i = "node" ++ show i
->         escape []         = []
->         escape ('"' : ss) = '\\' : '"' : escape ss
->         escape (s   : ss) = s : escape ss
->         buggy            = if isBuggy map n then " (buggy)" else ""
+>         buggy  = if isBuggy map n then " (buggy)" else ""
+>         escape []          = []
+>         escape ('"' : ss)  = '\\' : '"' : escape ss
+>         escape ('\n' : ss) = '\\' : 'l' : escape ss
+>         escape (s   : ss)  = s : escape ss
 
 >
 > showRootEdges :: (Ord a, Show a) => (Map a (Node a)) -> [a] -> String
