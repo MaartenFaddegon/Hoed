@@ -154,11 +154,11 @@ debugO program =
 
 -- | print a value, with debugging 
 printO :: (Show a) => a -> IO ()
-printO expr = runO (print expr)
+printO expr = runO [] (print expr)
 
 -- | print a string, with debugging 
 putStrO :: String -> IO ()
-putStrO expr = runO (putStr expr)
+putStrO expr = runO [] (putStr expr)
 
 -- | The main entry point; run some IO code, and debug inside it.
 -- 
@@ -184,10 +184,9 @@ putStrO expr = runO (putStr expr)
 -- @1 : 2 : 3 : []@.
 -- 
 
-runO :: IO a -> IO ()
-runO program =
+runO :: [(String,String)] -> IO a -> IO ()
+runO slices program =
     do { args <- getArgs
-       -- ; hPutStrLn stderr ("args: " ++ ( foldl1 (++) args))
        ; setPushMode (parseArgs args)
        ; hPutStrLn stderr "=== program output ===\n"
        ; cdss <- debugO program
@@ -201,14 +200,8 @@ runO program =
 
        ; hPutStrLn stderr "Constructing tree..."
        ; let tree = buildTree eqs
-       ; debugSession tree
+       ; debugSession slices tree
        ; return ()
-
-       -- ; writeFile "debugTree.1.dot" (show tree1)
-       -- ; hPutStrLn stderr "Tree written to 'debugTree.1.dot'."
-       -- ; tree2 <- debugSession tree1
-       -- ; hPutStrLn stderr "Tree written to 'debugTree.2.dot'."
-       -- ; writeFile "debugTree.2.dot" (show tree2)
        }
 
 hPutStrList :: (Show a) => Handle -> [a] -> IO()
@@ -248,6 +241,9 @@ data Equation = Equation String String CallStack
 instance Show Equation where
   show (Equation _ equation _) = equation
   showList eqs eq = unlines (map show eqs) ++ eq
+
+instance Labeled Equation where
+  getLabel (Equation cc _ _) = cc
 
 showWithStack :: [Equation] -> String
 showWithStack eqs = unlines (map show' eqs)
@@ -452,6 +448,7 @@ Observing the children of Data types of kind *.
 instance (GObservable a) => GObservable (M1 D d a) where
         gdmobserver m@(M1 x) cxt = M1 (gdmobserver x cxt)
         gdmObserveChildren = gthunk
+        gdmShallowShow = undefined
 
 -- Meta: Constructors
 instance (GObservable a, Constructor c) => GObservable (M1 C c a) where
@@ -467,12 +464,13 @@ instance (GObservable a, Selector s) => GObservable (M1 S s a) where
           | selName m == "" = M1 (gdmobserver x cxt)
           | otherwise       = M1 (send (selName m ++ " =") (gdmObserveChildren x) cxt)
         gdmObserveChildren = gthunk
+        gdmShallowShow = undefined
 
 -- Unit: used for constructors without arguments
 instance GObservable U1 where
         gdmobserver x _ = x
-
         gdmObserveChildren = return
+        gdmShallowShow = undefined
 
 -- Products: encode multiple arguments to constructors
 instance (GObservable a, GObservable b) => GObservable (a :*: b) where
@@ -482,6 +480,7 @@ instance (GObservable a, GObservable b) => GObservable (a :*: b) where
                                           b'  <- gdmObserveChildren b
                                           return (a' :*: b')
                                        
+        gdmShallowShow = undefined
 
 -- Sums: encode choice between constructors
 instance (GObservable a, GObservable b) => GObservable (a :+: b) where
@@ -491,11 +490,15 @@ instance (GObservable a, GObservable b) => GObservable (a :+: b) where
         gdmObserveChildren (R1 x) = do {x' <- gdmObserveChildren x; return (R1 x')}
         gdmObserveChildren (L1 x) = do {x' <- gdmObserveChildren x; return (L1 x')}
 
+        gdmShallowShow = undefined
+
 -- Constants: additional parameters and recursion of kind *
 instance (Observable a) => GObservable (K1 i a) where
         gdmobserver (K1 x) cxt = K1 (observer_ observer x cxt)
 
         gdmObserveChildren = gthunk
+
+        gdmShallowShow = undefined
 \end{code}
 
 Observing functions is done via the ad-hoc mechanism, because

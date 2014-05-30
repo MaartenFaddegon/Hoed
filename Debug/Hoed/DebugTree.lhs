@@ -1,6 +1,7 @@
 > {-# LANGUAGE CPP#-}
 > module Debug.Hoed.DebugTree 
 > ( Tree
+> , Labeled(..)
 > , addNodes
 > , addRoot
 > , addEdge
@@ -60,16 +61,20 @@
 
 > instance (Ord a, Show a) => Show (Tree a) where
 >   show (Tree rs map) =  "digraph G {\n"
+>                      ++ rootNode
 >                      ++ foldl (\acc x -> acc ++ (showNode map x)) "" es
 >                      ++ showRootEdges map rs
 >                      ++ foldl (\acc x -> acc ++ (showOtherEdges map x)) "" es
 >                      ++ "}\n"
 >     where (_,es) = unzip (Map.toList map)
 >
+> rootNode :: String
+> rootNode = "root [label=\"x\",style=filled,color=black]\n"
+>
 > showNode :: (Ord a, Show a) => (Map a (Node a)) -> Node a -> String 
 > showNode map (n@Node{value=v,i=i,children=cs,status=s}) 
->   =  "  " ++ node i ++ " [label=\"" ++ show s ++ buggy
->   ++ ":\\l" ++ (escape . show) v ++ "\"]\n"
+>   =  "  " ++ node i ++ " [shape=\"box\", label=\"" ++ show s ++ buggy
+>   ++ ":\\l" ++ (escape . show) v ++ "\\l\"]\n"
 >   where node i = "node" ++ show i
 >         buggy  = if isBuggy map n then " (buggy)" else ""
 >         escape []          = []
@@ -138,29 +143,32 @@ Add an edge between the existing values v and w.
 --------------------------------------------------------------------------
 -- Algorithmic debugging
 
-> debugSession :: (Show a, Ord a) => Tree a -> IO (Tree a)
-> debugSession tree
+> debugSession :: (Show a, Ord a, Labeled a) 
+>              => [(String,String)] -> Tree a -> IO (Tree a)
+> debugSession slices tree
 >   = do treeRef <- newIORef tree
 >        startGUI defaultConfig
 >            { tpPort       = Just 10000
 >            , tpStatic     = Just "./wwwroot"
->            } (debugSession' treeRef)
+>            } (debugSession' slices treeRef)
 >        resultTree <- (readIORef treeRef)
 >        return resultTree
 
+> class Labeled a where getLabel :: a -> String
 
 MF TODO: from the System.Process documentation: "On Windows, system passes the command to the Windows command interpreter (CMD.EXE or COMMAND.COM), hence Unixy shell tricks will not work."
 
-> debugSession' :: (Show a, Ord a) => IORef (Tree a) -> Window -> UI ()
-> debugSession' treeRef window
+> debugSession' :: (Show a, Ord a, Labeled a) 
+>               => [(String,String)] -> IORef (Tree a) -> Window -> UI ()
+> debugSession' sliceDict treeRef window
 >   = do return window # UI.set UI.title "Hoed debugging session"
 >        UI.addStyleSheet window "debug.css"
 >        img <- UI.img 
 >        redraw img treeRef
 >        tree <- UI.liftIO $ readIORef treeRef
 >        let ns = getNodes tree
->        ts <- toElems ns
->        buttons <- UI.div #. "buttons" #+ (map UI.element $ flattenElemTriples ts)
+>        ts <- toElems sliceDict ns
+>        buttons <- UI.div #. "buttons" #+ (map UI.element $ flattenElemSets ts)
 >        nowrap  <- UI.div #. "nowrap" #+ (map UI.element [buttons,img])
 >        UI.getBody window #+ [UI.element nowrap]
 >        mapM_ (onClick img treeRef Correct) (zip (corButtons ts) (reverse ns))
@@ -172,7 +180,7 @@ MF TODO: from the System.Process documentation: "On Windows, system passes the c
 >   = do on UI.click b $ const $ do updateTree img treeRef 
 >                                       (\tree -> markNode tree n status)
 
-ElemTriple with representation of the equation and the correct/wrong buttons.
+ElemSet with representation of the equation and the correct/wrong buttons.
 
 > redraw :: (Show a, Ord a) => UI.Element -> IORef (Tree a) -> UI ()
 > redraw img treeRef 
@@ -192,27 +200,32 @@ ElemTriple with representation of the equation and the correct/wrong buttons.
 >        redraw img treeRef
 
 
-> --                 Equation   Correct    Wrong
-> type ElemTriple = (UI.Element,UI.Element,UI.Element)
+> --              Slice      Hr         Equation   Correct    Wrong
+> type ElemSet = (UI.Element,UI.Element,UI.Element,UI.Element,UI.Element)
 >
-> flattenElemTriples :: [ElemTriple] -> [UI.Element]
-> flattenElemTriples = foldl (\es (e1,e2,e3) -> e1 : e2 : e3 : es) []
+> flattenElemSets :: [ElemSet] -> [UI.Element]
+> flattenElemSets = foldl (\es (e1,e2,e3,e4,e5) -> e1 : e2 : e3 : e4 : e5 : es) []
 
-> corButtons :: [ElemTriple] -> [UI.Element]
-> corButtons = foldl (\es (_,e2,_) -> e2 : es) []
+> corButtons :: [ElemSet] -> [UI.Element]
+> corButtons = foldl (\es (_,_,_,e,_) -> e : es) []
 
-> wrnButtons :: [ElemTriple] -> [UI.Element]
-> wrnButtons = foldl (\es (_,_,e3) -> e3 : es) []
+> wrnButtons :: [ElemSet] -> [UI.Element]
+> wrnButtons = foldl (\es (_,_,_,_,e) -> e : es) []
 
-
-> toElems :: (Show a) => [a] -> UI [ElemTriple]
-> toElems xs = mapM toElem xs
+> toElems :: (Show a, Labeled a) => [(String,String)] -> [a] -> UI [ElemSet]
+> toElems sliceDict xs = mapM (toElem sliceDict) xs
 >
-> toElem :: (Show a) => a -> UI ElemTriple
-> toElem x = do shw <- UI.pre    # UI.set UI.text (show x)
->               cor <- UI.button # UI.set UI.text "correct"
->               wrg <- UI.button # UI.set UI.text "wrong"
->               return (shw,cor,wrg)
+> toElem :: (Show a, Labeled a) => [(String,String)] -> a -> UI ElemSet
+> toElem sliceDict x 
+>   = do slc <- UI.pre    # UI.set UI.text (getSlice x)
+>        hr  <- UI.hr
+>        shw <- UI.pre    # UI.set UI.text (show x)
+>        cor <- UI.button # UI.set UI.text "correct"
+>        wrg <- UI.button # UI.set UI.text "wrong"
+>        return (slc,hr,shw,cor,wrg)
+>    where getSlice x = case getLabel x `lookup` sliceDict of
+>               Nothing -> "??"
+>               Just s  -> s
 
 
 TODO:  debugSession' tree [] 

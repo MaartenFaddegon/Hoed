@@ -25,5 +25,5 @@ Insert number into sorted list.
 >       | n <= s    = n : ss
 >       | otherwise = s : (insert n ss)
 
-> main = (runO . putStrLn . show) ($(observe "main") main')
+> main = (runO [] . putStrLn . show) ($(observe "main") main')
 > main' = {-# SCC "main" #-} isort [3,1,2]

@@ -21,4 +21,4 @@
 > h'  x = {-# SCC "h" #-} h'' x
 > h'' x = (x+1)
 
-> main = runO $ print (f 1)
+> main = runO [] $ print (f 1)
