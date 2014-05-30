@@ -465,8 +465,8 @@ observedTypes s qt = do cd <- (genClassDef s)
                         ci <- foldM f [] qt
                         bi <- foldM g [] baseTypes
                         fi <- (gfunObserver s)
-                        li <- (gListObserver s)
-                        return (cd ++ ci ++ bi ++ fi ++ li)
+                        -- li <- (gListObserver s) MF TODO: should we do away with these?
+                        return (cd ++ ci ++ bi ++ fi)
         where f d t = do ds <- (gobservableInstance s t)
                          return (ds ++ d)
               g d t = do ds <- (gobservableBaseInstance s t)
@@ -547,6 +547,8 @@ gobserverClause t n bs (y@(NormalC name fields))
            ( normalB [| send $(shallowShow y) $(observeChildren n t bs y evars) $c |]
            ) []
        }
+gobserverClause t n bs (InfixC left name right) 
+  = gobserverClause t n bs (NormalC name (left:[right]))
 gobserverClause t n bs y = error ("gobserverClause can't handle " ++ show y)
 
 listClauses :: Q Name -> Q [Clause]
@@ -719,18 +721,19 @@ with Template Haskell.
 \begin{code}
 
 isObservable :: TyVarMap -> Type -> Type -> Q Bool
-isObservable bs s t = return True -- MF TODO: if s == t then return True else isObservable' bs t
+-- MF TODO: if s == t then return True else isObservable' bs t
+isObservable bs s t = isObservable' bs t
 isObservable' bs (VarT n)      = case lookupBinding bs n of
                                       (Just (T t)) -> isObservableT t
                                       (Just (P p)) -> isObservableP p
                                       Nothing      -> return False
-isObservable' bs (AppT t _)    = isObservable' bs t
+-- isObservable' bs (AppT t _)    = isObservable' bs t
 isObservable' (n,_) t@(ConT m) = if n == m then return True else isObservableT t
 isObservable' bs t             = isObservableT t
 
 isObservableT :: Type -> Q Bool
-isObservableT t@(ConT _)                 = isInstance (mkName "Observable") [t]
-isObservableT _                          = return False 
+isObservableT t@(ConT _) = isInstance (mkName "Observable") [t]
+isObservableT _          = return False 
 
 isObservableP :: Pred -> Q Bool
 isObservableP (AppT (ConT n) _) = return $ (nameBase n) == "Observable"

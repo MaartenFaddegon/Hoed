@@ -3,8 +3,9 @@ A Declarative Debugging Scheme.
 
 > {-# LANGUAGE TemplateHaskell, Rank2Types #-}
 > import Debug.Hoed.Observe
-> $(observedTypes "insert" [])
-> $(observedTypes "isort" [])
+> $(observedTypes "isort"  [[t|forall a . Observable a => [] a|]])
+> $(observedTypes "insert" [[t|forall a . Observable a => [] a|]])
+> $(observedTypes "main"   [[t|forall a . Observable a => [] a|]])
 
 Insertion sort.
 
@@ -24,7 +25,5 @@ Insert number into sorted list.
 >       | n <= s    = n : ss
 >       | otherwise = s : (insert n ss)
 
-
-> $(observedTypes "main" [])
 > main = (runO . putStrLn . show) ($(observe "main") main')
 > main' = {-# SCC "main" #-} isort [3,1,2]
