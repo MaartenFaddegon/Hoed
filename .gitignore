@@ -1,0 +1,6 @@
+.cabal-sandbox/
+cabal.sandbox.config
+dist/
+record/
+tmp/debugTree.dot
+tmp/wwwroot/debugTree.png
