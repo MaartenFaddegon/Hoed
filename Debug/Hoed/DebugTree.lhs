@@ -70,7 +70,7 @@
 >   where cs = getChildren tree n
 
 > preorder :: Ord a => Tree a -> [a]
-> preorder = reverse . (dfsfold (\ns n -> n : ns) [])
+> preorder = dfsfold (\ns n -> n : ns) []
 
 ---------------------------------------------------------------------------
 -- Showing trees
@@ -184,7 +184,8 @@ MF TODO: from the System.Process documentation: "On Windows, system passes the c
 >        tree <- UI.liftIO $ readIORef treeRef
 >        let ns = preorder tree
 >        ts <- toElems sliceDict ns
->        buttons <- UI.div #. "buttons" #+ (map UI.element $ flattenElemSets ts)
+>        ds <- mapM (uncurry divpack) (zip ts (cycle [Odd,Even]))
+>        buttons <- UI.div #. "buttons" #+ (map UI.element ds)
 >        nowrap  <- UI.div #. "nowrap" #+ (map UI.element [buttons,img])
 >        UI.getBody window #+ [UI.element nowrap]
 >        mapM_ (onClick img treeRef Correct) (zip (corButtons ts) (reverse ns))
@@ -218,9 +219,20 @@ ElemSet with representation of the equation and the correct/wrong buttons.
 
 > --              Slice      Hr         Equation   Correct    Wrong
 > type ElemSet = (UI.Element,UI.Element,UI.Element,UI.Element,UI.Element)
+
+ flattenElemSets :: [ElemSet] -> [UI.Element]
+ flattenElemSets = fst . (foldl pack ([],1))
+   where pack (es,x) set = (divpack set x : es, toggle x)
+         toggle 1 = 2
+         toggle 2 = 1
+
+> data OddEven = Odd | Even
 >
-> flattenElemSets :: [ElemSet] -> [UI.Element]
-> flattenElemSets = foldl (\es (e1,e2,e3,e4,e5) -> e1 : e2 : e3 : e4 : e5 : es) []
+> divpack :: ElemSet -> OddEven -> UI UI.Element
+> divpack (e1,e2,e3,e4,e5) x
+>   = UI.div #. lbl x #+ map UI.element [e1,e2,e3,e4,e5]
+>     where lbl Odd  = "odd"
+>           lbl Even = "even"
 
 > corButtons :: [ElemSet] -> [UI.Element]
 > corButtons = foldl (\es (_,_,_,e,_) -> e : es) []

@@ -33,9 +33,9 @@ Slices, these should be generated automatically from the original code.
 > slices
 >   = [ ("result",  "isort [1,2]")
 >     , ("isort" ,  "isort []     = []\n"
->                ++ "isort'' (n:ns) = insert n (isort ns)")
->     , ("insert",  " insert'' n []     = [n]\n"
->                ++ " insert'' n (s:ss)\n"
+>                ++ "isort (n:ns) = insert n (isort ns)")
+>     , ("insert",  " insert n []       = [n]\n"
+>                ++ " insert n (s:ss)\n"
 >                ++ "       | n <= s    = n : ss\n"
 >                ++ "       | otherwise = s : (insert n ss)\n")
 >     ]
