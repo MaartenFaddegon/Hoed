@@ -225,7 +225,7 @@ getPushMode = unsafePerformIO $ readIORef pushMode
 
 -- MF TODO: handle a bit nicer?
 parseArgs :: [String] -> PushMode
-parseArgs []      = error "no option given!"
+parseArgs []      = Truncate -- default mode
 parseArgs (arg:_) = case arg of
         "--PushVanilla"  -> Vanilla
         "--PushDrop"     -> Drop

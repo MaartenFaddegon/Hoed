@@ -5,7 +5,7 @@ A Declarative Debugging Scheme.
 > import Debug.Hoed.Observe
 > $(observedTypes "isort"  [[t|forall a . Observable a => [] a|]])
 > $(observedTypes "insert" [[t|forall a . Observable a => [] a|]])
-> $(observedTypes "main"   [[t|forall a . Observable a => [] a|]])
+> $(observedTypes "result" [[t|forall a . Observable a => [] a|]])
 
 Insertion sort.
 
@@ -25,5 +25,17 @@ Insert number into sorted list.
 >       | n <= s    = n : ss
 >       | otherwise = s : (insert n ss)
 
-> main = (runO [] . putStrLn . show) ($(observe "main") main')
-> main' = {-# SCC "main" #-} isort [3,1,2]
+> main = (runO slices . print) ($(observe "result") main')
+> main' = {-# SCC "result" #-} isort [1,2]
+
+Slices, these should be generated automatically from the original code.
+
+> slices
+>   = [ ("result",  "isort [1,2]")
+>     , ("isort" ,  "isort []     = []\n"
+>                ++ "isort'' (n:ns) = insert n (isort ns)")
+>     , ("insert",  " insert'' n []     = [n]\n"
+>                ++ " insert'' n (s:ss)\n"
+>                ++ "       | n <= s    = n : ss\n"
+>                ++ "       | otherwise = s : (insert n ss)\n")
+>     ]

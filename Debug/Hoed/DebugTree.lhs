@@ -57,6 +57,22 @@
 >               deriving (Show, Eq)
 
 ---------------------------------------------------------------------------
+-- Walking trees
+
+> dfsfold :: Ord b => (a -> b -> a) -> a -> Tree b -> a
+> dfsfold f z tree@(Tree rs _) = dfsfold_list tree f z rs
+>
+> dfsfold_list :: Ord b => Tree b -> (a -> b -> a) -> a -> [b] -> a
+> dfsfold_list tree f z ns = foldl (dfsfold_node tree f) z ns
+>
+> dfsfold_node :: Ord b => Tree b -> (a -> b -> a) -> a -> b -> a
+> dfsfold_node tree f z n = f (dfsfold_list tree f z cs) n
+>   where cs = getChildren tree n
+
+> preorder :: Ord a => Tree a -> [a]
+> preorder = reverse . (dfsfold (\ns n -> n : ns) [])
+
+---------------------------------------------------------------------------
 -- Showing trees
 
 > instance (Ord a, Show a) => Show (Tree a) where
@@ -69,7 +85,7 @@
 >     where (_,es) = unzip (Map.toList map)
 >
 > rootNode :: String
-> rootNode = "root [label=\"x\",style=filled,color=black]\n"
+> rootNode = "root [shape=point,color=black]\n"
 >
 > showNode :: (Ord a, Show a) => (Map a (Node a)) -> Node a -> String 
 > showNode map (n@Node{value=v,i=i,children=cs,status=s}) 
@@ -166,7 +182,7 @@ MF TODO: from the System.Process documentation: "On Windows, system passes the c
 >        img <- UI.img 
 >        redraw img treeRef
 >        tree <- UI.liftIO $ readIORef treeRef
->        let ns = getNodes tree
+>        let ns = preorder tree
 >        ts <- toElems sliceDict ns
 >        buttons <- UI.div #. "buttons" #+ (map UI.element $ flattenElemSets ts)
 >        nowrap  <- UI.div #. "nowrap" #+ (map UI.element [buttons,img])
