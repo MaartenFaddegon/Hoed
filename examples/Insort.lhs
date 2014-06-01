@@ -10,23 +10,22 @@ A Declarative Debugging Scheme.
 Insertion sort.
 
 > isort :: [Int] -> [Int]
-> isort  ns = $(observe "isort")  isort'  ns
-> isort' ns = {-# SCC "isort" #-} isort'' ns
-> isort'' []     = []
-> isort'' (n:ns) = insert n (isort ns)
+> isort ns = $(observe "isort") (\ns -> {-# SCC "isort" #-} isort' ns) ns
+> isort' []     = []
+> isort' (n:ns) = insert n (isort ns)
 
 Insert number into sorted list.
 
 > insert :: Int -> [Int] -> [Int]
-> insert  n ss = $(observe "insert")  insert'  n ss
-> insert' n ss = {-# SCC "insert" #-} insert'' n ss
-> insert'' n []     = [n]
-> insert'' n (s:ss)
+> insert n ss = ($(observe "insert") (\n ss -> {-# SCC "insert" #-} insert' n ss)) n ss
+> insert' :: Int -> [Int] -> [Int]
+> insert' n []     = [n]
+> insert' n (s:ss)
 >       | n <= s    = n : ss
 >       | otherwise = s : (insert n ss)
 
-> main = (runO slices . print) ($(observe "result") main')
-> main' = {-# SCC "result" #-} isort [1,2]
+> main = runO slices . print $
+>          $(observe "result") ({-# SCC "result" #-} isort [1,2])
 
 Slices, these should be generated automatically from the original code.
 
