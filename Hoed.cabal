@@ -32,6 +32,24 @@ Executable hoed-examples-IndirectRecursion
   hs-source-dirs:      examples
   default-language:    Haskell2010
 
+Executable hoed-examples-Example1
+  build-depends:       base >= 4 && < 5
+                       , Hoed
+                       , threepenny-gui
+                       , filepath
+  main-is:             Example1.hs
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+
+Executable hoed-examples-Example2
+  build-depends:       base >= 4 && < 5
+                       , Hoed
+                       , threepenny-gui
+                       , filepath
+  main-is:             Example2.hs
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+
 Executable hoed-examples-Example3
   build-depends:       base >= 4 && < 5
                        , Hoed
@@ -59,4 +77,14 @@ Executable hoed-examples-Hashmap
   main-is:             Hashmap.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
-  ghc-options:         -ddump-splices
+  -- ghc-options:         -ddump-splices
+
+Executable hoed-examples-Responsibility
+  build-depends:       base >= 4 && < 5
+                       , Hoed
+                       , threepenny-gui
+                       , filepath
+                       , array
+  main-is:             Responsibility.lhs
+  hs-source-dirs:      examples
+  default-language:    Haskell2010

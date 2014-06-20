@@ -92,7 +92,7 @@
 >   =  "  " ++ node i ++ " [shape=\"box\", label=\"" ++ show s ++ buggy
 >   ++ ":\\l" ++ (escape . show) v ++ "\\l\"]\n"
 >   where node i = "node" ++ show i
->         buggy  = if isBuggy map n then " (buggy)" else ""
+>         buggy  = if isBuggy map n then " (faulty)" else ""
 >         escape []          = []
 >         escape ('"' : ss)  = '\\' : '"' : escape ss
 >         escape ('\n' : ss) = '\\' : 'l' : escape ss
@@ -248,7 +248,7 @@ ElemSet with representation of the equation and the correct/wrong buttons.
 >   = do slc <- UI.pre    # UI.set UI.text (getSlice x)
 >        hr  <- UI.hr
 >        shw <- UI.pre    # UI.set UI.text (show x)
->        cor <- UI.button # UI.set UI.text "correct"
+>        cor <- UI.button # UI.set UI.text "right"
 >        wrg <- UI.button # UI.set UI.text "wrong"
 >        return (slc,hr,shw,cor,wrg)
 >    where getSlice x = case getLabel x `lookup` sliceDict of
