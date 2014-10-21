@@ -1,1 +1,8 @@
-cabal configure -w /home/maarten/Code/ghc/inplace/bin/ghc-stage2 --enable-library-profiling --enable-executable-profiling --disable-optimization
+# cabal sandbox init
+# cabal install --only-dependencies -w /home/maarten/Code/ghc/inplace/bin/ghc-stage2
+# cabal configure -w /home/maarten/Code/ghc/inplace/bin/ghc-stage2 --enable-library-profiling --enable-executable-profiling --disable-optimization
+
+
+cabal configure --enable-library-profiling \
+                --enable-executable-profiling \
+                --disable-optimization

@@ -1,6 +1,7 @@
 # OPTS="--PushTruncate +RTS --PushTruncate"
 # OPTS="--PushVanilla +RTS --PushVanilla"
-OPTS="--PushVanilla +RTS --PushHybrid"
+# OPTS="--PushVanilla +RTS --PushHybrid"
+OPTS="--PushVanilla"
 
 # EXE="../dist/build/hoed-examples-Hashmap/hoed-examples-Hashmap"
 # EXE="../dist/build/hoed-examples-Example1/hoed-examples-Example1"

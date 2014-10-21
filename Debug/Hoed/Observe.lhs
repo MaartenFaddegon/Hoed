@@ -731,9 +731,9 @@ gobservableInstance s qt
 
 updateContext :: Name -> [Pred] -> [Pred]
 updateContext cn ps = map f ps
-        where f (AppT (ConT n) ts)
-                | nameBase n == "Observable" = AppT (ConT cn) ts
-                | otherwise                  = AppT (ConT  n) ts
+        where f (ClassP n ts)
+                | nameBase n == "Observable" = ClassP cn ts
+                | otherwise                  = ClassP n  ts
               f p = p
 
 gobservableBaseInstance :: String -> Q Type -> Q [Dec]
@@ -765,17 +765,17 @@ gobservableListInstance s
                 _                  -> return []
        return [InstanceD c n m]
 
-gListObserver :: String -> Q [Dec]
-gListObserver s
-  = do cn <- className s
-       let ct = conT cn
-           a  = VarT (mkName "a")
-           a' = return a
-       p <- appT (conT cn) a'
-       c <- return [p]
-       n <- [t| $ct [$a'] |]
-       m <- gobserverList (methodName s)
-       return [InstanceD c n m]
+-- MF TODO: what do we do with this?
+-- gListObserver :: String -> Q [Dec]
+-- gListObserver s
+--   = do cn <- className s
+--        let ct = conT cn
+--            a  = VarT (mkName "a")
+--            a' = return a
+--        c <- return [ClassP cn a']
+--        n <- [t| $ct [$a'] |]
+--        m <- gobserverList (methodName s)
+--        return [InstanceD c n m]
 
 
 gobserverFunClause :: Name -> Q Clause
@@ -811,8 +811,8 @@ gfunObserver s
            f  = return $ AppT (AppT ArrowT a) b
            a' = return a
            b' = return b
-       p <- appT (conT cn) a'
-       q <- appT (conT cn) b'
+       p <- return $ ClassP cn a'
+       q <- return $ ClassP cn b'
        c <- return [p,q]
        n <- [t| $ct $f |]
        m <- gobserverFun (methodName s)
@@ -861,8 +861,8 @@ isObservableT t@(ConT _) = isInstance (mkName "Observable") [t]
 isObservableT _          = return False 
 
 isObservableP :: Pred -> Q Bool
-isObservableP (AppT (ConT n) _) = return $ (nameBase n) == "Observable"
-isObservableP _                 = return False
+isObservableP (ClassP n _) = return $ (nameBase n) == "Observable"
+isObservableP _            = return False
 
 
 thunkObservable :: Q Name -> TyVarMap -> Type -> Type -> Q Exp
@@ -929,7 +929,7 @@ getPBindings qt = do t <- qt
 getPBindings' :: [Pred] -> Q [Pred]
 getPBindings' []     = return []
 getPBindings' (p:ps) = do pbs <- getPBindings' ps
-                          return $ case p of (AppT n t)   -> p : pbs
+                          return $ case p of (ClassP n t)   -> p : pbs
                                              _            -> pbs
 
 -- Given a parametrized type, get a list with its type variables
@@ -989,9 +989,10 @@ observableCxt :: [TyVarBndr] -> Q Cxt
 observableCxt tvs = return [classpObservable $ map (\v -> (tvname v)) tvs]
 
 classpObservable :: [Type] -> Pred
-classpObservable ts = foldl1 ap2 (map ap1 ts)
-        where ap1 = AppT (ConT (mkName "Observable"))
-              ap2 = AppT
+classpObservable = ClassP (mkName "Observable")
+        -- foldl1 ap2 (map ap1 ts)
+        -- where ap1 = ClassP (mkName "Observable")
+        --       ap2 = AppT
 
 qcontObservable :: Q Type
 qcontObservable = return contObservable
