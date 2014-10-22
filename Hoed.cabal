@@ -14,13 +14,13 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Debug.Hoed.Observe
-  other-modules:       Debug.Hoed.DebugTree
   build-depends:       base >=4.6 && <5
                        , template-haskell
                        , array, containers
                        , process
                        , threepenny-gui
                        , filepath
+                       , libgraph
   default-language:    Haskell2010
 
 Executable hoed-examples-IndirectRecursion

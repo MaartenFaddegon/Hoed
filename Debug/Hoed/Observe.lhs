@@ -82,8 +82,6 @@ module Debug.Hoed.Observe
 %************************************************************************
 
 \begin{code}
-import Debug.Trace
-import Debug.Hoed.DebugTree
 import System.IO
 import Data.Maybe
 import Control.Monad
@@ -110,7 +108,20 @@ Needed to access the cost centre stack:
 import GHC.Stack (ccLabel, getCurrentCCS, CostCentreStack,ccsCC,ccsParent,currentCallStack)
 import GHC.Foreign as GHC
 import GHC.Ptr
+\end{code}
 
+Library with our graph algorithms:
+\begin{code}
+import Data.Graph.Libgraph
+\end{code}
+
+User interface imports:
+\begin{code}
+import qualified Graphics.UI.Threepenny as UI
+import Graphics.UI.Threepenny (startGUI,defaultConfig,tpPort,tpStatic
+                              , Window, UI, (#), (#+), (#.), string, on
+                              )
+import System.Process(system)
 \end{code}
 
 
@@ -194,13 +205,10 @@ runO slices program =
        ; let cdss2 = simplifyCDSSet cdss1
 
        ; let eqs   = ((sortBy byStack) . renderEquations) cdss2
-       ; hPutStrLn stderr "\n=== Debug session ===\n"
-       ; hPutStrLn stderr "Gathered equations:\n"
+       ; hPutStrLn stderr "\n===\n"
        ; hPutStrLn stderr (showWithStack eqs)
-
-       ; hPutStrLn stderr "Constructing tree..."
-       ; let tree = buildTree eqs
-       ; debugSession slices tree
+       ; let compGraph = mkGraph eqs
+       ; debugSession slices compGraph
        ; return ()
        }
 
@@ -235,28 +243,25 @@ parseArgs (arg:_) = case arg of
 ------------------------------------------------------------------------
 -- The Equation type
 
-data Equation = Equation String String CallStack
+data Equation = Equation {equLabel :: String, equRes :: String, equStack :: CallStack}
                 deriving (Eq, Ord)
 
 instance Show Equation where
-  show (Equation _ equation _) = equation
+  show e = equRes e -- ++ " with stack " ++ show (equStack e)
   showList eqs eq = unlines (map show eqs) ++ eq
-
-instance Labeled Equation where
-  getLabel (Equation cc _ _) = cc
 
 showWithStack :: [Equation] -> String
 showWithStack eqs = unlines (map show' eqs)
-  where show' eq@(Equation _ equation callStack) 
-         = equation ++ "\n\tWith call stack: " ++ showStack callStack
-                    ++ "\n\tNext stack:      " ++ showStack (nextStack eq)
+  where show' eq
+         = equRes eq ++ "\n\tWith call stack: " ++ showStack (equStack eq)
+                     ++ "\n\tNext stack:      " ++ showStack (nextStack eq)
            where showStack [] = "[-]"
                  showStack ss = (foldl (\s' s -> s' ++ s ++ ",") "[" ss) ++ "-]"
 
 -- Compare equations by stack
-byStack (Equation n1 _ s1) (Equation n2 _ s2)
-    = case compareStack s1 s2 of
-        EQ -> compare n1 n2
+byStack e1 e2
+    = case compareStack (equStack e1) (equStack e2) of
+        EQ -> compare (equLabel e1) (equLabel e2)
         d  -> d
 
 compareStack s1 s2
@@ -270,12 +275,6 @@ compareStack s1 s2
           EQ -> c ss
           d  -> d
               
-myStack :: Equation -> CallStack
-myStack (Equation n _ s) = s
-
-notRecursive :: Equation -> Equation -> Bool
-notRecursive (Equation n1 _ _) (Equation n2 _ _) = n1 /= n2
-
 ------------------------------------------------------------------------
 -- Stack matching
 
@@ -307,48 +306,176 @@ nextStack_truncate (Equation cc _ ccs)
 contains :: CallStack -> String -> Bool
 contains ccs cc = filter (== cc) ccs /= []
 
+call :: CallStack -> CallStack -> CallStack
+call sApp sLam = sLam' ++ sApp
+  where (sPre,sApp',sLam') = commonPrefix sApp sLam
+
+commonPrefix :: CallStack -> CallStack -> (CallStack, CallStack, CallStack)
+commonPrefix sApp sLam
+  = let (sPre,sApp',sLam') = span2 (==) (reverse sApp) (reverse sLam)
+    in (sPre, reverse sApp', reverse sLam') 
+
+span2 :: (a -> a -> Bool) -> [a] -> [a] -> ([a], [a], [a])
+span2 f = s f []
+  where s _ pre [] ys = (pre,[],ys)
+        s _ pre xs [] = (pre,xs,[])
+        s f pre xs@(x:xs') ys@(y:ys') 
+          | f x y     = s f (x:pre) xs' ys'
+          | otherwise = (pre,xs,ys)
+
 ------------------------------------------------------------------------
--- debug trees
+-- computation graphs
 
-buildTree :: [Equation] -> Tree Equation
-buildTree eqs = tree2
-  where (rs,ts) = break nonEmptyStack eqs
-        build   = (addRootNodes rs) . addNodes
-        tree1   = build eqs
-        tree2   = addEdges eqs tree1 rs [] []
+data Vertex = Vertex {equations :: [Equation], status :: Status}
+              deriving (Eq,Show)
 
-addRootNodes :: [Equation] -> Tree Equation -> Tree Equation
-addRootNodes rs tree1 = foldl (\tree r -> addRoot tree r) tree1 rs
+data Dependency = PushDep | CallDep Int deriving (Eq,Show)
 
-nonEmptyStack :: Equation -> Bool
-nonEmptyStack (Equation _ _ []) = False
-nonEmptyStack (Equation _ _ _ ) = True
+type CompGraph = Graph Vertex Dependency
+
+mkGraph :: [Equation] -> CompGraph
+mkGraph trc = mapGraph (\r->Vertex [r] Unassessed) (mkGraph' trc)
+
+mkGraph' :: [Equation] -> Graph Equation Dependency
+mkGraph' trc = Graph (head roots)
+                       trc
+                       (foldr (\r as -> as ++ (arcsFrom r trc)) [] trc)
+  where roots = filter (\equ -> equStack equ == []) trc
+
+arcsFrom :: Equation -> [Equation] -> [Arc Equation Dependency]
+arcsFrom src trc
+  =  ((map (\tgt -> Arc src tgt PushDep)) . (filter isPushArc) $ trc)
+  ++ ((map (\tgt -> Arc src tgt (CallDep 1))) . (filter isCall1Arc) $ trc)
+
+  where isPushArc = pushDependency src
+        
+        isCall1Arc = anyOf $ map (flip callDependency src) trc
+
+        anyOf :: [a->Bool] -> a -> Bool
+        anyOf ps x = or (map (\p -> p x) ps)
+
+pushDependency :: Equation -> Equation -> Bool
+pushDependency p c
+  = nextStack p == equStack c
+
+callDependency :: Equation -> Equation -> Equation -> Bool
+callDependency pApp pLam c 
+  = call (nextStack pApp) (nextStack pLam) == equStack c
+
+------------------------------------------------------------------------
+-- Algorithmic Debugging
+
+data Status = Correct | Wrong | Unassessed
+              deriving (Show, Eq, Ord)
+
+debugSession :: [(String,String)] -> CompGraph -> IO ()
+debugSession slices tree
+  = do treeRef <- newIORef tree
+       startGUI defaultConfig
+           { tpPort       = Just 10000
+           , tpStatic     = Just "./wwwroot"
+           } (debugSession' slices treeRef)
+
+preorder :: CompGraph -> [Vertex]
+preorder = getPreorder . getDfs
+
+debugSession' :: [(String,String)] -> IORef CompGraph -> Window -> UI ()
+debugSession' sliceDict treeRef window
+  = do return window # UI.set UI.title "Hoed debugging session"
+       UI.addStyleSheet window "debug.css"
+       img <- UI.img 
+       redraw img treeRef
+       buttons <- UI.div #. "buttons"
+       nowrap  <- UI.div #. "nowrap"  #+ (map UI.element [buttons,img])
+       UI.getBody window #+ [UI.element nowrap]
+
+       tree <- UI.liftIO $ readIORef treeRef
+       let ns = (preorder tree)
+       ts <- toElems sliceDict ns
+       ds <- mapM (uncurry divpack) (zip ts (cycle [Odd,Even]))
+       UI.element buttons # UI.set UI.children ds
+       mapM_ (onClick buttons img treeRef Correct) 
+             (zip (corButtons ts) (reverse ns))
+       mapM_ (onClick buttons img treeRef Wrong)
+             (zip (wrnButtons ts) (reverse ns))
 
 
--- This is the main algorithm for building the debug tree
--- from equations and stack traces.
-addEdges :: [Equation] -> Tree Equation
-              -> [Equation] -> [Equation] -> [Equation] -> Tree Equation
-
--- Done.
-addEdges _ tree1 [] [] _ = tree1
-
--- This layer of leaves done.
-addEdges eqs tree1 [] nextLeaves seen
-  = addEdges eqs tree1 nextLeaves [] seen
-
--- Find and add children to leaf, then continue with next leaf.
-addEdges eqs tree1 (leaf:leaves) nextLeaves seen
-  = addEdges eqs tree2 leaves (nextLeaves ++ lChildren') seen'
-  where lChildren = filter (\c -> nextStack leaf == myStack c
-                               && leaf /= c
-                           ) eqs
-        tree2     = foldl (addEdge leaf) tree1 lChildren
-        seen'     = leaf : seen ++ lChildren'
-        lChildren'= nub $ lChildren `minus` seen
+-- addButtons buttons = do
 
 
-minus xs ys = foldl (\zs y-> filter ((/=) y) zs) xs ys
+
+--              Slice      Hr         Equation   Correct    Wrong
+type ElemSet = (UI.Element,UI.Element,UI.Element,UI.Element,UI.Element)
+
+data OddEven = Odd | Even
+
+divpack :: ElemSet -> OddEven -> UI UI.Element
+divpack (e1,e2,e3,e4,e5) x
+  = UI.div #. lbl x #+ map UI.element [e1,e2,e3,e4,e5]
+    where lbl Odd  = "odd"
+          lbl Even = "even"
+
+onClick :: UI.Element -> UI.Element -> IORef CompGraph -> Status 
+        -> (UI.Element,Vertex) -> UI ()
+onClick buttons img treeRef status (b,n) 
+  = do on UI.click b $ \_ -> do 
+        updateTree img treeRef (\tree -> markNode tree n status)
+        -- UI.element b # UI.set UI.text "I have been clicked!"
+        -- UI.element buttons # UI.set UI.children []
+        
+
+markNode :: CompGraph -> Vertex -> Status -> CompGraph
+markNode g v s = mapGraph (\v' -> if v' == v then v{status=s} else v') g
+
+corButtons :: [ElemSet] -> [UI.Element]
+corButtons = foldl (\es (_,_,_,e,_) -> e : es) []
+
+wrnButtons :: [ElemSet] -> [UI.Element]
+wrnButtons = foldl (\es (_,_,_,_,e) -> e : es) []
+
+toElems :: [(String,String)] -> [Vertex] -> UI [ElemSet]
+toElems sliceDict xs = mapM (toElem sliceDict) xs
+
+toElem :: [(String,String)] -> Vertex -> UI ElemSet
+toElem sliceDict v 
+  = do slc <- UI.pre    # UI.set UI.text (foldl (\acc e -> acc ++ getSlice e) "" $ equations v)
+       hr  <- UI.hr
+       shw <- UI.pre    # UI.set UI.text (foldl (\acc e -> acc ++ show e ++ "\n") "" $ equations v)
+       cor <- UI.button # UI.set UI.text "right"
+       wrg <- UI.button # UI.set UI.text "wrong"
+       return (slc,hr,shw,cor,wrg)
+   where getSlice e = case equLabel e `lookup` sliceDict of
+              Nothing -> ""
+              Just s  -> s
+
+updateTree :: UI.Element -> IORef CompGraph -> (CompGraph -> CompGraph)
+           -> UI ()
+updateTree img treeRef f
+  = do tree <- UI.liftIO $ readIORef treeRef
+       UI.liftIO $ writeIORef treeRef (f tree)
+       redraw img treeRef
+
+redraw :: UI.Element -> IORef CompGraph -> UI ()
+redraw img treeRef 
+  = do tree <- UI.liftIO $ readIORef treeRef
+       UI.liftIO $ writeFile "debugTree.dot" (shw tree)
+       UI.liftIO $ system $ "dot -Tpng -Gsize=7,8 -Gdpi=100 debugTree.dot "
+                          ++ "> wwwroot/debugTree.png"
+       url <- UI.loadFile "image/png" "wwwroot/debugTree.png"
+       UI.element img # UI.set UI.src url
+       return ()
+
+  where shw g = showWith g showVertex showArc
+        showVertex :: Vertex -> String
+        showVertex v = (show . status) v ++ "\n" ++ showEquations v
+        showEquations = showEquations' . equations
+        showEquations' [e] = show e
+        showEquations' es  = foldl (\acc e-> acc ++ show e ++ ", ") "{" (init es) 
+                             ++ show (last es) ++ "}"
+
+        -- showVertex = show
+        -- showVertex = (foldl (++) "") . (map show) . equations
+        showArc _  = ""
 
 ------------------------------------------------------------------------
 -- Render equations from CDS set
@@ -841,9 +968,7 @@ with Template Haskell.
 
 isObservable :: TyVarMap -> Type -> Type -> Q Bool
 -- MF TODO: if s == t then return True else isObservable' bs t
-isObservable bs s t = do r <- isObservable' bs t
-                         trace ("===> trace isObservable " ++ show t ++ " -> " ++ show r) (return r)
-
+isObservable bs s t = isObservable' bs t
 
 -- MF TODO this is a hack
 isObservable' bs (AppT ListT _)    = return True
@@ -990,9 +1115,6 @@ observableCxt tvs = return [classpObservable $ map (\v -> (tvname v)) tvs]
 
 classpObservable :: [Type] -> Pred
 classpObservable = ClassP (mkName "Observable")
-        -- foldl1 ap2 (map ap1 ts)
-        -- where ap1 = ClassP (mkName "Observable")
-        --       ap2 = AppT
 
 qcontObservable :: Q Type
 qcontObservable = return contObservable
