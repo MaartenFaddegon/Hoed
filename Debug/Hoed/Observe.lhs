@@ -329,7 +329,7 @@ span2 f = s f []
 data Vertex = Vertex {equations :: [Equation], status :: Status}
               deriving (Eq,Show)
 
-data Dependency = PushDep | CallDep Int deriving (Eq,Show)
+data Dependency = PushDep | CallDep Int deriving (Eq,Show,Ord)
 
 type CompGraph = Graph Vertex Dependency
 
@@ -339,8 +339,22 @@ mkGraph trc = mapGraph (\r->Vertex [r] Unassessed) (mkGraph' trc)
 mkGraph' :: [Equation] -> Graph Equation Dependency
 mkGraph' trc = Graph (head roots)
                        trc
-                       (foldr (\r as -> as ++ (arcsFrom r trc)) [] trc)
+                       (nubMin $ foldr (\r as -> as ++ (arcsFrom r trc)) [] trc)
   where roots = filter (\equ -> equStack equ == []) trc
+
+nubMin :: (Eq a, Ord b) => [Arc a b] -> [Arc a b]
+nubMin l = nub' l []
+  where
+
+    nub' [] _           = []
+    nub' (x:xs) ls = let (sat,unsat) = partition (equiv x) ls
+                     in case sat of
+                        [] -> x : nub' xs (x:ls)
+                        _  -> nub' xs ((minimum' $ x:sat) : unsat )
+
+    minimum' as = (head as) { arc = minimum (map arc as) }
+
+    equiv (Arc v w _) (Arc x y _) = v == x && w == y
 
 arcsFrom :: Equation -> [Equation] -> [Arc Equation Dependency]
 arcsFrom src trc
