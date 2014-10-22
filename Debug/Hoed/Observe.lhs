@@ -400,10 +400,6 @@ debugSession' sliceDict treeRef window
              (zip (wrnButtons ts) (reverse ns))
 
 
--- addButtons buttons = do
-
-
-
 --              Slice      Hr         Equation   Correct    Wrong
 type ElemSet = (UI.Element,UI.Element,UI.Element,UI.Element,UI.Element)
 
@@ -424,8 +420,14 @@ onClick buttons img treeRef status (b,n)
         -- UI.element buttons # UI.set UI.children []
         
 
+-- MF TODO: We may need to reconsider how Vertex is defined,
+-- and how we determine equality. I think it could happen that
+-- two vertices with equal equation but different stacks/relations
+-- are now both changed.
 markNode :: CompGraph -> Vertex -> Status -> CompGraph
-markNode g v s = mapGraph (\v' -> if v' == v then v{status=s} else v') g
+markNode g v s = mapGraph (\v' -> if v' === v then v{status=s} else v') g
+  where (===) :: Vertex -> Vertex -> Bool
+        v1 === v2 = (equations v1) == (equations v2)
 
 corButtons :: [ElemSet] -> [UI.Element]
 corButtons = foldl (\es (_,_,_,e,_) -> e : es) []
