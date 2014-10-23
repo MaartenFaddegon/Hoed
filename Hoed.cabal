@@ -16,6 +16,7 @@ library
   exposed-modules:     Debug.Hoed
   other-modules:       Debug.Hoed.Observe
                        , Debug.Hoed.Render
+                       , Debug.Hoed.DemoGUI
   build-depends:       base >=4.6 && <5
                        , template-haskell
                        , array, containers
