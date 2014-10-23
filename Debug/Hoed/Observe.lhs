@@ -206,7 +206,7 @@ runO slices program =
        ; let cdss1 = rmEntrySet cdss
        ; let cdss2 = simplifyCDSSet cdss1
 
-       ; let eqs   = ((sortBy byStack) . renderEquations) cdss2
+       ; let eqs   = ((sortBy byStack) . renderCompStmts) cdss2
        ; hPutStrLn stderr "\n===\n"
        ; hPutStrLn stderr (showWithStack eqs)
        ; let compGraph = mkGraph eqs
@@ -243,16 +243,16 @@ parseArgs (arg:_) = case arg of
         _              -> error ("unknown option " ++ arg)
 
 ------------------------------------------------------------------------
--- The Equation type
+-- The CompStmt type
 
-data Equation = Equation {equLabel :: String, equRes :: String, equStack :: CallStack}
+data CompStmt = CompStmt {equLabel :: String, equRes :: String, equStack :: CallStack}
                 deriving (Eq, Ord)
 
-instance Show Equation where
+instance Show CompStmt where
   show e = equRes e -- ++ " with stack " ++ show (equStack e)
   showList eqs eq = unlines (map show eqs) ++ eq
 
-showWithStack :: [Equation] -> String
+showWithStack :: [CompStmt] -> String
 showWithStack eqs = unlines (map show' eqs)
   where show' eq
          = equRes eq ++ "\n\tWith call stack: " ++ showStack (equStack eq)
@@ -286,21 +286,21 @@ nextStack = case getPushMode of
         Truncate -> nextStack_truncate
 
 -- Always push onto top of stack
-nextStack_vanilla :: Equation -> CallStack
-nextStack_vanilla (Equation cc _ ccs) = cc:ccs
+nextStack_vanilla :: CompStmt -> CallStack
+nextStack_vanilla (CompStmt cc _ ccs) = cc:ccs
 
 -- Drop on recursion
-nextStack_drop :: Equation -> CallStack
-nextStack_drop (Equation cc _ [])   = [cc]
-nextStack_drop (Equation cc _ ccs)
+nextStack_drop :: CompStmt -> CallStack
+nextStack_drop (CompStmt cc _ [])   = [cc]
+nextStack_drop (CompStmt cc _ ccs)
   = if ccs `contains` cc 
         then ccs
         else cc:ccs
 
 -- Remove everything between recursion (e.g. [f,g,f,h] becomes [f,h])
-nextStack_truncate :: Equation -> CallStack
-nextStack_truncate (Equation cc _ [])   = [cc]
-nextStack_truncate (Equation cc _ ccs)
+nextStack_truncate :: CompStmt -> CallStack
+nextStack_truncate (CompStmt cc _ [])   = [cc]
+nextStack_truncate (CompStmt cc _ ccs)
   = if ccs `contains` cc 
         then dropWhile (/= cc) ccs
         else cc:ccs
@@ -328,17 +328,17 @@ span2 f = s f []
 ------------------------------------------------------------------------
 -- computation graphs
 
-data Vertex = Vertex {equations :: [Equation], status :: Judgement}
+data Vertex = Vertex {equations :: [CompStmt], status :: Judgement}
               deriving (Eq,Show,Ord)
 
 data Dependency = PushDep | CallDep Int deriving (Eq,Show,Ord)
 
 type CompGraph = Graph Vertex Dependency
 
-mkGraph :: [Equation] -> CompGraph
+mkGraph :: [CompStmt] -> CompGraph
 mkGraph trc = mapGraph (\r->Vertex [r] Unassessed) (mkGraph' trc)
 
-mkGraph' :: [Equation] -> Graph Equation Dependency
+mkGraph' :: [CompStmt] -> Graph CompStmt Dependency
 mkGraph' trc = Graph (head roots)
                        trc
                        (nubMin $ foldr (\r as -> as ++ (arcsFrom r trc)) [] trc)
@@ -358,7 +358,7 @@ nubMin l = nub' l []
 
     equiv (Arc v w _) (Arc x y _) = v == x && w == y
 
-arcsFrom :: Equation -> [Equation] -> [Arc Equation Dependency]
+arcsFrom :: CompStmt -> [CompStmt] -> [Arc CompStmt Dependency]
 arcsFrom src trc
   =  ((map (\tgt -> Arc src tgt PushDep)) . (filter isPushArc) $ trc)
   ++ ((map (\tgt -> Arc src tgt (CallDep 1))) . (filter isCall1Arc) $ trc)
@@ -370,11 +370,11 @@ arcsFrom src trc
         anyOf :: [a->Bool] -> a -> Bool
         anyOf ps x = or (map (\p -> p x) ps)
 
-pushDependency :: Equation -> Equation -> Bool
+pushDependency :: CompStmt -> CompStmt -> Bool
 pushDependency p c
   = nextStack p == equStack c
 
-callDependency :: Equation -> Equation -> Equation -> Bool
+callDependency :: CompStmt -> CompStmt -> CompStmt -> Bool
 callDependency pApp pLam c 
   = call (nextStack pApp) (nextStack pLam) == equStack c
 
@@ -413,7 +413,7 @@ debugSession' sliceDict treeRef window
              (zip (wrnButtons ts) (reverse ns))
 
 
---              Slice      Hr         Equation   Right    Wrong
+--              Slice      Hr         CompStmt   Right    Wrong
 type ElemSet = (UI.Element,UI.Element,UI.Element,UI.Element,UI.Element)
 
 data OddEven = Odd | Even
@@ -482,15 +482,15 @@ redraw img treeRef
 
   where shw g = showWith g (showVertex $ faultyVertices g) showArc
         showVertex :: [Vertex] -> Vertex -> String
-        showVertex fs v = showStatus fs v ++ ":\n" ++ showEquations v
+        showVertex fs v = showStatus fs v ++ ":\n" ++ showCompStmts v
 
         showStatus fs v
           | v `elem` fs = "Faulty"
           | otherwise   = (show . status) v
 
-        showEquations = showEquations' . equations
-        showEquations' [e] = show e
-        showEquations' es  = foldl (\acc e-> acc ++ show e ++ ", ") "{" (init es) 
+        showCompStmts = showCompStmts' . equations
+        showCompStmts' [e] = show e
+        showCompStmts' es  = foldl (\acc e-> acc ++ show e ++ ", ") "{" (init es) 
                              ++ show (last es) ++ "}"
 
         -- showVertex = show
@@ -503,19 +503,19 @@ faultyVertices = findFaulty_dag status
 ------------------------------------------------------------------------
 -- Render equations from CDS set
 
-renderEquations :: CDSSet -> [Equation]
-renderEquations = map renderEquation
+renderCompStmts :: CDSSet -> [CompStmt]
+renderCompStmts = map renderCompStmt
 
-renderEquation :: CDS -> Equation
-renderEquation (CDSNamed name set)
-  = Equation name equation (head stack)                    -- MF TODO: head?
+renderCompStmt :: CDS -> CompStmt
+renderCompStmt (CDSNamed name set)
+  = CompStmt name equation (head stack)                    -- MF TODO: head?
   where equation    =  pretty 40 (foldr (<>) nil doc)
         (doc,stack) = unzip rendered
         rendered    = map (renderNamedTop name) output
         output      = cdssToOutput set
         -- MF TODO: Do we want to sort?
         -- output      = (commonOutput . cdssToOutput) set
-renderEquation _ = Equation "??" "??" emptyStack
+renderCompStmt _ = CompStmt "??" "??" emptyStack
 
 renderNamedTop :: String -> Output -> (DOC,CallStack)
 renderNamedTop name (OutData cds)
