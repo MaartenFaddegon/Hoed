@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 import Prelude hiding (lookup,insert)
 import Data.Maybe (fromJust)
-import Debug.Hoed.Observe
+import Debug.Hoed
 
 --------------------------------------------------------------------------------
 

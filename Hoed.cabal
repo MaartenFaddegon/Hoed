@@ -13,7 +13,9 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Debug.Hoed.Observe
+  exposed-modules:     Debug.Hoed
+  other-modules:       Debug.Hoed.Observe
+                       , Debug.Hoed.Render
   build-depends:       base >=4.6 && <5
                        , template-haskell
                        , array, containers

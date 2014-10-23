@@ -1,4 +1,4 @@
-> import Debug.Hoed.Observe
+> import Debug.Hoed
 
 sacc "outer" 1 + (sacc "inner" 2 * x)
 

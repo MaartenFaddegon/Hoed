@@ -2,7 +2,7 @@ Haskell version of the buggy insertion sort as shown in Lee Naish
 A Declarative Debugging Scheme.
 
 > {-# LANGUAGE TemplateHaskell, Rank2Types #-}
-> import Debug.Hoed.Observe
+> import Debug.Hoed
 > $(observedTypes "isort"  [[t|forall a . Observable a => [] a|]])
 > $(observedTypes "insert" [[t|forall a . Observable a => [] a|]])
 > $(observedTypes "result" [[t|forall a . Observable a => [] a|]])

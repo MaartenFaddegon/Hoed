@@ -1,4 +1,4 @@
-import Debug.Hoed.Observe
+import Debug.Hoed
 
 f :: Int -> Int
 f = gdmobserve "f" $ \x -> {-# SCC "f" #-} if x > 0 then g x else 0

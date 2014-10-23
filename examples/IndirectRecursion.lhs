@@ -1,5 +1,5 @@
 > {-# LANGUAGE TemplateHaskell, Rank2Types #-}
-> import Debug.Hoed.Observe
+> import Debug.Hoed
 
 > $(observedTypes "f" [])
 > $(observedTypes "g" [])

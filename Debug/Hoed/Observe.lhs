@@ -51,9 +51,6 @@ module Debug.Hoed.Observe
   , Observer(..)   -- contains a 'forall' typed observe (if supported).
   -- , Observing      -- a -> a
   , Observable(..) -- Class
-  , runO	   -- IO a -> IO ()
-  , printO	   -- a -> IO ()
-  , putStrO	   -- String -> IO ()
 
    -- * For advanced users, that want to render their own datatypes.
   , (<<)           -- (Observable a) => ObserverM (a -> b) -> a -> ObserverM b
@@ -62,16 +59,18 @@ module Debug.Hoed.Observe
   , send
   , observeBase
   , observeOpaque
-
   , observedTypes
-
-  -- * For users that want to write there own render drivers.
-  
-  , debugO	   -- IO a -> IO [CDS]
-  , CDS(..)
-
   , Generic
-  ) where	
+  , CallStack
+  , emptyStack
+  , Event(..)
+  , Change(..)
+  , Parent(..)
+  , initUniq
+  , startEventStream
+  , endEventStream
+  , ourCatchAllIO
+  ) where
 \end{code}
 
 
@@ -112,19 +111,7 @@ import GHC.Foreign as GHC
 import GHC.Ptr
 \end{code}
 
-Library with our graph algorithms:
-\begin{code}
-import Data.Graph.Libgraph
-\end{code}
 
-User interface imports:
-\begin{code}
-import qualified Graphics.UI.Threepenny as UI
-import Graphics.UI.Threepenny (startGUI,defaultConfig,tpPort,tpStatic
-                              , Window, UI, (#), (#+), (#.), string, on
-                              )
-import System.Process(system)
-\end{code}
 
 
 \begin{code}
@@ -141,423 +128,6 @@ import Data.Dynamic ( Dynamic )
 
 \begin{code}
 infixl 9 <<
-\end{code}
-
-
-%************************************************************************
-%*									*
-\subsection{External start functions}
-%*									*
-%************************************************************************
-
-Run the observe ridden code.
-
-\begin{code}
--- | run some code and return the CDS structure (for when you want to write your own debugger).
-debugO :: IO a -> IO [CDS]
-debugO program = 
-     do { initUniq
-	; startEventStream
-        ; let errorMsg e = "[Escaping Exception in Code : " ++ show e ++ "]"
-	; ourCatchAllIO (do { program ; return () }) 
-			(hPutStrLn stderr . errorMsg)
-        ; events <- endEventStream
-	; return (eventsToCDS events)
-	}
-
--- | print a value, with debugging 
-printO :: (Show a) => a -> IO ()
-printO expr = runO [] (print expr)
-
--- | print a string, with debugging 
-putStrO :: String -> IO ()
-putStrO expr = runO [] (putStr expr)
-
--- | The main entry point; run some IO code, and debug inside it.
--- 
--- An example of using this debugger is 
---
--- @runO (print [ observe "+1" (+1) x | x <- observe "xs" [1..3]])@
--- 
--- @[2,3,4]
--- -- +1
---  { \ 1  -> 2
---  }
--- -- +1
---  { \ 2  -> 3
---  }
--- -- +1
---  { \ 3  -> 4
---  }
--- -- xs
---  1 : 2 : 3 : []@
--- 
--- Which says, the return is @[2,3,4]@, there were @3@ calls to +1
--- (showing arguments and results), and @xs@, which was the list
--- @1 : 2 : 3 : []@.
--- 
-
-runO :: [(String,String)] -> IO a -> IO ()
-runO slices program =
-    do { args <- getArgs
-       ; setPushMode (parseArgs args)
-       ; hPutStrLn stderr "=== program output ===\n"
-       ; cdss <- debugO program
-       ; let cdss1 = rmEntrySet cdss
-       ; let cdss2 = simplifyCDSSet cdss1
-
-       ; let eqs   = ((sortBy byStack) . renderCompStmts) cdss2
-       ; hPutStrLn stderr "\n===\n"
-       ; hPutStrLn stderr (showWithStack eqs)
-       ; let compGraph = mkGraph eqs
-       ; debugSession slices compGraph
-       ; return ()
-       }
-
-hPutStrList :: (Show a) => Handle -> [a] -> IO()
-hPutStrList h []     = hPutStrLn h ""
-hPutStrList h (c:cs) = do {hPutStrLn h (show c); hPutStrList h cs}
-
-
-------------------------------------------------------------------------
--- Push mode option handling
-
-data PushMode = Vanilla | Drop | Truncate
-
-pushMode :: IORef PushMode
-pushMode = unsafePerformIO $ newIORef Vanilla
-
-setPushMode :: PushMode -> IO ()
-setPushMode = writeIORef pushMode
-
-getPushMode :: PushMode
-getPushMode = unsafePerformIO $ readIORef pushMode
-
--- MF TODO: handle a bit nicer?
-parseArgs :: [String] -> PushMode
-parseArgs []      = Truncate -- default mode
-parseArgs (arg:_) = case arg of
-        "--PushVanilla"  -> Vanilla
-        "--PushDrop"     -> Drop
-        "--PushTruncate" -> Truncate
-        _              -> error ("unknown option " ++ arg)
-
-------------------------------------------------------------------------
--- The CompStmt type
-
-data CompStmt = CompStmt {equLabel :: String, equRes :: String, equStack :: CallStack}
-                deriving (Eq, Ord)
-
-instance Show CompStmt where
-  show e = equRes e -- ++ " with stack " ++ show (equStack e)
-  showList eqs eq = unlines (map show eqs) ++ eq
-
-showWithStack :: [CompStmt] -> String
-showWithStack eqs = unlines (map show' eqs)
-  where show' eq
-         = equRes eq ++ "\n\tWith call stack: " ++ showStack (equStack eq)
-                     ++ "\n\tNext stack:      " ++ showStack (nextStack eq)
-           where showStack [] = "[-]"
-                 showStack ss = (foldl (\s' s -> s' ++ s ++ ",") "[" ss) ++ "-]"
-
--- Compare equations by stack
-byStack e1 e2
-    = case compareStack (equStack e1) (equStack e2) of
-        EQ -> compare (equLabel e1) (equLabel e2)
-        d  -> d
-
-compareStack s1 s2
-  | l1 < l2  = LT
-  | l1 > l2  = GT
-  | l1 == l2 = c (zip s1 s2)
-  where l1 = length s1
-        l2 = length s2
-        c []         = EQ
-        c ((x,y):ss) = case compare x y of
-          EQ -> c ss
-          d  -> d
-              
-------------------------------------------------------------------------
--- Stack matching
-
-nextStack = case getPushMode of
-        Vanilla  -> nextStack_vanilla
-        Drop     -> nextStack_drop
-        Truncate -> nextStack_truncate
-
--- Always push onto top of stack
-nextStack_vanilla :: CompStmt -> CallStack
-nextStack_vanilla (CompStmt cc _ ccs) = cc:ccs
-
--- Drop on recursion
-nextStack_drop :: CompStmt -> CallStack
-nextStack_drop (CompStmt cc _ [])   = [cc]
-nextStack_drop (CompStmt cc _ ccs)
-  = if ccs `contains` cc 
-        then ccs
-        else cc:ccs
-
--- Remove everything between recursion (e.g. [f,g,f,h] becomes [f,h])
-nextStack_truncate :: CompStmt -> CallStack
-nextStack_truncate (CompStmt cc _ [])   = [cc]
-nextStack_truncate (CompStmt cc _ ccs)
-  = if ccs `contains` cc 
-        then dropWhile (/= cc) ccs
-        else cc:ccs
-
-contains :: CallStack -> String -> Bool
-contains ccs cc = filter (== cc) ccs /= []
-
-call :: CallStack -> CallStack -> CallStack
-call sApp sLam = sLam' ++ sApp
-  where (sPre,sApp',sLam') = commonPrefix sApp sLam
-
-commonPrefix :: CallStack -> CallStack -> (CallStack, CallStack, CallStack)
-commonPrefix sApp sLam
-  = let (sPre,sApp',sLam') = span2 (==) (reverse sApp) (reverse sLam)
-    in (sPre, reverse sApp', reverse sLam') 
-
-span2 :: (a -> a -> Bool) -> [a] -> [a] -> ([a], [a], [a])
-span2 f = s f []
-  where s _ pre [] ys = (pre,[],ys)
-        s _ pre xs [] = (pre,xs,[])
-        s f pre xs@(x:xs') ys@(y:ys') 
-          | f x y     = s f (x:pre) xs' ys'
-          | otherwise = (pre,xs,ys)
-
-------------------------------------------------------------------------
--- computation graphs
-
-data Vertex = Vertex {equations :: [CompStmt], status :: Judgement}
-              deriving (Eq,Show,Ord)
-
-data Dependency = PushDep | CallDep Int deriving (Eq,Show,Ord)
-
-type CompGraph = Graph Vertex Dependency
-
-mkGraph :: [CompStmt] -> CompGraph
-mkGraph trc = mapGraph (\r->Vertex [r] Unassessed) (mkGraph' trc)
-
-mkGraph' :: [CompStmt] -> Graph CompStmt Dependency
-mkGraph' trc = Graph (head roots)
-                       trc
-                       (nubMin $ foldr (\r as -> as ++ (arcsFrom r trc)) [] trc)
-  where roots = filter (\equ -> equStack equ == []) trc
-
-nubMin :: (Eq a, Ord b) => [Arc a b] -> [Arc a b]
-nubMin l = nub' l []
-  where
-
-    nub' [] _           = []
-    nub' (x:xs) ls = let (sat,unsat) = partition (equiv x) ls
-                     in case sat of
-                        [] -> x : nub' xs (x:ls)
-                        _  -> nub' xs ((minimum' $ x:sat) : unsat )
-
-    minimum' as = (head as) { arc = minimum (map arc as) }
-
-    equiv (Arc v w _) (Arc x y _) = v == x && w == y
-
-arcsFrom :: CompStmt -> [CompStmt] -> [Arc CompStmt Dependency]
-arcsFrom src trc
-  =  ((map (\tgt -> Arc src tgt PushDep)) . (filter isPushArc) $ trc)
-  ++ ((map (\tgt -> Arc src tgt (CallDep 1))) . (filter isCall1Arc) $ trc)
-
-  where isPushArc = pushDependency src
-        
-        isCall1Arc = anyOf $ map (flip callDependency src) trc
-
-        anyOf :: [a->Bool] -> a -> Bool
-        anyOf ps x = or (map (\p -> p x) ps)
-
-pushDependency :: CompStmt -> CompStmt -> Bool
-pushDependency p c
-  = nextStack p == equStack c
-
-callDependency :: CompStmt -> CompStmt -> CompStmt -> Bool
-callDependency pApp pLam c 
-  = call (nextStack pApp) (nextStack pLam) == equStack c
-
-------------------------------------------------------------------------
--- Algorithmic Debugging
-
-debugSession :: [(String,String)] -> CompGraph -> IO ()
-debugSession slices tree
-  = do treeRef <- newIORef tree
-       startGUI defaultConfig
-           { tpPort       = Just 10000
-           , tpStatic     = Just "./wwwroot"
-           } (debugSession' slices treeRef)
-
-preorder :: CompGraph -> [Vertex]
-preorder = getPreorder . getDfs
-
-debugSession' :: [(String,String)] -> IORef CompGraph -> Window -> UI ()
-debugSession' sliceDict treeRef window
-  = do return window # UI.set UI.title "Hoed debugging session"
-       UI.addStyleSheet window "debug.css"
-       img <- UI.img 
-       redraw img treeRef
-       buttons <- UI.div #. "buttons"
-       nowrap  <- UI.div #. "nowrap"  #+ (map UI.element [buttons,img])
-       UI.getBody window #+ [UI.element nowrap]
-
-       tree <- UI.liftIO $ readIORef treeRef
-       let ns = (preorder tree)
-       ts <- toElems sliceDict ns
-       ds <- mapM (uncurry divpack) (zip ts (cycle [Odd,Even]))
-       UI.element buttons # UI.set UI.children ds
-       mapM_ (onClick buttons img treeRef Right) 
-             (zip (corButtons ts) (reverse ns))
-       mapM_ (onClick buttons img treeRef Wrong)
-             (zip (wrnButtons ts) (reverse ns))
-
-
---              Slice      Hr         CompStmt   Right    Wrong
-type ElemSet = (UI.Element,UI.Element,UI.Element,UI.Element,UI.Element)
-
-data OddEven = Odd | Even
-
-divpack :: ElemSet -> OddEven -> UI UI.Element
-divpack (e1,e2,e3,e4,e5) x
-  = UI.div #. lbl x #+ map UI.element [e1,e2,e3,e4,e5]
-    where lbl Odd  = "odd"
-          lbl Even = "even"
-
-onClick :: UI.Element -> UI.Element -> IORef CompGraph -> Judgement
-        -> (UI.Element,Vertex) -> UI ()
-onClick buttons img treeRef status (b,n) 
-  = do on UI.click b $ \_ -> do 
-        updateTree img treeRef (\tree -> markNode tree n status)
-        -- UI.element b # UI.set UI.text "I have been clicked!"
-        -- UI.element buttons # UI.set UI.children []
-        
-
--- MF TODO: We may need to reconsider how Vertex is defined,
--- and how we determine equality. I think it could happen that
--- two vertices with equal equation but different stacks/relations
--- are now both changed.
-markNode :: CompGraph -> Vertex -> Judgement -> CompGraph
-markNode g v s = mapGraph (\v' -> if v' === v then v{status=s} else v') g
-  where (===) :: Vertex -> Vertex -> Bool
-        v1 === v2 = (equations v1) == (equations v2)
-
-corButtons :: [ElemSet] -> [UI.Element]
-corButtons = foldl (\es (_,_,_,e,_) -> e : es) []
-
-wrnButtons :: [ElemSet] -> [UI.Element]
-wrnButtons = foldl (\es (_,_,_,_,e) -> e : es) []
-
-toElems :: [(String,String)] -> [Vertex] -> UI [ElemSet]
-toElems sliceDict xs = mapM (toElem sliceDict) xs
-
-toElem :: [(String,String)] -> Vertex -> UI ElemSet
-toElem sliceDict v 
-  = do slc <- UI.pre    # UI.set UI.text (foldl (\acc e -> acc ++ getSlice e) "" $ equations v)
-       hr  <- UI.hr
-       shw <- UI.pre    # UI.set UI.text (foldl (\acc e -> acc ++ show e ++ "\n") "" $ equations v)
-       cor <- UI.button # UI.set UI.text "right"
-       wrg <- UI.button # UI.set UI.text "wrong"
-       return (slc,hr,shw,cor,wrg)
-   where getSlice e = case equLabel e `lookup` sliceDict of
-              Nothing -> ""
-              Just s  -> s
-
-updateTree :: UI.Element -> IORef CompGraph -> (CompGraph -> CompGraph)
-           -> UI ()
-updateTree img treeRef f
-  = do tree <- UI.liftIO $ readIORef treeRef
-       UI.liftIO $ writeIORef treeRef (f tree)
-       redraw img treeRef
-
-redraw :: UI.Element -> IORef CompGraph -> UI ()
-redraw img treeRef 
-  = do tree <- UI.liftIO $ readIORef treeRef
-       UI.liftIO $ writeFile "debugTree.dot" (shw tree)
-       UI.liftIO $ system $ "dot -Tpng -Gsize=7,8 -Gdpi=100 debugTree.dot "
-                          ++ "> wwwroot/debugTree.png"
-       url <- UI.loadFile "image/png" "wwwroot/debugTree.png"
-       UI.element img # UI.set UI.src url
-       return ()
-
-  where shw g = showWith g (showVertex $ faultyVertices g) showArc
-        showVertex :: [Vertex] -> Vertex -> String
-        showVertex fs v = showStatus fs v ++ ":\n" ++ showCompStmts v
-
-        showStatus fs v
-          | v `elem` fs = "Faulty"
-          | otherwise   = (show . status) v
-
-        showCompStmts = showCompStmts' . equations
-        showCompStmts' [e] = show e
-        showCompStmts' es  = foldl (\acc e-> acc ++ show e ++ ", ") "{" (init es) 
-                             ++ show (last es) ++ "}"
-
-        -- showVertex = show
-        -- showVertex = (foldl (++) "") . (map show) . equations
-        showArc _  = ""
-
-faultyVertices :: CompGraph -> [Vertex]
-faultyVertices = findFaulty_dag status
-
-------------------------------------------------------------------------
--- Render equations from CDS set
-
-renderCompStmts :: CDSSet -> [CompStmt]
-renderCompStmts = map renderCompStmt
-
-renderCompStmt :: CDS -> CompStmt
-renderCompStmt (CDSNamed name set)
-  = CompStmt name equation (head stack)                    -- MF TODO: head?
-  where equation    =  pretty 40 (foldr (<>) nil doc)
-        (doc,stack) = unzip rendered
-        rendered    = map (renderNamedTop name) output
-        output      = cdssToOutput set
-        -- MF TODO: Do we want to sort?
-        -- output      = (commonOutput . cdssToOutput) set
-renderCompStmt _ = CompStmt "??" "??" emptyStack
-
-renderNamedTop :: String -> Output -> (DOC,CallStack)
-renderNamedTop name (OutData cds)
-  = ( nest 2 (  foldl1 (\ a b -> a <> line <> text ", " <> b)
-                (map (renderNamedFn name) pairs)
-           -- <> sep <> nest 2 (renderCallStack callStack)
-           )
-      -- <> line
-    , callStack
-    )
-  where (pairs',callStack) = findFn [cds] 
-        pairs           = (nub . (sort)) pairs'
-	-- local nub for sorted lists
-	nub []                  = []
-	nub (a:a':as) | a == a' = nub (a' : as)
-        nub (a:as)              = a : nub as
-
-renderCallStack :: CallStack -> DOC
-renderCallStack s
-  =  text "With call stack: ["
-  <> foldl1 (\a b -> a <> text ", " <> b) 
-            (map text s)
-  <> text "]"
-
-\end{code}
-
-
-%************************************************************************
-%*									*
-\subsection{Simulations}
-%*									*
-%************************************************************************
-
-Here we provide stubs for the functionally that is not supported
-by some compilers, and provide some combinators of various flavors.
-
-\begin{code}
-ourCatchAllIO :: IO a -> (Exception.SomeException -> IO a) -> IO a
-ourCatchAllIO = Exception.catch
-
-handleExc :: Parent -> Exception.SomeException -> IO a
-handleExc context exc = return (send "throw" (return throw << exc) context)
 \end{code}
 
 
@@ -683,6 +253,9 @@ gdmFunObserver cxt fn arg
 %************************************************************************
 
 \begin{code}
+
+type CallStack = [String]
+emptyStack = [""]
 
 {-# NOINLINE getStack #-}
 getStack :: a -> (a, CallStack)
@@ -1582,335 +1155,36 @@ uniqSem = unsafePerformIO $ newMVar ()
 %*									*
 %************************************************************************
 
-\begin{code}
-openObserveGlobal :: IO ()
-openObserveGlobal =
-     do { initUniq
-	; startEventStream
-	}
+-- \begin{code}
+-- openObserveGlobal :: IO ()
+-- openObserveGlobal =
+--      do { initUniq
+-- 	; startEventStream
+-- 	}
+-- 
+-- closeObserveGlobal :: IO [Event]
+-- closeObserveGlobal =
+--      do { evs <- endEventStream
+--         ; putStrLn ""
+-- 	; return evs
+-- 	}
+-- \end{code}
 
-closeObserveGlobal :: IO [Event]
-closeObserveGlobal =
-     do { evs <- endEventStream
-        ; putStrLn ""
-	; return evs
-	}
-\end{code}
-
-
 %************************************************************************
 %*									*
-\subsection{The CDS and converting functions}
+\subsection{Simulations}
 %*									*
 %************************************************************************
 
+Here we provide stubs for the functionally that is not supported
+by some compilers, and provide some combinators of various flavors.
+
 \begin{code}
-type CallStack = [String]
-emptyStack = [""]
+ourCatchAllIO :: IO a -> (Exception.SomeException -> IO a) -> IO a
+ourCatchAllIO = Exception.catch
 
-data CDS = CDSNamed String         CDSSet
-	 | CDSCons Int String     [CDSSet]
-	 | CDSFun  Int             CDSSet CDSSet CallStack
-	 | CDSEntered Int
-	 | CDSTerminated Int
-	deriving (Show,Eq,Ord)
-
-type CDSSet = [CDS]
-
-eventsToCDS :: [Event] -> CDSSet
-eventsToCDS pairs = getChild 0 0
-   where
-     res i = (!) out_arr i
-
-     bnds = (0, length pairs)
-
-     mid_arr :: Array Int [(Int,CDS)]
-     mid_arr = accumArray (flip (:)) [] bnds
-		[ (pnode,(pport,res node))
-	        | (Event node (Parent pnode pport) _) <- pairs
-		]
-
-     out_arr = array bnds	-- never uses 0 index
-	        [ (node,getNode'' node change)
-	 	| (Event node _ change) <- pairs
-		]
-
-     getNode'' ::  Int -> Change -> CDS
-     getNode'' node change =
-       case change of
-	(Observe str) -> CDSNamed str (getChild node 0)
-	(Enter)       -> CDSEntered node
-	(NoEnter)     -> CDSTerminated node
-	(Fun str)     -> CDSFun node (getChild node 0) (getChild node 1) str
-	(Cons portc cons)
-		      -> CDSCons node cons 
-				[ getChild node n | n <- [0..(portc-1)]]
-
-     getChild :: Int -> Int -> CDSSet
-     getChild pnode pport =
-	[ content
-        | (pport',content) <- (!) mid_arr pnode
-	, pport == pport'
-	]
-
-render  :: Int -> Bool -> CDS -> DOC
-render prec par (CDSCons _ ":" [cds1,cds2]) =
-	if (par && not needParen)  
-	then doc -- dont use paren (..) because we dont want a grp here!
-	else paren needParen doc
-   where
-	doc = grp (brk <> renderSet' 5 False cds1 <> text " : ") <>
-	      renderSet' 4 True cds2
-	needParen = prec > 4
-render prec par (CDSCons _ "," cdss) | length cdss > 0 =
-	nest 2 (text "(" <> foldl1 (\ a b -> a <> text ", " <> b)
-			    (map renderSet cdss) <>
-		text ")")
-render prec par (CDSCons _ name cdss) =
-	paren (length cdss > 0 && prec /= 0)
-	      (nest 2
-	         (text name <> foldr (<>) nil
-			 	[ sep <> renderSet' 10 False cds
-			 	| cds <- cdss 
-			 	]
-		 )
-	      )
-
-{- renderSet handles the various styles of CDSSet.
- -}
-
-renderSet :: CDSSet -> DOC
-renderSet = renderSet' 0 False
-
-renderSet' :: Int -> Bool -> CDSSet -> DOC
-renderSet' _ _      [] = text "_"
-renderSet' prec par [cons@(CDSCons {})]    = render prec par cons
-renderSet' prec par cdss		   = 
-	nest 0 (text "{ " <> foldl1 (\ a b -> a <> line <>
-				    text ", " <> b)
-				    (map (renderFn caller) pairs) <>
-	        line <> text "}")
-
-   where
-	(pairs',caller) = findFn cdss
-        pairs           = (nub . sort) pairs'
-	-- local nub for sorted lists
-	nub []                  = []
-	nub (a:a':as) | a == a' = nub (a' : as)
-        nub (a:as)              = a : nub as
-
-renderFn :: CallStack -> ([CDSSet],CDSSet) -> DOC
-renderFn callStack (args, res)
-	= grp  (nest 3 
-		(text "\\ " <>
-		 foldr (\ a b -> nest 0 (renderSet' 10 False a) <> sp <> b)
-		       nil
-		       args <> sep <>
-		 text "-> " <> renderSet' 0 False res
-                 -- <> text (" <<" ++ renderCallStack callStack ++ ">>")
-		)
-               )
-
-renderNamedFn :: String -> ([CDSSet],CDSSet) -> DOC
-renderNamedFn name (args,res)
-  = grp (nest 3 
-            (  text name <> sep
-            <> foldr (\ a b -> nest 0 (renderSet' 10 False a) <> sp <> b) nil args 
-            <> sep <> text "= " <> renderSet' 0 False res
-            )
-         )
-
-
--- MF TODO: Not sure if this is ok, we only remember one call stack
--- are they truly all the same?
-
-findFn :: CDSSet -> ([([CDSSet],CDSSet)], CallStack)
-findFn = foldr findFn' ([],[])
-
-findFn' (CDSFun _ arg res caller) (rest,_) =
-    case findFn res of
-       ([(args',res')],caller') -> if caller' /= [] && caller' /= caller 
-                                   then error "found two different stacks!"
-                                   else ((arg : args', res') : rest, caller)
-       _                        -> (([arg], res) : rest,        caller)
-findFn' other (rest,caller)   =  (([],[other]) : rest,        caller)
-
-renderTops []   = nil
-renderTops tops = line <> foldr (<>) nil (map renderTop tops)
-
-renderTop :: Output -> DOC
-renderTop (OutLabel str set extras) =
-	nest 2 (text ("-- " ++ str) <> line <>
-		renderSet set
-		<> renderTops extras) <> line
-
-rmEntry :: CDS -> CDS
-rmEntry (CDSNamed str set)   = CDSNamed str (rmEntrySet set)
-rmEntry (CDSCons i str sets) = CDSCons i str (map rmEntrySet sets)
-rmEntry (CDSFun i a b str)   = CDSFun i (rmEntrySet a) (rmEntrySet b) str
-rmEntry (CDSTerminated i)    = CDSTerminated i
-rmEntry (CDSEntered i)       = error "found bad CDSEntered"
-
-rmEntrySet = map rmEntry . filter noEntered
-  where
-	noEntered (CDSEntered _) = False
-	noEntered _              = True
-
-simplifyCDS :: CDS -> CDS
-simplifyCDS (CDSNamed str set) = CDSNamed str (simplifyCDSSet set)
-simplifyCDS (CDSCons _ "throw" 
-		  [[CDSCons _ "ErrorCall" set]]
-	    ) = simplifyCDS (CDSCons 0 "error" set)
-simplifyCDS cons@(CDSCons i str sets) = 
-	case spotString [cons] of
-	  Just str | not (null str) -> CDSCons 0 (show str) []
-	  _ -> CDSCons 0 str (map simplifyCDSSet sets)
-
-simplifyCDS (CDSFun i a b str) = CDSFun 0 (simplifyCDSSet a) (simplifyCDSSet b) str
-	-- replace with 
-	-- 	CDSCons i "->" [simplifyCDSSet a,simplifyCDSSet b]
-	-- for turning off the function stuff.
-
-simplifyCDS (CDSTerminated i) = (CDSCons 0 "<?>" [])
-
-simplifyCDSSet = map simplifyCDS 
-
-spotString :: CDSSet -> Maybe String
-spotString [CDSCons _ ":"
-		[[CDSCons _ str []]
-		,rest
-		]
-	   ] 
-	= do { ch <- case reads str of
-	               [(ch,"")] -> return ch
-                       _ -> Nothing
-	     ; more <- spotString rest
-	     ; return (ch : more)
-	     }
-spotString [CDSCons _ "[]" []] = return []
-spotString other = Nothing
-
-paren :: Bool -> DOC -> DOC
-paren False doc = grp (nest 0 doc)
-paren True  doc = grp (nest 0 (text "(" <> nest 0 doc <> brk <> text ")"))
-
-sp :: DOC
-sp = text " "
-
-data Output = OutLabel String CDSSet [Output]
-            | OutData  CDS
-	      deriving (Eq,Ord,Show)
-
-
-commonOutput :: [Output] -> [Output]
-commonOutput = sortBy byLabel
-  where
-     byLabel (OutLabel lab _ _) (OutLabel lab' _ _) = compare lab lab'
-
-cdssToOutput :: CDSSet -> [Output]
-cdssToOutput =  map cdsToOutput
-
-cdsToOutput (CDSNamed name cdsset)
-	    = OutLabel name res1 res2
-  where
-      res1 = [ cdss | (OutData cdss) <- res ]
-      res2 = [ out  | out@(OutLabel {}) <- res ]
-      res  = cdssToOutput cdsset
-cdsToOutput cons@(CDSCons {}) = OutData cons
-cdsToOutput    fn@(CDSFun {}) = OutData fn
+handleExc :: Parent -> Exception.SomeException -> IO a
+handleExc context exc = return (send "throw" (return throw << exc) context)
 \end{code}
 
 
-
-%************************************************************************
-%*									*
-\subsection{A Pretty Printer}
-%*									*
-%************************************************************************
-
-This pretty printer is based on Wadler's pretty printer.
-
-\begin{code}
-data DOC		= NIL			-- nil	  
-			| DOC :<> DOC		-- beside 
-			| NEST Int DOC
-			| TEXT String
-			| LINE			-- always "\n"
-			| SEP			-- " " or "\n"
-			| BREAK			-- ""  or "\n"
-			| DOC :<|> DOC		-- choose one
-			deriving (Eq,Show)
-data Doc		= Nil
-			| Text Int String Doc
-			| Line Int Int Doc
-			deriving (Show,Eq)
-
-
-mkText			:: String -> Doc -> Doc
-mkText s d		= Text (toplen d + length s) s d
-
-mkLine			:: Int -> Doc -> Doc
-mkLine i d		= Line (toplen d + i) i d
-
-toplen			:: Doc -> Int
-toplen Nil		= 0
-toplen (Text w s x)	= w
-toplen (Line w s x)	= 0
-
-nil			= NIL
-x <> y			= x :<> y
-nest i x		= NEST i x
-text s 			= TEXT s
-line			= LINE
-sep			= SEP
-brk			= BREAK
-
-fold x			= grp (brk <> x)
-
-grp 			:: DOC -> DOC
-grp x			= 
-	case flatten x of
-	  Just x' -> x' :<|> x
-	  Nothing -> x
-
-flatten 		:: DOC -> Maybe DOC
-flatten	NIL		= return NIL
-flatten (x :<> y)	= 
-	do x' <- flatten x
-	   y' <- flatten y
-	   return (x' :<> y')
-flatten (NEST i x)	= 
-	do x' <- flatten x
-	   return (NEST i x')
-flatten (TEXT s)	= return (TEXT s)
-flatten LINE		= Nothing		-- abort
-flatten SEP		= return (TEXT " ")	-- SEP is space
-flatten BREAK		= return NIL		-- BREAK is nil
-flatten (x :<|> y)	= flatten x
-
-layout 			:: Doc -> String
-layout Nil		= ""
-layout (Text _ s x)	= s ++ layout x
-layout (Line _ i x)	= '\n' : replicate i ' ' ++ layout x
-
-best w k doc = be w k [(0,doc)]
-
-be 			:: Int -> Int -> [(Int,DOC)] -> Doc
-be w k []		= Nil
-be w k ((i,NIL):z)	= be w k z
-be w k ((i,x :<> y):z)	= be w k ((i,x):(i,y):z)
-be w k ((i,NEST j x):z) = be w k ((k+j,x):z)
-be w k ((i,TEXT s):z)	= s `mkText` be w (k+length s) z
-be w k ((i,LINE):z)	= i `mkLine` be w i z
-be w k ((i,SEP):z)	= i `mkLine` be w i z
-be w k ((i,BREAK):z)	= i `mkLine` be w i z
-be w k ((i,x :<|> y):z) = better w k 
-				(be w k ((i,x):z))
-				(be w k ((i,y):z))
-
-better			:: Int -> Int -> Doc -> Doc -> Doc
-better w k x y		= if (w-k) >= toplen x then x else y
-
-pretty			:: Int -> DOC -> String
-pretty w x		= layout (best w 0 x)
-\end{code}
