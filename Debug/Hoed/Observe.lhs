@@ -82,6 +82,8 @@ module Debug.Hoed.Observe
 %************************************************************************
 
 \begin{code}
+import Prelude hiding (Right)
+import qualified Prelude
 import System.IO
 import Data.Maybe
 import Control.Monad
@@ -326,8 +328,8 @@ span2 f = s f []
 ------------------------------------------------------------------------
 -- computation graphs
 
-data Vertex = Vertex {equations :: [Equation], status :: Status}
-              deriving (Eq,Show)
+data Vertex = Vertex {equations :: [Equation], status :: Judgement}
+              deriving (Eq,Show,Ord)
 
 data Dependency = PushDep | CallDep Int deriving (Eq,Show,Ord)
 
@@ -379,9 +381,6 @@ callDependency pApp pLam c
 ------------------------------------------------------------------------
 -- Algorithmic Debugging
 
-data Status = Correct | Wrong | Unassessed
-              deriving (Show, Eq, Ord)
-
 debugSession :: [(String,String)] -> CompGraph -> IO ()
 debugSession slices tree
   = do treeRef <- newIORef tree
@@ -408,13 +407,13 @@ debugSession' sliceDict treeRef window
        ts <- toElems sliceDict ns
        ds <- mapM (uncurry divpack) (zip ts (cycle [Odd,Even]))
        UI.element buttons # UI.set UI.children ds
-       mapM_ (onClick buttons img treeRef Correct) 
+       mapM_ (onClick buttons img treeRef Right) 
              (zip (corButtons ts) (reverse ns))
        mapM_ (onClick buttons img treeRef Wrong)
              (zip (wrnButtons ts) (reverse ns))
 
 
---              Slice      Hr         Equation   Correct    Wrong
+--              Slice      Hr         Equation   Right    Wrong
 type ElemSet = (UI.Element,UI.Element,UI.Element,UI.Element,UI.Element)
 
 data OddEven = Odd | Even
@@ -425,7 +424,7 @@ divpack (e1,e2,e3,e4,e5) x
     where lbl Odd  = "odd"
           lbl Even = "even"
 
-onClick :: UI.Element -> UI.Element -> IORef CompGraph -> Status 
+onClick :: UI.Element -> UI.Element -> IORef CompGraph -> Judgement
         -> (UI.Element,Vertex) -> UI ()
 onClick buttons img treeRef status (b,n) 
   = do on UI.click b $ \_ -> do 
@@ -438,7 +437,7 @@ onClick buttons img treeRef status (b,n)
 -- and how we determine equality. I think it could happen that
 -- two vertices with equal equation but different stacks/relations
 -- are now both changed.
-markNode :: CompGraph -> Vertex -> Status -> CompGraph
+markNode :: CompGraph -> Vertex -> Judgement -> CompGraph
 markNode g v s = mapGraph (\v' -> if v' === v then v{status=s} else v') g
   where (===) :: Vertex -> Vertex -> Bool
         v1 === v2 = (equations v1) == (equations v2)
@@ -481,9 +480,14 @@ redraw img treeRef
        UI.element img # UI.set UI.src url
        return ()
 
-  where shw g = showWith g showVertex showArc
-        showVertex :: Vertex -> String
-        showVertex v = (show . status) v ++ "\n" ++ showEquations v
+  where shw g = showWith g (showVertex $ faultyVertices g) showArc
+        showVertex :: [Vertex] -> Vertex -> String
+        showVertex fs v = showStatus fs v ++ ":\n" ++ showEquations v
+
+        showStatus fs v
+          | v `elem` fs = "Faulty"
+          | otherwise   = (show . status) v
+
         showEquations = showEquations' . equations
         showEquations' [e] = show e
         showEquations' es  = foldl (\acc e-> acc ++ show e ++ ", ") "{" (init es) 
@@ -492,6 +496,9 @@ redraw img treeRef
         -- showVertex = show
         -- showVertex = (foldl (++) "") . (map show) . equations
         showArc _  = ""
+
+faultyVertices :: CompGraph -> [Vertex]
+faultyVertices = findFaulty_dag status
 
 ------------------------------------------------------------------------
 -- Render equations from CDS set
@@ -1204,7 +1211,7 @@ instance (Observable a) => Observable (Maybe a) where
 
 instance (Observable a,Observable b) => Observable (Either a b) where
   observer (Left a)  = send "Left"  (return Left  << a)
-  observer (Right a) = send "Right" (return Right << a)
+  observer (Prelude.Right a) = send "Right" (return Prelude.Right << a)
 \end{code}
 
 Arrays.
