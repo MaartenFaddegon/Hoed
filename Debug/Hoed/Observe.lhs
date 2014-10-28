@@ -70,6 +70,7 @@ module Debug.Hoed.Observe
   , startEventStream
   , endEventStream
   , ourCatchAllIO
+  , peepUniq
   ) where
 \end{code}
 
@@ -262,8 +263,8 @@ getStack :: a -> (a, CallStack)
 getStack x = let stack = unsafePerformIO 
                          $ do {ccs <- getCurrentCCS (); ccsToStrings ccs}
              in  (x, rev stack)
-        where rev []    = error "empty stack"
-              rev s = reverse (tail s)
+        where rev [] = [] -- error "empty stack"
+              rev s  = reverse (tail s)
 
 ccsToStrings :: Ptr CostCentreStack -> IO [String]
 ccsToStrings ccs0 = go ccs0 []

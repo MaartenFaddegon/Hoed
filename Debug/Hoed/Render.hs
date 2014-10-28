@@ -145,16 +145,22 @@ data Dependency = PushDep | CallDep Int deriving (Eq,Show,Ord)
 type CompGraph = Graph Vertex Dependency
 
 mkGraph :: [CompStmt] -> CompGraph
-mkGraph trc = dagify merge $ mapGraph (\r->Vertex [r] Unassessed) (mkGraph' trc)
+mkGraph trc 
+  = {-# SCC "mkGraph" #-}
+    dagify merge $ mapGraph (\r->Vertex [r] Unassessed) (mkGraph' trc)
   where merge :: [Vertex] -> Vertex
         merge vs = let v = head vs; stmts = map equations vs
                    in v{equations=foldl (++) [] stmts}
 
-mkGraph' :: [CompStmt] -> Graph CompStmt Dependency
-mkGraph' trc = Graph (head roots)
-                       trc
-                       (nubMin $ foldr (\r as -> as ++ (arcsFrom r trc)) [] trc)
-  where roots = filter (\equ -> equStack equ == []) trc
+
+mkGraph' stmts 
+  = {-# SCC "mkGraph'" #-} Graph (head roots) stmts arcs
+
+  where roots = {-# SCC "roots" #-} filter (\s -> equStack s == []) stmts
+
+        -- arcsFrom is called O(N) times with N number of statements
+        arcs = (nubMin $ foldr (\r as -> (arcsFrom r stmts) ++ as) [] stmts)
+
 
 nubMin :: (Eq a, Ord b) => [Arc a b] -> [Arc a b]
 nubMin l = nub' l []
@@ -170,24 +176,26 @@ nubMin l = nub' l []
 
     equiv (Arc v w _) (Arc x y _) = v == x && w == y
 
+-- arcsFrom has a complexity of O(N*N) with N number of statements
 arcsFrom :: CompStmt -> [CompStmt] -> [Arc CompStmt Dependency]
-arcsFrom src trc
-  =  ((map (\tgt -> Arc src tgt PushDep)) . (filter isPushArc) $ trc)
-  ++ ((map (\tgt -> Arc src tgt (CallDep 1))) . (filter isCall1Arc) $ trc)
+arcsFrom src stmts
+  = {-# SCC "arcsFrom" #-}
+     ((map (\tgt -> Arc src tgt PushDep))     . (filter isPushArc)  $ stmts)
+  ++ ((map (\tgt -> Arc src tgt (CallDep 1))) . (filter isCall1Arc) $ stmts)
 
-  where isPushArc = pushDependency src
-        
-        isCall1Arc = anyOf $ map (flip callDependency src) trc
+  where -- isPushArc is O(1)
+        isPushArc tgt = nextStack src == equStack tgt
 
-        anyOf :: [a->Bool] -> a -> Bool
-        anyOf ps x = or (map (\p -> p x) ps)
+        -- isCall1Arc is O(N) for number of stmts
+        isCall1Arc tgt = anyOf (map (callDependency src) stmts) tgt
 
-pushDependency :: CompStmt -> CompStmt -> Bool
-pushDependency p c
-  = nextStack p == equStack c
+-- anyOf is O(P) for P number of predicates
+anyOf :: [a->Bool] -> a -> Bool
+anyOf ps x = or (map (\p -> p x) ps)
 
+-- callDependency is O(1)
 callDependency :: CompStmt -> CompStmt -> CompStmt -> Bool
-callDependency pApp pLam c 
+callDependency pLam pApp c 
   = call (nextStack pApp) (nextStack pLam) == equStack c
 
 -- %************************************************************************

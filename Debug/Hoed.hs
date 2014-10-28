@@ -102,21 +102,23 @@ putStrO expr = runO [] (putStr expr)
 -- 
 
 runO :: [(String,String)] -> IO a -> IO ()
-runO slices program =
-    do { args <- getArgs
-       ; setPushMode (parseArgs args)
-       ; hPutStrLn stderr "=== program output ===\n"
-       ; cdss <- debugO program
-       ; let cdss1 = rmEntrySet cdss
-       ; let cdss2 = simplifyCDSSet cdss1
+runO slices program = {- SCC "runO" -} do
+  args <- getArgs
+  setPushMode (parseArgs args)
+  hPutStrLn stderr "=== program output ===\n"
+  cdss <- debugO program
+  let cdss1 = rmEntrySet cdss
+  let cdss2 = simplifyCDSSet cdss1
 
-       ; let eqs   = ((sortBy byStack) . renderCompStmts) cdss2
-       ; hPutStrLn stderr "\n===\n"
-       ; hPutStrLn stderr (showWithStack eqs)
-       ; let compGraph = mkGraph eqs
-       ; debugSession slices compGraph
-       ; return ()
-       }
+  let eqs   = ((sortBy byStack) . renderCompStmts) cdss2
+  hPutStrLn stderr "\n===\n"
+  n <- peepUniq
+  -- hPutStrLn stderr $ "Please wait, analysing " ++ show n ++ " collected events."
+  hPutStrLn stderr (showWithStack eqs)
+  let compGraph = mkGraph eqs
+  debugSession slices compGraph
+  return ()
+  
 
 hPutStrList :: (Show a) => Handle -> [a] -> IO()
 hPutStrList h []     = hPutStrLn h ""

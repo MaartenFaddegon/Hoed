@@ -1,7 +1,7 @@
-# OPTS="--PushTruncate +RTS --PushTruncate"
+        # OPTS="--PushTruncate +RTS --PushTruncate"
 # OPTS="--PushVanilla +RTS --PushVanilla"
 # OPTS="--PushVanilla +RTS --PushHybrid"
-OPTS="--PushVanilla"
+# OPTS="--PushVanilla"
 
 # EXE="../dist/build/hoed-examples-Hashmap/hoed-examples-Hashmap"
 # EXE="../dist/build/hoed-examples-Example1/hoed-examples-Example1"
@@ -9,6 +9,6 @@ OPTS="--PushVanilla"
 EXE="../dist/build/hoed-examples-Insort/hoed-examples-Insort"
 # EXE="../dist/build/hoed-examples-Responsibility/hoed-examples-Responsibility"
 
-rm tmp/wwwroot/debugTree.png tmp/debugTree.dot
+rm -f tmp/wwwroot/debugTree.png tmp/debugTree.dot
 cd tmp
-eval $EXE $OPTS 
+eval $EXE
