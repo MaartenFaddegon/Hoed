@@ -3,6 +3,20 @@
 -- Copyright (c) Maarten Faddegon, 2014
 
 module Debug.Hoed.Render
+(CompStmt(..)
+,renderCompStmts
+,byStack
+,showWithStack
+
+,CompGraph(..)
+,Vertex(..)
+,mkGraph
+
+,CDS
+,eventsToCDS
+,rmEntrySet
+,simplifyCDSSet
+)
 where
 
 import Prelude hiding(lookup)
@@ -242,13 +256,15 @@ callDep t c3 = foldl (\as (c2,c1) -> c1 ==> c2 : c2 ==> c3 : as) []
   where src ==> tgt = Arc src tgt (CallDep 1)
 
 mkGraph :: [CompStmt] -> CompGraph
-mkGraph cs = dagify merge $ ... something with as???
+mkGraph cs = {-# SCC "mkGraph" #-} dagify merge $ mapGraph (\r->Vertex [r] Unassessed) g
   where ts = mkTrees cs
         as = pushDeps ts cs ++ callDeps ts cs
+        roots = {-# SCC "roots" #-} filter (\s -> equStack s == []) cs
+        g  = Graph (head roots) cs as
 
         merge :: [Vertex] -> Vertex
-        merge vs = let v = head vs; stmts = map equations vs
-                   in v{equations=foldl (++) [] stmts}
+        merge vs = let v = head vs; cs' = map equations vs
+                   in v{equations=foldl (++) [] cs'}
 
 -----------8<--------- revise below this line -----------------------
 
