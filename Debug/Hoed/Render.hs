@@ -5,10 +5,12 @@
 module Debug.Hoed.Render
 where
 
+import Prelude hiding(lookup)
 import Debug.Hoed.Observe
 import Data.List(sort,sortBy,partition)
 import Data.Graph.Libgraph
 import Data.Array as Array
+import Data.Tree.RBTree(RBTree(..),insertOrd,emptyRB,search)
 
 ------------------------------------------------------------------------
 -- Render equations from CDS set
@@ -135,6 +137,82 @@ span2 f = s f []
           | otherwise = (pre,xs,ys)
 
 ------------------------------------------------------------------------
+-- Bags are collections of computation statements with the same stack
+
+data Bag = Bag {bagStack :: CallStack, bagStmts :: [CompStmt]}
+
+instance Eq  Bag where b1 == b2 = bagStack b1 == bagStack b2
+instance Ord Bag where compare b1 b2 = cmpStk (bagStack b1) (bagStack b2)
+
+bag :: (CompStmt -> CallStack) -> CompStmt -> Bag
+bag s c = Bag (s c) [c]
+
+(+++) :: CompStmt -> Bag -> Bag
+c +++ b = b{bagStmts = c : bagStmts b}
+
+
+mkBags :: (CompStmt -> CallStack) -> [CompStmt] -> [Bag]
+mkBags _ []  = []
+mkBags s cs = mkBags' (bag s fc) [] ocs
+
+  where (fc:ocs) = sortBy (\c1 c2 -> cmpStk (s c1) (s c2)) cs
+
+        mkBags' b bs []     = b:bs
+        mkBags' b bs (c:cs)
+          | bagStack b == s c = mkBags' (c +++ b) bs     cs
+          | otherwise        = mkBags' (bag s c) (b:bs) cs
+
+------------------------------------------------------------------------
+-- RB trees to speed up computation graph construction
+
+type Tree = RBTree Bag
+
+mkTree :: (CompStmt -> CallStack) -> [CompStmt] -> Tree
+mkTree s cs = foldl insertOrd emptyRB (mkBags s cs)
+
+mkTrees :: [CompStmt] -> (Tree,Tree)
+mkTrees cs = (mkTree equStack cs, mkTree nextStack cs)
+
+
+cmpStk :: CallStack -> CallStack -> Ordering
+cmpStk [] [] = EQ
+cmpStk s1 s2 = case compare (length s1) (length s2) of
+                EQ  -> compare (head s1) (head s2)
+                ord -> ord
+
+lookup :: Tree -> CallStack -> [CompStmt]
+lookup t s = case search (\s b -> cmpStk s (bagStack b)) t s of
+               (Just b) -> bagStmts b
+               Nothing  -> []
+
+------------------------------------------------------------------------
+-- Inverse call
+
+stmts :: Tree -> (CallStack,CallStack) -> [(CompStmt,CompStmt)]
+stmts t (s1,s2) = flattenStmts (lookup t s1, lookup t s2)
+
+flattenStmts :: ([a],[b]) -> [(a,b)]
+flattenStmts (xs,ys) = foldl (\zs x->foldl (\zs' y->(x,y) : zs') zs ys) [] xs
+
+lacc :: CallStack -> [(CallStack,CallStack)]
+lacc = expand . split
+
+expand :: [([a],[a])] -> [([a],[a])]
+expand xs = foldl (\ys x -> ys ++ map (cat $ snd x) (expand' x)) [] xs
+
+  where expand' (xs,[])   = [(xs,[])]
+        expand' (xs,y:ys) = (xs,y:ys) : expand' (xs,ys)
+
+        cat sApp (xs,ys) = (sApp,xs++ys)
+
+split :: [a] -> [([a],[a])]
+split []     = []
+split (x:xs) = split' [x] xs []
+
+  where split' _  []     zs = zs
+        split' xs (y:ys) zs = split' (xs++[y]) ys ((xs,y:ys):zs)
+
+------------------------------------------------------------------------
 -- Computation graphs
 
 data Vertex = Vertex {equations :: [CompStmt], status :: Judgement}
@@ -144,13 +222,46 @@ data Dependency = PushDep | CallDep Int deriving (Eq,Show,Ord)
 
 type CompGraph = Graph Vertex Dependency
 
+
+pushDeps :: (Tree,Tree) -> [CompStmt] -> [Arc CompStmt Dependency]
+pushDeps ts cs = concat (map (pushArcs ts) cs)
+
+pushArcs :: (Tree,Tree) -> CompStmt -> [Arc CompStmt Dependency]
+pushArcs t p = map (\c -> p ==> c) (pushers t p)
+  where src ==> tgt = Arc src tgt PushDep
+
+pushers :: (Tree,Tree) -> CompStmt -> [CompStmt]
+pushers (ts,tn) c = lookup ts (nextStack c)
+
+callDeps :: (Tree,Tree) -> [CompStmt] -> [Arc CompStmt Dependency]
+callDeps (_,t) cs = concat (map (callDep t) cs)
+
+callDep :: Tree -> CompStmt -> [Arc CompStmt Dependency]
+callDep t c3 = foldl (\as (c2,c1) -> c1 ==> c2 : c2 ==> c3 : as) []
+                          (concat (map (stmts t) (lacc $ equStack c3)))
+  where src ==> tgt = Arc src tgt (CallDep 1)
+
 mkGraph :: [CompStmt] -> CompGraph
-mkGraph trc 
+mkGraph cs = dagify merge $ ... something with as???
+  where ts = mkTrees cs
+        as = pushDeps ts cs ++ callDeps ts cs
+
+        merge :: [Vertex] -> Vertex
+        merge vs = let v = head vs; stmts = map equations vs
+                   in v{equations=foldl (++) [] stmts}
+
+-----------8<--------- revise below this line -----------------------
+
+mkGraph_old :: [CompStmt] -> CompGraph
+mkGraph_old trc 
   = {-# SCC "mkGraph" #-}
     dagify merge $ mapGraph (\r->Vertex [r] Unassessed) (mkGraph' trc)
   where merge :: [Vertex] -> Vertex
         merge vs = let v = head vs; stmts = map equations vs
                    in v{equations=foldl (++) [] stmts}
+
+
+
 
 
 mkGraph' stmts 

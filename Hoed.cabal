@@ -24,6 +24,7 @@ library
                        , threepenny-gui
                        , filepath
                        , libgraph == 1.3
+                       , RBTree == 0.0.5
   default-language:    Haskell2010
 
 Executable hoed-examples-IndirectRecursion
