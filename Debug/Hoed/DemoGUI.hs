@@ -111,6 +111,7 @@ redraw img treeRef
   where shw g = showWith g (showVertex $ faultyVertices g) showArc
         showVertex :: [Vertex] -> Vertex -> String
         showVertex fs v = showStatus fs v ++ ":\n" ++ showCompStmts v
+                          ++ "\nwith stack " ++ (show . equStack . head . equations $ v)
 
         showStatus fs v
           | v `elem` fs = "Faulty"
