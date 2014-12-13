@@ -263,8 +263,11 @@ getStack :: a -> (a, CallStack)
 getStack x = let stack = unsafePerformIO 
                          $ do {ccs <- getCurrentCCS (); ccsToStrings ccs}
              in  (x, rev stack)
-        where rev [] = [] -- error "empty stack"
-              rev s  = reverse (tail s)
+        where rev []    = [] -- error "empty stack"
+              rev s     = reverse s
+              -- rev (h:s) = let s' = case h of "CAF" -> s; _ -> h:s 
+              --             in reverse s'
+
 
 ccsToStrings :: Ptr CostCentreStack -> IO [String]
 ccsToStrings ccs0 = go ccs0 []
