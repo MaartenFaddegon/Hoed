@@ -24,12 +24,11 @@ demoGUI :: [(String,String)] -> IORef CompGraph -> Window -> UI ()
 demoGUI sliceDict treeRef window
   = do return window # UI.set UI.title "Hoed debugging session"
        UI.addStyleSheet window "debug.css"
-       h <- UI.h1 # UI.set UI.text "Hoed Debugging Session"
        img <- UI.img 
        redraw img treeRef
        buttons <- UI.div #. "buttons"
        nowrap  <- UI.div #. "nowrap"  #+ (map UI.element [buttons,img])
-       UI.getBody window #+ (map UI.element [h,nowrap])
+       UI.getBody window #+ (map UI.element [nowrap])
 
        tree <- UI.liftIO $ readIORef treeRef
        let ns = (preorder tree)
