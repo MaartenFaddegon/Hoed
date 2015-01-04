@@ -259,8 +259,11 @@ mkGraph :: [CompStmt] -> CompGraph
 mkGraph cs = {-# SCC "mkGraph" #-} dagify merge $ mapGraph (\r->Vertex [r] Unassessed) g
   where ts = mkTrees cs
         as = pushDeps ts cs ++ callDeps ts cs
-        roots = {-# SCC "roots" #-} filter (\s -> equStack s == []) cs
-        g  = Graph (head roots) cs as
+        r = {-# SCC "roots" #-} case filter (\s -> equStack s == []) cs of
+                []  -> error "No root node"
+                [r] -> r
+                _   -> error "Multiple root nodes"
+        g  = Graph r cs as
 
         merge :: [Vertex] -> Vertex
         merge vs = let v = head vs; cs' = map equations vs

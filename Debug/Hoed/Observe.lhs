@@ -71,6 +71,7 @@ module Debug.Hoed.Observe
   , endEventStream
   , ourCatchAllIO
   , peepUniq
+  , ccsToStrings
   ) where
 \end{code}
 
@@ -260,11 +261,11 @@ emptyStack = [""]
 
 {-# NOINLINE getStack #-}
 getStack :: a -> (a, CallStack)
-getStack x = let stack = unsafePerformIO 
+getStack x = let stack = unsafePerformIO
                          $ do {ccs <- getCurrentCCS (); ccsToStrings ccs}
              in  (x, rev stack)
         where rev []    = [] -- error "empty stack"
-              rev s     = reverse s
+              rev s     = reverse (tail s)
               -- rev (h:s) = let s' = case h of "CAF" -> s; _ -> h:s 
               --             in reverse s'
 
@@ -988,7 +989,7 @@ observer__ a context = sendNoEnterPacket a context
 data Parent = Parent
 	{ observeParent :: !Int	-- my parent
 	, observePort   :: !Int	-- my branch number
-	} deriving Show
+	} deriving (Show, Read)
 root = Parent 0 0
 \end{code}
 
@@ -1071,7 +1072,7 @@ data Event = Event
 		, parent     :: !Parent
 		, change     :: !Change
 		}
-	deriving Show
+	deriving (Show, Read)
 
 data Change
 	= Observe 	!String
@@ -1079,7 +1080,7 @@ data Change
 	| Enter
         | NoEnter
 	| Fun           !CallStack
-	deriving Show
+	deriving (Show, Read)
 
 startEventStream :: IO ()
 startEventStream = writeIORef events []
@@ -1101,6 +1102,14 @@ sendEvent nodeId parent change =
 	   ; writeIORef events (event `seq` (event : es))
 	   ; putMVar sendSem ()
 	   }
+
+writeEvent :: FilePath -> Event -> IO ()
+writeEvent f e = writeFile f (show e)
+
+readEvents :: FilePath -> IO [Event]
+readEvents f = do
+  s <- readFile f
+  return (read s)
 
 -- local
 events :: IORef [Event]
