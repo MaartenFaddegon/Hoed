@@ -31,7 +31,7 @@ demoGUI sliceDict treeRef window
        UI.getBody window #+ (map UI.element [nowrap])
 
        tree <- UI.liftIO $ readIORef treeRef
-       let ns = (preorder tree)
+       let ns = filter (not . isRoot) (preorder tree)
        ts <- toElems sliceDict ns
        ds <- mapM (uncurry divpack) (zip ts (cycle [Odd,Even]))
        UI.element buttons # UI.set UI.children ds
@@ -110,6 +110,7 @@ redraw img treeRef
 
   where shw g = showWith g (showVertex $ faultyVertices g) showArc
         showVertex :: [Vertex] -> Vertex -> String
+        showVertex _ Root = "root"
         showVertex fs v = showStatus fs v ++ ":\n" ++ showCompStmts v
                           ++ "\nwith stack " ++ (show . equStack . head . equations $ v)
 
@@ -127,7 +128,6 @@ redraw img treeRef
         showArc _  = ""
 
 faultyVertices :: CompGraph -> [Vertex]
-faultyVertices = findFaulty_dag status
-
-
-
+faultyVertices = findFaulty_dag getStatus
+  where getStatus Root = Right
+        getStatus v    = status v

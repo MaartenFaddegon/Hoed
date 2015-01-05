@@ -16,6 +16,7 @@ module Debug.Hoed.Render
 ,eventsToCDS
 ,rmEntrySet
 ,simplifyCDSSet
+,isRoot
 )
 where
 
@@ -229,13 +230,15 @@ split (x:xs) = split' [x] xs []
 ------------------------------------------------------------------------
 -- Computation graphs
 
-data Vertex = Vertex {equations :: [CompStmt], status :: Judgement}
+data Vertex = Root | Vertex {equations :: [CompStmt], status :: Judgement}
               deriving (Eq,Show,Ord)
 
 data Dependency = PushDep | CallDep Int deriving (Eq,Show,Ord)
 
 type CompGraph = Graph Vertex Dependency
 
+isRoot Root = True
+isRoot _    = False
 
 pushDeps :: (Tree,Tree) -> [CompStmt] -> [Arc CompStmt Dependency]
 pushDeps ts cs = concat (map (pushArcs ts) cs)
@@ -256,18 +259,24 @@ callDep t c3 = foldl (\as (c2,c1) -> c1 ==> c2 : c2 ==> c3 : as) []
   where src ==> tgt = Arc src tgt (CallDep 1)
 
 mkGraph :: [CompStmt] -> CompGraph
-mkGraph cs = {-# SCC "mkGraph" #-} dagify merge $ mapGraph (\r->Vertex [r] Unassessed) g
-  where ts = mkTrees cs
-        as = pushDeps ts cs ++ callDeps ts cs
-        r = {-# SCC "roots" #-} case filter (\s -> equStack s == []) cs of
-                []  -> error "No root node"
-                [r] -> r
-                _   -> error "Multiple root nodes"
-        g  = Graph r cs as
+mkGraph cs = {-# SCC "mkGraph" #-} (dagify merge) . addRoot . toVertices $ g
+  where g :: Graph CompStmt Dependency
+        g = let ts = mkTrees cs in Graph (head cs) cs (pushDeps ts cs ++ callDeps ts cs)
+
+        toVertices :: Graph CompStmt Dependency -> CompGraph
+        toVertices = mapGraph (\s->Vertex [s] Unassessed)
+
+        addRoot :: CompGraph -> CompGraph
+        addRoot (Graph _ vs as) =
+                let rs = filter (\(Vertex (s:_) _) -> equStack s == []) vs
+                    es = map (\r -> Root ==> r) rs
+                in  Graph Root (Root : vs) (es ++ as)
 
         merge :: [Vertex] -> Vertex
         merge vs = let v = head vs; cs' = map equations vs
                    in v{equations=foldl (++) [] cs'}
+
+        src ==> tgt = Arc src tgt PushDep
 
 -----------8<--------- revise below this line -----------------------
 

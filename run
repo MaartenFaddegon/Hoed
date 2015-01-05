@@ -1,13 +1,38 @@
+#!/bin/bash
+
+EXAMPLES=`ls dist/build | grep hoed-examples`
+
+i=0
+
+echo "Available examples:"
+for e in $EXAMPLES; do
+  echo "$i) $e"
+  ((i++))
+done
+
+echo -n "Select program or -1 to cancel: "
+read
+
+j=0
+for e in $EXAMPLES; do
+  if ((j==$REPLY)); then 
+    EXE=$e
+  fi
+
+  if ((j>i)); then
+    echo "Bye"
+    exit 1
+  fi
+
+  ((j++))
+done
+
+echo "Now executing $EXE."
+
 # OPTS="--PushTruncate +RTS --PushTruncate"
 # OPTS="--PushVanilla +RTS --PushVanilla"
 # OPTS="--PushVanilla +RTS --PushHybrid"
 # OPTS="--PushVanilla"
-
-# EXE="hoed-examples-Insort1"
-# EXE="hoed-examples-Insort2"
-EXE="hoed-examples-DoublingServer"
-# EXE="hoed-examples-Example1"
-# EXE="hoed-examples-Example3"
 
 rm -f tmp/wwwroot/debugTree.png tmp/debugTree.dot
 cd tmp
