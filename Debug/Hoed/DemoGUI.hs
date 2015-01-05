@@ -66,8 +66,11 @@ onClick buttons img treeRef status (b,n)
 -- two vertices with equal equation but different stacks/relations
 -- are now both changed.
 markNode :: CompGraph -> Vertex -> Judgement -> CompGraph
-markNode g v s = mapGraph (\v' -> if v' === v then v{status=s} else v') g
-  where (===) :: Vertex -> Vertex -> Bool
+markNode g v s = mapGraph f g
+  where f Root = Root
+        f v'   = if v' === v then v{status=s} else v'
+
+        (===) :: Vertex -> Vertex -> Bool
         v1 === v2 = (equations v1) == (equations v2)
 
 corButtons :: [ElemSet] -> [UI.Element]
