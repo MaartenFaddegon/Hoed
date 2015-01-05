@@ -1,14 +1,14 @@
-        # OPTS="--PushTruncate +RTS --PushTruncate"
+# OPTS="--PushTruncate +RTS --PushTruncate"
 # OPTS="--PushVanilla +RTS --PushVanilla"
 # OPTS="--PushVanilla +RTS --PushHybrid"
 # OPTS="--PushVanilla"
 
-# EXE="../dist/build/hoed-examples-Hashmap/hoed-examples-Hashmap"
-# EXE="../dist/build/hoed-examples-Example1/hoed-examples-Example1"
-# EXE="../dist/build/hoed-examples-Example3/hoed-examples-Example3"
-EXE="../dist/build/hoed-examples-Insort/hoed-examples-Insort"
-# EXE="../dist/build/hoed-examples-Responsibility/hoed-examples-Responsibility"
+# EXE="hoed-examples-Insort1"
+EXE="hoed-examples-Insort2"
+# EXE="hoed-examples-DoublingServer"
+# EXE="hoed-examples-Example1"
+# EXE="hoed-examples-Example3"
 
 rm -f tmp/wwwroot/debugTree.png tmp/debugTree.dot
 cd tmp
-eval $EXE
+eval ../dist/build/$EXE/$EXE

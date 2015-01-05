@@ -264,10 +264,11 @@ getStack :: a -> (a, CallStack)
 getStack x = let stack = unsafePerformIO
                          $ do {ccs <- getCurrentCCS (); ccsToStrings ccs}
              in  (x, rev stack)
-        where rev []    = [] -- error "empty stack"
-              rev s     = reverse (tail s)
-              -- rev (h:s) = let s' = case h of "CAF" -> s; _ -> h:s 
-              --             in reverse s'
+        where rev []    = []
+              -- rev s    = reverse (tail s)
+              rev (h:s) = let s' = case h of "CAF" -> s
+                                             _     -> h:s 
+                          in reverse s'
 
 
 ccsToStrings :: Ptr CostCentreStack -> IO [String]
@@ -1103,13 +1104,14 @@ sendEvent nodeId parent change =
 	   ; putMVar sendSem ()
 	   }
 
-writeEvent :: FilePath -> Event -> IO ()
-writeEvent f e = writeFile f (show e)
 
-readEvents :: FilePath -> IO [Event]
-readEvents f = do
-  s <- readFile f
-  return (read s)
+-- writeEvent :: FilePath -> Event -> IO ()
+-- writeEvent f e = appendFile f (show e)
+-- 
+-- readEvents :: FilePath -> IO [Event]
+-- readEvents f = do
+--   s <- readFile f
+--   return (read s)
 
 -- local
 events :: IORef [Event]

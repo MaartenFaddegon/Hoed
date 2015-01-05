@@ -72,12 +72,31 @@ Executable hoed-examples-Example4
   hs-source-dirs:      examples
   default-language:    Haskell2010
 
-Executable hoed-examples-Insort
+Executable hoed-examples-Insort1
   build-depends:       base >= 4 && < 5
                        , Hoed
                        , threepenny-gui
                        , filepath
   main-is:             Insort.lhs
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+
+Executable hoed-examples-Insort2
+  build-depends:       base >= 4 && < 5
+                       , Hoed
+                       , threepenny-gui
+                       , filepath
+  main-is:             Insort2.hs
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+
+Executable hoed-examples-DoublingServer
+  build-depends:       base >= 4 && < 5
+                       , Hoed
+                       , threepenny-gui
+                       , filepath
+                       , network
+  main-is:             DoublingServer.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
 
