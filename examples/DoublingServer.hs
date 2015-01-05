@@ -8,8 +8,7 @@ import Network
 import Text.Printf
 import Control.Monad
 import Control.Concurrent
-import GHC.Stack(getCurrentCCS)
-import Debug.Hoed(ccsToStrings,gdmobserve,Observable(..),runO,send)
+import Debug.Hoed(gdmobserve,Observable(..),runO,send)
 import System.IO.Unsafe
 import Data.List
 
@@ -24,13 +23,10 @@ double = gdmobserve "double"
          $ \s -> {-# SCC "double" #-} show (twotimes (read s :: Integer))
 
 loop h = do
-  ccs <- getCurrentCCS ()
-  ss <- ccsToStrings ccs
-  hPutStrLn h $ "hello " ++ show h ++ " \"loop\" stack is " ++ show ss
   line <- hGetLine h
   if line == "end"
      then do hPutStrLn h ("Thank you for using the Haskell doubling service.")
-             putStrLn $ "Terminated client " ++ show h
+             putStrLn $ "server: Terminated client " ++ show h
      else do hPutStrLn h (double line)
              loop h
 
@@ -44,19 +40,35 @@ talk h = do
 port :: Int
 port = 44444
 
-mainloop :: Socket -> IO ()
-mainloop = gdmobserve "mainloop" (\sock -> {-# SCC "mainloop" #-} mainloop' sock)
-  where mainloop' sock = do
-                            (handle, host, port) <- accept sock
-                            printf "Accepted connection from %s: %s\n" host (show port)
-                            forkFinally (talk handle) (\_ -> hClose handle)
-                            mainloop sock
+server :: Int -> Socket -> IO ()
+server = gdmobserve "server" (\x sock -> {-# SCC "server" #-} server' x sock)
+  where server' 0 _ = putStrLn "server: Shutting down."
+        server' x sock = do
+          (handle, host, port) <- accept sock
+          printf "server: Accepted connection from %s: %s\n" host (show port)
+          forkFinally (talk handle) (\_ -> hClose handle)
+          server (x-1) sock
+
+client :: Int -> IO ()
+client x = do
+  h <- connectTo "localhost" (PortNumber (fromIntegral port))
+  hSetBuffering h LineBuffering
+  let pr s = putStrLn $ "client-" ++ show x ++ ": " ++ s
+  
+  s <- hGetLine h; pr s -- Get and print the welcome message
+  hPutStrLn h (show x)  -- Send x for doubling to the server
+  s <- hGetLine h; pr s -- Get and print response from server
+  hPutStrLn h "end"     -- Send goodbye message
+  s <- hGetLine h; pr s -- Get and print response from server
 
 main :: IO ()
 main = runO slices $ withSocketsDo $ do
   sock <- listenOn (PortNumber (fromIntegral port))
-  printf "Listening on port %d\n" port
-  mainloop sock
+  printf "server: Listening on port %d.\n" port
+  forkIO (server 2 sock) -- Start server in own thread.
+  client 2               -- Connect with two clients from this thread to the server.
+  client 3
+  threadDelay 1000       -- Give server-thread some time to terminate.
 
 slices = []
 

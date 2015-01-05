@@ -4,8 +4,8 @@
 # OPTS="--PushVanilla"
 
 # EXE="hoed-examples-Insort1"
-EXE="hoed-examples-Insort2"
-# EXE="hoed-examples-DoublingServer"
+# EXE="hoed-examples-Insort2"
+EXE="hoed-examples-DoublingServer"
 # EXE="hoed-examples-Example1"
 # EXE="hoed-examples-Example3"
 
