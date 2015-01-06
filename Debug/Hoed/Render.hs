@@ -36,12 +36,13 @@ renderCompStmts = map renderCompStmt
 renderCompStmt :: CDS -> CompStmt
 renderCompStmt (CDSNamed name set)
   = CompStmt name equation (head stack)
-  where equation    = pretty 120 (foldr (<>) nil doc)
+  where equation    = pretty 120 (commas doc)
         (doc,stack) = unzip rendered
         rendered    = map (renderNamedTop name) output
         output      = cdssToOutput set
-        -- MF TODO: Do we want to sort?
-        -- output      = (commonOutput . cdssToOutput) set
+        commas [d]  = d
+        commas ds   = (foldl (\acc d -> acc <> d <> text ", ") (text "{") ds) <> text "}"
+
 renderCompStmt _ = CompStmt "??" "??" emptyStack
 
 renderNamedTop :: String -> Output -> (DOC,CallStack)
