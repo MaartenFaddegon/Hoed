@@ -1,51 +1,49 @@
--- This file is part of the Haskell debugger Hoed.
---
--- Copyright (c) Maarten Faddegon, 2014
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE DeriveGeneric #-}
 
-module Debug.Hoed.Render
-(CompStmt(..)
-,renderCompStmts
-,byStack
-,showWithStack
-
-,CompGraph(..)
-,Vertex(..)
-,mkGraph
-
-,CDS
-,eventsToCDS
-,rmEntrySet
-,simplifyCDSSet
-,isRoot
-)
-where
-
-import Prelude hiding(lookup)
-import Debug.Hoed.Observe
 import Data.List(sort,sortBy,partition)
-import Data.Graph.Libgraph
 import Data.Array as Array
-import Data.Tree.RBTree(RBTree(..),insertOrd,emptyRB,search)
+import Debug.Hoed(gdmobserve,Observable(..),runO,Generic)
+
+------------------------------------------------------------------------
+-- Make our datatypes observable
+
+instance Observable CDS
+instance Observable DOC
+instance Observable CompStmt
+instance Observable Output
+
+------------------------------------------------------------------------
+-- The main program with the failing testcase.
+
+main = runO [] $ print (renderCompStmts cdss)
+
+cdss = [CDSNamed "f" [CDSFun 0 [CDSCons 0 "2" []] [CDSCons 0 "1" []] [],CDSFun 0 [CDSCons 0 "0" []] [CDSCons 0 "0" []] []],CDSNamed "g" [CDSFun 0 [CDSCons 0 "2" []] [CDSCons 0 "1" []] ["f"]]]
 
 ------------------------------------------------------------------------
 -- Render equations from CDS set
 
 renderCompStmts :: CDSSet -> [CompStmt]
-renderCompStmts = map renderCompStmt
+renderCompStmts = gdmobserve "renderCompStmts" ({-# SCC "renderCompStmts" #-} map renderCompStmt)
 
 renderCompStmt :: CDS -> CompStmt
-renderCompStmt (CDSNamed name set)
-  = CompStmt name equation (head stack)
-  where equation    = pretty 120 (foldr (<>) nil doc)
+renderCompStmt c' = gdmobserve "renderCompStmt" (\c-> {-# SCC "renderCompStmt" #-} renderCompStmt' c) c'
+renderCompStmt' (CDSNamed name set) = CompStmt name equation (head stack)
+  where equation    = pretty 80 (foldr (<>) nil doc) -- BUG: foldr (<>) just puts equations
+                                                     -- beside eachother, rather than seperating
+                                                     -- them with commas
         (doc,stack) = unzip rendered
         rendered    = map (renderNamedTop name) output
         output      = cdssToOutput set
         -- MF TODO: Do we want to sort?
         -- output      = (commonOutput . cdssToOutput) set
-renderCompStmt _ = CompStmt "??" "??" emptyStack
+renderCompStmt' _ = CompStmt "??" "??" emptyStack
 
 renderNamedTop :: String -> Output -> (DOC,CallStack)
-renderNamedTop name (OutData cds)
+renderNamedTop arg1 arg2 = gdmobserve "renderNamedTop" 
+                           (\arg1' arg2' -> {-# SCC "renderNamedTop" #-} renderNamedTop' arg1' arg2'
+                           ) arg1 arg2
+renderNamedTop' name (OutData cds)
   = ( nest 2 $ foldl1 (\ a b -> a <> line <> text ", " <> b) (map (renderNamedFn name) pairs)
     , callStack
     )
@@ -67,19 +65,11 @@ renderCallStack s
 -- The CompStmt type
 
 data CompStmt = CompStmt {equLabel :: String, equRes :: String, equStack :: CallStack}
-                deriving (Eq, Ord)
+                deriving (Eq, Ord, Generic)
 
 instance Show CompStmt where
   show e = equRes e -- ++ " with stack " ++ show (equStack e)
   showList eqs eq = unlines (map show eqs) ++ eq
-
-showWithStack :: [CompStmt] -> String
-showWithStack eqs = unlines (map show' eqs)
-  where show' eq
-         = equRes eq ++ "\n\tWith call stack: " ++ showStack (equStack eq)
-                     ++ "\n\tNext stack:      " ++ showStack (nextStack eq)
-           where showStack [] = "[-]"
-                 showStack ss = (foldl (\s' s -> s' ++ s ++ ",") "[" ss) ++ "-]"
 
 -- Compare equations by stack
 byStack e1 e2
@@ -97,196 +87,15 @@ compareStack s1 s2
         c ((x,y):ss) = case compare x y of
           EQ -> c ss
           d  -> d
-              
-------------------------------------------------------------------------
--- Stack matching
 
--- nextStack = case getPushMode of
---         Vanilla  -> nextStack_vanilla
---         Drop     -> nextStack_drop
---         Truncate -> nextStack_truncate
-nextStack = nextStack_truncate
-
--- Always push onto top of stack
-nextStack_vanilla :: CompStmt -> CallStack
-nextStack_vanilla (CompStmt cc _ ccs) = cc:ccs
-
--- Drop on recursion
-nextStack_drop :: CompStmt -> CallStack
-nextStack_drop (CompStmt cc _ [])   = [cc]
-nextStack_drop (CompStmt cc _ ccs)
-  = if ccs `contains` cc 
-        then ccs
-        else cc:ccs
-
--- Remove everything between recursion (e.g. [f,g,f,h] becomes [f,h])
-nextStack_truncate :: CompStmt -> CallStack
-nextStack_truncate (CompStmt cc _ [])   = [cc]
-nextStack_truncate (CompStmt cc _ ccs)
-  = if ccs `contains` cc 
-        then dropWhile (/= cc) ccs
-        else cc:ccs
-
-contains :: CallStack -> String -> Bool
-contains ccs cc = filter (== cc) ccs /= []
-
-call :: CallStack -> CallStack -> CallStack
-call sApp sLam = sLam' ++ sApp
-  where (sPre,sApp',sLam') = commonPrefix sApp sLam
-
-commonPrefix :: CallStack -> CallStack -> (CallStack, CallStack, CallStack)
-commonPrefix sApp sLam
-  = let (sPre,sApp',sLam') = span2 (==) (reverse sApp) (reverse sLam)
-    in (sPre, reverse sApp', reverse sLam') 
-
-span2 :: (a -> a -> Bool) -> [a] -> [a] -> ([a], [a], [a])
-span2 f = s f []
-  where s _ pre [] ys = (pre,[],ys)
-        s _ pre xs [] = (pre,xs,[])
-        s f pre xs@(x:xs') ys@(y:ys') 
-          | f x y     = s f (x:pre) xs' ys'
-          | otherwise = (pre,xs,ys)
-
-------------------------------------------------------------------------
--- Bags are collections of computation statements with the same stack
-
-data Bag = Bag {bagStack :: CallStack, bagStmts :: [CompStmt]}
-
-instance Eq  Bag where b1 == b2 = bagStack b1 == bagStack b2
-instance Ord Bag where compare b1 b2 = cmpStk (bagStack b1) (bagStack b2)
-
-bag :: (CompStmt -> CallStack) -> CompStmt -> Bag
-bag s c = Bag (s c) [c]
-
-(+++) :: CompStmt -> Bag -> Bag
-c +++ b = b{bagStmts = c : bagStmts b}
-
-
-mkBags :: (CompStmt -> CallStack) -> [CompStmt] -> [Bag]
-mkBags _ []  = []
-mkBags s cs = mkBags' (bag s fc) [] ocs
-
-  where (fc:ocs) = sortBy (\c1 c2 -> cmpStk (s c1) (s c2)) cs
-
-        mkBags' b bs []     = b:bs
-        mkBags' b bs (c:cs)
-          | bagStack b == s c = mkBags' (c +++ b) bs     cs
-          | otherwise        = mkBags' (bag s c) (b:bs) cs
-
-------------------------------------------------------------------------
--- RB trees to speed up computation graph construction
-
-type Tree = RBTree Bag
-
-mkTree :: (CompStmt -> CallStack) -> [CompStmt] -> Tree
-mkTree s cs = foldl insertOrd emptyRB (mkBags s cs)
-
-mkTrees :: [CompStmt] -> (Tree,Tree)
-mkTrees cs = (mkTree equStack cs, mkTree nextStack cs)
-
-
-cmpStk :: CallStack -> CallStack -> Ordering
-cmpStk [] [] = EQ
-cmpStk s1 s2 = case compare (length s1) (length s2) of
-                EQ  -> compare (head s1) (head s2)
-                ord -> ord
-
-lookup :: Tree -> CallStack -> [CompStmt]
-lookup t s = case search (\s b -> cmpStk s (bagStack b)) t s of
-               (Just b) -> bagStmts b
-               Nothing  -> []
-
-------------------------------------------------------------------------
--- Inverse call
-
-stmts :: Tree -> (CallStack,CallStack) -> [(CompStmt,CompStmt)]
-stmts t (s1,s2) = flattenStmts (lookup t s1, lookup t s2)
-
-flattenStmts :: ([a],[b]) -> [(a,b)]
-flattenStmts (xs,ys) = foldl (\zs x->foldl (\zs' y->(x,y) : zs') zs ys) [] xs
-
-lacc :: CallStack -> [(CallStack,CallStack)]
-lacc = expand . split
-
-expand :: [([a],[a])] -> [([a],[a])]
-expand xs = foldl (\ys x -> ys ++ map (cat $ snd x) (expand' x)) [] xs
-
-  where expand' (xs,[])   = [(xs,[])]
-        expand' (xs,y:ys) = (xs,y:ys) : expand' (xs,ys)
-
-        cat sApp (xs,ys) = (sApp,xs++ys)
-
-split :: [a] -> [([a],[a])]
-split []     = []
-split (x:xs) = split' [x] xs []
-
-  where split' _  []     zs = zs
-        split' xs (y:ys) zs = split' (xs++[y]) ys ((xs,y:ys):zs)
-
-------------------------------------------------------------------------
--- Computation graphs
-
-data Vertex = Root | Vertex {equations :: [CompStmt], status :: Judgement}
-              deriving (Eq,Show,Ord)
-
-data Dependency = PushDep | CallDep Int deriving (Eq,Show,Ord)
-
-type CompGraph = Graph Vertex Dependency
-
-isRoot Root = True
-isRoot _    = False
-
-pushDeps :: (Tree,Tree) -> [CompStmt] -> [Arc CompStmt Dependency]
-pushDeps ts cs = concat (map (pushArcs ts) cs)
-
-pushArcs :: (Tree,Tree) -> CompStmt -> [Arc CompStmt Dependency]
-pushArcs t p = map (\c -> p ==> c) (pushers t p)
-  where src ==> tgt = Arc src tgt PushDep
-
-pushers :: (Tree,Tree) -> CompStmt -> [CompStmt]
-pushers (ts,tn) c = lookup ts (nextStack c)
-
-callDeps :: (Tree,Tree) -> [CompStmt] -> [Arc CompStmt Dependency]
-callDeps (_,t) cs = concat (map (callDep t) cs)
-
-callDep :: Tree -> CompStmt -> [Arc CompStmt Dependency]
-callDep t c3 = foldl (\as (c2,c1) -> c1 ==> c2 : c2 ==> c3 : as) []
-                          (concat (map (stmts t) (lacc $ equStack c3)))
-  where src ==> tgt = Arc src tgt (CallDep 1)
-
-mkGraph :: [CompStmt] -> CompGraph
-mkGraph cs = {-# SCC "mkGraph" #-} (dagify merge) . addRoot . toVertices $ g
-  where g :: Graph CompStmt Dependency
-        g = let ts = mkTrees cs in Graph (head cs) cs (pushDeps ts cs ++ callDeps ts cs)
-
-        toVertices :: Graph CompStmt Dependency -> CompGraph
-        toVertices = mapGraph (\s->Vertex [s] Unassessed)
-
-        addRoot :: CompGraph -> CompGraph
-        addRoot (Graph _ vs as) =
-                let rs = filter (\(Vertex (s:_) _) -> equStack s == []) vs
-                    es = map (\r -> Root ==> r) rs
-                in  Graph Root (Root : vs) (es ++ as)
-
-        merge :: [Vertex] -> Vertex
-        merge vs = let v = head vs; cs' = map equations vs
-                   in v{equations=foldl (++) [] cs'}
-
-        src ==> tgt = Arc src tgt PushDep
-
--- %************************************************************************
--- %*									*
--- \subsection{The CDS and converting functions}
--- %*									*
--- %************************************************************************
-
+-- The CDS and converting functions
 
 data CDS = CDSNamed String         CDSSet
 	 | CDSCons Int String     [CDSSet]
 	 | CDSFun  Int             CDSSet CDSSet CallStack
 	 | CDSEntered Int
 	 | CDSTerminated Int
-	deriving (Show,Eq,Ord)
+	deriving (Show,Eq,Ord,Generic)
 
 type CDSSet = [CDS]
 
@@ -384,7 +193,10 @@ renderFn callStack (args, res)
                )
 
 renderNamedFn :: String -> ([CDSSet],CDSSet) -> DOC
-renderNamedFn name (args,res)
+renderNamedFn arg1 arg2 = gdmobserve "renderNamedFn" 
+                                (\arg1' arg2' -> {-# SCC "renderNamedFn" #-}
+                                renderNamedFn' arg1' arg2') arg1 arg2
+renderNamedFn' name (args,res)
   = grp (nest 3 
             (  text name <> sep
             <> foldr (\ a b -> nest 0 (renderSet' 10 False a) <> sp <> b) nil args 
@@ -470,7 +282,7 @@ sp = text " "
 
 data Output = OutLabel String CDSSet [Output]
             | OutData  CDS
-	      deriving (Eq,Ord,Show)
+	      deriving (Eq,Ord,Show,Generic)
 
 
 commonOutput :: [Output] -> [Output]
@@ -506,7 +318,7 @@ data DOC		= NIL			-- nil
 			| SEP			-- " " or "\n"
 			| BREAK			-- ""  or "\n"
 			| DOC :<|> DOC		-- choose one
-			deriving (Eq,Show)
+			deriving (Eq,Show,Generic)
 data Doc		= Nil
 			| Text Int String Doc
 			| Line Int Int Doc
@@ -579,4 +391,34 @@ better			:: Int -> Int -> Doc -> Doc -> Doc
 better w k x y		= if (w-k) >= toplen x then x else y
 
 pretty			:: Int -> DOC -> String
-pretty w x		= layout (best w 0 x)
+pretty w x = gdmobserve "pretty" (\w' x'-> {-# SCC "pretty" #-} pretty' w' x') w x
+pretty' w x		= layout (best w 0 x)
+
+------------------------------------------------------------------------
+-- Stacks
+
+emptyStack = [""]
+type CallStack = [String]
+
+------------------------------------------------------------------------
+-- Events
+data Event = Event
+		{ portId     :: !Int
+		, parent     :: !Parent
+		, change     :: !Change
+		}
+	deriving (Show, Read)
+
+data Change
+	= Observe 	!String
+	| Cons    !Int 	!String
+	| Enter
+        | NoEnter
+	| Fun           !CallStack
+	deriving (Show, Read)
+
+data Parent = Parent
+	{ observeParent :: !Int	-- my parent
+	, observePort   :: !Int	-- my branch number
+	} deriving (Show, Read)
+root = Parent 0 0

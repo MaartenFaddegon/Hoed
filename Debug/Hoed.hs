@@ -119,7 +119,9 @@ runO' program = {- SCC "runO" -} do
   let cdss1 = rmEntrySet cdss
   let cdss2 = simplifyCDSSet cdss1
   let eqs   = ((sortBy byStack) . renderCompStmts) cdss2
-  hPutStrLn stderr "\n===\n"
+  hPutStrLn stderr "\n=== CDS's before rendering === \n"
+  hPutStrLn stderr (show cdss2)
+  hPutStrLn stderr "\n=== Debug session === \n"
   hPutStrLn stderr (showWithStack eqs)
   return (mkGraph eqs)
 

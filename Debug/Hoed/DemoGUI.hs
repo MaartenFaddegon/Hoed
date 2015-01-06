@@ -14,8 +14,7 @@ import Graphics.UI.Threepenny (startGUI,defaultConfig,tpPort,tpStatic
                               )
 import System.Process(system)
 import Data.IORef
-
-
+import Data.List(intersperse)
 
 preorder :: CompGraph -> [Vertex]
 preorder = getPreorder . getDfs
@@ -26,8 +25,9 @@ demoGUI sliceDict treeRef window
        UI.addStyleSheet window "debug.css"
        img <- UI.img 
        redraw img treeRef
+       img' <- UI.center #+ [UI.element img]
        buttons <- UI.div #. "buttons"
-       nowrap  <- UI.div #. "nowrap"  #+ (map UI.element [buttons,img])
+       nowrap  <- UI.div #. "nowrap"  #+ (map UI.element [buttons,img'])
        UI.getBody window #+ (map UI.element [nowrap])
 
        tree <- UI.liftIO $ readIORef treeRef
@@ -105,26 +105,30 @@ redraw :: UI.Element -> IORef CompGraph -> UI ()
 redraw img treeRef 
   = do tree <- UI.liftIO $ readIORef treeRef
        UI.liftIO $ writeFile "debugTree.dot" (shw tree)
-       UI.liftIO $ system $ "dot -Tpng -Gsize=7,8 -Gdpi=100 debugTree.dot "
+       UI.liftIO $ system $ "dot -Tpng -Gsize=8,8 -Gdpi=100 debugTree.dot "
                           ++ "> wwwroot/debugTree.png"
        url <- UI.loadFile "image/png" "wwwroot/debugTree.png"
        UI.element img # UI.set UI.src url
        return ()
 
-  where shw g = showWith g (showVertex $ faultyVertices g) showArc
+  where shw g = showWith g (showVertexSimple $ faultyVertices g) showArc
         showVertex :: [Vertex] -> Vertex -> String
         showVertex _ Root = "root"
         showVertex fs v = showStatus fs v ++ ":\n" ++ showCompStmts v
                           ++ "\nwith stack " ++ (show . equStack . head . equations $ v)
+        showCompStmts = commas . equations
+
+        showVertexSimple fs v = showStatus fs v ++ ":" ++ showCompStmtsSimple v
+        showCompStmtsSimple = commas . (map equLabel) . equations
 
         showStatus fs v
           | v `elem` fs = "Faulty"
           | otherwise   = (show . status) v
 
-        showCompStmts = showCompStmts' . equations
-        showCompStmts' [e] = show e
-        showCompStmts' es  = foldl (\acc e-> acc ++ show e ++ ", ") "{" (init es) 
+        commas [e] = show e
+        commas es  = foldl (\acc e-> acc ++ show e ++ ", ") "{" (init es) 
                              ++ show (last es) ++ "}"
+
 
         -- showVertex = show
         -- showVertex = (foldl (++) "") . (map show) . equations
