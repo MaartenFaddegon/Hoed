@@ -13,19 +13,20 @@ done
 echo -n "Select program or -1 to cancel: "
 read
 
+# Find the appropriate example from the given input
 j=0
 for e in $EXAMPLES; do
   if ((j==$REPLY)); then 
     EXE=$e
   fi
-
-  if ((j>i)); then
-    echo "Bye"
-    exit 1
-  fi
-
   ((j++))
 done
+
+# Or exit if the input was invalid (or -1)
+if ((j>=i)); then
+  echo "Bye"
+  exit 1
+fi
 
 echo "Now executing $EXE."
 
