@@ -18,6 +18,7 @@ j=0
 for e in $EXAMPLES; do
   if ((j==$REPLY)); then 
     EXE=$e
+    break
   fi
   ((j++))
 done
