@@ -4,6 +4,7 @@ module Debug.Hoed
   , Observer(..)   -- contains a 'forall' typed observe (if supported).
   , Observable(..) -- Class
   , runO	   -- IO a -> IO ()
+  , logO
   , printO	   -- a -> IO ()
   , putStrO	   -- String -> IO ()
 
@@ -105,21 +106,38 @@ putStrO expr = runO [] (putStr expr)
 
 runO :: [(String,String)] -> IO a -> IO ()
 runO slices program = {- SCC "runO" -} do
+  compGraph <- runO' program
+  debugSession slices compGraph
+  return ()
+
+runO' :: IO a -> IO CompGraph
+runO' program = {- SCC "runO" -} do
   args <- getArgs
   setPushMode (parseArgs args)
   hPutStrLn stderr "=== program output ===\n"
   cdss <- debugO program
   let cdss1 = rmEntrySet cdss
   let cdss2 = simplifyCDSSet cdss1
-
   let eqs   = ((sortBy byStack) . renderCompStmts) cdss2
   hPutStrLn stderr "\n===\n"
-  n <- peepUniq
-  -- hPutStrLn stderr $ "Please wait, analysing " ++ show n ++ " collected events."
   hPutStrLn stderr (showWithStack eqs)
-  let compGraph = mkGraph eqs
-  debugSession slices compGraph
+  return (mkGraph eqs)
+
+logO :: FilePath -> IO a -> IO ()
+logO filePath program = {- SCC "logO" -} do
+  compGraph <- runO' program
+  writeFile filePath (showGraph compGraph)
   return ()
+
+  where showGraph g        = showWith g showVertex showArc
+        showVertex Root    = "root"
+        showVertex v       = showCompStmts v ++ "\nwith stack " 
+                             ++ (show . equStack . head . equations $ v)
+        showArc _          = ""
+        showCompStmts      = showCompStmts' . equations
+        showCompStmts' [e] = show e
+        showCompStmts' es  = foldl (\acc e-> acc ++ show e ++ ", ") "{" (init es) 
+                             ++ show (last es) ++ "}"
   
 
 hPutStrList :: (Show a) => Handle -> [a] -> IO()
