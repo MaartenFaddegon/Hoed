@@ -230,37 +230,35 @@ split (x:xs) = split' [x] xs []
 data Vertex = Root | Vertex {equations :: [CompStmt], status :: Judgement}
               deriving (Eq,Show,Ord)
 
-data Dependency = PushDep | CallDep Int deriving (Eq,Show,Ord)
-
-type CompGraph = Graph Vertex Dependency
+type CompGraph = Graph Vertex ()
 
 isRoot Root = True
 isRoot _    = False
 
-pushDeps :: (Tree,Tree) -> [CompStmt] -> [Arc CompStmt Dependency]
+pushDeps :: (Tree,Tree) -> [CompStmt] -> [Arc CompStmt ()]
 pushDeps ts cs = concat (map (pushArcs ts) cs)
 
-pushArcs :: (Tree,Tree) -> CompStmt -> [Arc CompStmt Dependency]
+pushArcs :: (Tree,Tree) -> CompStmt -> [Arc CompStmt ()]
 pushArcs t p = map (\c -> p ==> c) (pushers t p)
-  where src ==> tgt = Arc src tgt PushDep
+  where src ==> tgt = Arc src tgt ()
 
 pushers :: (Tree,Tree) -> CompStmt -> [CompStmt]
 pushers (ts,tn) c = lookup ts (nextStack c)
 
-callDeps :: (Tree,Tree) -> [CompStmt] -> [Arc CompStmt Dependency]
+callDeps :: (Tree,Tree) -> [CompStmt] -> [Arc CompStmt ()]
 callDeps (_,t) cs = concat (map (callDep t) cs)
 
-callDep :: Tree -> CompStmt -> [Arc CompStmt Dependency]
+callDep :: Tree -> CompStmt -> [Arc CompStmt ()]
 callDep t c3 = foldl (\as (c2,c1) -> c1 ==> c2 : c2 ==> c3 : as) []
                           (concat (map (stmts t) (lacc $ equStack c3)))
-  where src ==> tgt = Arc src tgt (CallDep 1)
+  where src ==> tgt = Arc src tgt ()
 
 mkGraph :: [CompStmt] -> CompGraph
 mkGraph cs = {-# SCC "mkGraph" #-} (dagify merge) . addRoot . toVertices $ g
-  where g :: Graph CompStmt Dependency
+  where g :: Graph CompStmt ()
         g = let ts = mkTrees cs in Graph (head cs) cs (pushDeps ts cs ++ callDeps ts cs)
 
-        toVertices :: Graph CompStmt Dependency -> CompGraph
+        toVertices :: Graph CompStmt () -> CompGraph
         toVertices = mapGraph (\s->Vertex [s] Unassessed)
 
         addRoot :: CompGraph -> CompGraph
@@ -273,7 +271,7 @@ mkGraph cs = {-# SCC "mkGraph" #-} (dagify merge) . addRoot . toVertices $ g
         merge vs = let v = head vs; cs' = map equations vs
                    in v{equations=foldl (++) [] cs'}
 
-        src ==> tgt = Arc src tgt PushDep
+        src ==> tgt = Arc src tgt ()
 
 -- %************************************************************************
 -- %*									*
