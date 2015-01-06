@@ -4,3 +4,4 @@ dist/
 record/
 tmp/debugTree.dot
 tmp/wwwroot/debugTree.png
+tests/exe/
