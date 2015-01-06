@@ -4,15 +4,9 @@ v4 [label="twotimes 3  = 5
 with stack [\"double\"]"]
 v3 [label="twotimes 2  = 4
 with stack [\"double\"]"]
-v2 [label="server 2 socket  = <IO> _server
-                            1 socket 
-                            = <IO>
-                                _server
-                                    0 _ 
-                                    = <IO>
-                                        _
+v2 [label="{server 2 socket  = <IO> _, server 1 socket  = <IO> _, server 0 _  = <IO> _, }
 with stack []"]
-v1 [label="double \"2\"  = \"4\"double \"3\"  = \"5\"
+v1 [label="{double \"2\"  = \"4\", double \"3\"  = \"5\", }
 with stack []"]
 v0[shape=none label="."]
 v1 -> v3 [label=""]
