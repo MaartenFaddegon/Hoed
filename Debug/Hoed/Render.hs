@@ -22,7 +22,7 @@ where
 
 import Prelude hiding(lookup)
 import Debug.Hoed.Observe
-import Data.List(sort,sortBy,partition)
+import Data.List(sort,sortBy,partition,nub)
 import Data.Graph.Libgraph
 import Data.Array as Array
 import Data.Tree.RBTree(RBTree(..),insertOrd,emptyRB,search)
@@ -80,6 +80,7 @@ showWithStack eqs = unlines (map show' eqs)
   where show' eq
          = equRes eq ++ "\n\tWith call stack: " ++ showStack (equStack eq)
                      ++ "\n\tNext stack:      " ++ showStack (nextStack eq)
+                     ++ "\n\tThread id:       " ++ show      (equThreadId eq)
            where showStack [] = "[-]"
                  showStack ss = (foldl (\s' s -> s' ++ s ++ ",") "[" ss) ++ "-]"
 
@@ -255,17 +256,25 @@ callDep t c3 = foldl (\as (c2,c1) -> c1 ==> c2 : c2 ==> c3 : as) []
   where src ==> tgt = Arc src tgt ()
 
 mkGraph :: [CompStmt] -> CompGraph
-mkGraph cs = {-# SCC "mkGraph" #-} (dagify merge) . addRoot . toVertices . sameThread $ g
+mkGraph cs = {-# SCC "mkGraph" #-} (dagify merge) 
+                                   . addRoot 
+                                   . toVertices 
+                                   . sameThread 
+                                   . nubArcs
+                                   $ g
   where g :: Graph CompStmt ()
         g = let ts = mkTrees cs in Graph (head cs) cs (pushDeps ts cs ++ callDeps ts cs)
 
+        nubArcs :: Graph CompStmt () -> Graph CompStmt ()
+        nubArcs (Graph r vs as) = Graph r vs (nub as)
+
         sameThread :: Graph CompStmt () -> Graph CompStmt ()
-        sameThread (Graph r vs as) = Graph r vs (filter (not . sameThread') as)
+        sameThread (Graph r vs as) = Graph r vs (filter (sameThread') as)
         sameThread' (Arc v w _)
-          | equThreadId v == ThreadIdUnknown = False
-          | equThreadId w == ThreadIdUnknown = False
-          | equThreadId v == equThreadId w   = True
-          | otherwise                        = False
+          | equThreadId v == ThreadIdUnknown 
+            || equThreadId w == ThreadIdUnknown
+            || equThreadId v == equThreadId w   = True
+          | otherwise                           = False
 
 
         toVertices :: Graph CompStmt () -> CompGraph
