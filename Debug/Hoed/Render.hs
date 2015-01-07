@@ -34,8 +34,8 @@ renderCompStmts :: CDSSet -> [CompStmt]
 renderCompStmts = map renderCompStmt
 
 renderCompStmt :: CDS -> CompStmt
-renderCompStmt (CDSNamed name threadId set)
-  = CompStmt name threadId equation (head stack)
+renderCompStmt (CDSNamed name threadId identifier dependsOn set)
+  = CompStmt name threadId identifier dependsOn equation (head stack)
   where equation    = pretty 120 (commas doc)
         (doc,stack) = unzip rendered
         rendered    = map (renderNamedTop name) output
@@ -43,7 +43,7 @@ renderCompStmt (CDSNamed name threadId set)
         commas [d]  = d
         commas ds   = (foldl (\acc d -> acc <> d <> text ", ") (text "{") ds) <> text "}"
 
-renderCompStmt _ = CompStmt "??" ThreadIdUnknown "??" emptyStack
+renderCompStmt _ = CompStmt "??" ThreadIdUnknown UnknownId UnknownId "??" emptyStack
 
 renderNamedTop :: String -> Output -> (DOC,CallStack)
 renderNamedTop name (OutData cds)
@@ -68,6 +68,7 @@ renderCallStack s
 -- The CompStmt type
 
 data CompStmt = CompStmt {equLabel :: String, equThreadId :: ThreadId
+                         , equIdentifier :: Identifier, equDependsOn :: Identifier
                          , equRes :: String, equStack :: CallStack}
                 deriving (Eq, Ord)
 
@@ -78,9 +79,11 @@ instance Show CompStmt where
 showWithStack :: [CompStmt] -> String
 showWithStack eqs = unlines (map show' eqs)
   where show' eq
-         = equRes eq ++ "\n\tWith call stack: " ++ showStack (equStack eq)
-                     ++ "\n\tNext stack:      " ++ showStack (nextStack eq)
-                     ++ "\n\tThread id:       " ++ show      (equThreadId eq)
+         = equRes eq ++ "\n\tWith call stack:   " ++ showStack (equStack eq)
+                     ++ "\n\tNext stack:        " ++ showStack (nextStack eq)
+                     ++ "\n\tThread id:         " ++ show      (equThreadId eq)
+                     ++ "\n\tMy Obs id:         " ++ show      (equIdentifier eq)
+                     ++ "\n\tDepends on Obs id: " ++ show      (equDependsOn eq)
            where showStack [] = "[-]"
                  showStack ss = (foldl (\s' s -> s' ++ s ++ ",") "[" ss) ++ "-]"
 
@@ -112,20 +115,20 @@ nextStack = nextStack_truncate
 
 -- Always push onto top of stack
 nextStack_vanilla :: CompStmt -> CallStack
-nextStack_vanilla (CompStmt cc _ _ ccs) = cc:ccs
+nextStack_vanilla (CompStmt cc _ _ _ _ ccs) = cc:ccs
 
 -- Drop on recursion
 nextStack_drop :: CompStmt -> CallStack
-nextStack_drop (CompStmt cc _ _ [])   = [cc]
-nextStack_drop (CompStmt cc _ _ ccs)
+nextStack_drop (CompStmt cc _ _ _ _ [])   = [cc]
+nextStack_drop (CompStmt cc _ _ _ _ ccs)
   = if ccs `contains` cc 
         then ccs
         else cc:ccs
 
 -- Remove everything between recursion (e.g. [f,g,f,h] becomes [f,h])
 nextStack_truncate :: CompStmt -> CallStack
-nextStack_truncate (CompStmt cc _ _ [])   = [cc]
-nextStack_truncate (CompStmt cc _ _ ccs)
+nextStack_truncate (CompStmt cc _ _ _ _ [])   = [cc]
+nextStack_truncate (CompStmt cc _ _ _ _ ccs)
   = if ccs `contains` cc 
         then dropWhile (/= cc) ccs
         else cc:ccs
@@ -260,6 +263,7 @@ mkGraph cs = {-# SCC "mkGraph" #-} (dagify merge)
                                    . addRoot 
                                    . toVertices 
                                    . sameThread 
+                                   . specifiedDependency
                                    . nubArcs
                                    $ g
   where g :: Graph CompStmt ()
@@ -276,6 +280,12 @@ mkGraph cs = {-# SCC "mkGraph" #-} (dagify merge)
             || equThreadId v == equThreadId w   = True
           | otherwise                           = False
 
+
+        specifiedDependency :: Graph CompStmt () -> Graph CompStmt ()
+        specifiedDependency (Graph r vs as) = Graph r vs (filter (specifiedDependency') as)
+        specifiedDependency' (Arc v w _) = case equDependsOn w of
+          UnknownId -> True
+          _         -> equDependsOn w == equIdentifier v
 
         toVertices :: Graph CompStmt () -> CompGraph
         toVertices = mapGraph (\s->Vertex [s] Unassessed)
@@ -299,7 +309,7 @@ mkGraph cs = {-# SCC "mkGraph" #-} (dagify merge)
 -- %************************************************************************
 
 
-data CDS = CDSNamed      String ThreadId CDSSet
+data CDS = CDSNamed      String ThreadId Identifier Identifier CDSSet
 	 | CDSCons       Int    String   [CDSSet]
 	 | CDSFun        Int             CDSSet CDSSet CallStack
 	 | CDSEntered    Int
@@ -329,13 +339,13 @@ eventsToCDS pairs = getChild 0 0
      getNode'' ::  Int -> Change -> CDS
      getNode'' node change =
        case change of
-	(Observe str t) -> CDSNamed str t (getChild node 0)
-	(Enter)         -> CDSEntered node
-	(NoEnter)       -> CDSTerminated node
-	(Fun str)       -> CDSFun node (getChild node 0) (getChild node 1) str
+	(Observe str t i d) -> CDSNamed str t i d (getChild node 0)
+	(Enter)             -> CDSEntered node
+	(NoEnter)           -> CDSTerminated node
+	(Fun str)           -> CDSFun node (getChild node 0) (getChild node 1) str
 	(Cons portc cons)
-		      -> CDSCons node cons 
-				[ getChild node n | n <- [0..(portc-1)]]
+		            -> CDSCons node cons 
+			          [ getChild node n | n <- [0..(portc-1)]]
 
      getChild :: Int -> Int -> CDSSet
      getChild pnode pport =
@@ -437,11 +447,11 @@ renderTop (OutLabel str set extras) =
 		<> renderTops extras) <> line
 
 rmEntry :: CDS -> CDS
-rmEntry (CDSNamed str t set)   = CDSNamed str t (rmEntrySet set)
-rmEntry (CDSCons i str sets)   = CDSCons i str (map rmEntrySet sets)
-rmEntry (CDSFun i a b str)     = CDSFun i (rmEntrySet a) (rmEntrySet b) str
-rmEntry (CDSTerminated i)      = CDSTerminated i
-rmEntry (CDSEntered i)         = error "found bad CDSEntered"
+rmEntry (CDSNamed str t i d set)   = CDSNamed str t i d (rmEntrySet set)
+rmEntry (CDSCons i str sets)       = CDSCons i str (map rmEntrySet sets)
+rmEntry (CDSFun i a b str)         = CDSFun i (rmEntrySet a) (rmEntrySet b) str
+rmEntry (CDSTerminated i)          = CDSTerminated i
+rmEntry (CDSEntered i)             = error "found bad CDSEntered"
 
 rmEntrySet = map rmEntry . filter noEntered
   where
@@ -449,7 +459,7 @@ rmEntrySet = map rmEntry . filter noEntered
 	noEntered _              = True
 
 simplifyCDS :: CDS -> CDS
-simplifyCDS (CDSNamed str t set) = CDSNamed str t (simplifyCDSSet set)
+simplifyCDS (CDSNamed str t i d set) = CDSNamed str t i d (simplifyCDSSet set)
 simplifyCDS (CDSCons _ "throw" 
 		  [[CDSCons _ "ErrorCall" set]]
 	    ) = simplifyCDS (CDSCons 0 "error" set)
@@ -499,7 +509,7 @@ commonOutput = sortBy byLabel
 cdssToOutput :: CDSSet -> [Output]
 cdssToOutput =  map cdsToOutput
 
-cdsToOutput (CDSNamed name _ cdsset)
+cdsToOutput (CDSNamed name _ _ _ cdsset)
 	    = OutLabel name res1 res2
   where
       res1 = [ cdss | (OutData cdss) <- res ]

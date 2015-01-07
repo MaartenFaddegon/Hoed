@@ -148,6 +148,16 @@ Executable hoed-examples-DoublingServer4
   hs-source-dirs:      examples
   default-language:    Haskell2010
 
+Executable hoed-examples-DoublingServer5
+  build-depends:       base >= 4 && < 5
+                       , Hoed
+                       , threepenny-gui
+                       , filepath
+                       , network
+  main-is:             DoublingServer5.hs
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+
 Executable hoed-examples-Hashmap
   build-depends:       base >= 4 && < 5
                        , Hoed

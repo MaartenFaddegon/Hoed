@@ -48,6 +48,7 @@ module Debug.Hoed.Observe
   
      observe
   , gdmobserve
+  , gdmobserve'
   , gdmobserveCC
   , Observer(..)   -- contains a 'forall' typed observe (if supported).
   -- , Observing      -- a -> a
@@ -68,6 +69,7 @@ module Debug.Hoed.Observe
   , Change(..)
   , Parent(..)
   , ThreadId(..)
+  , Identifier(..)
   , initUniq
   , startEventStream
   , endEventStream
@@ -301,7 +303,7 @@ observe :: String -> Q Exp
 observe s = do n  <- methodName s
                let f  = return $ VarE n
                    s' = stringE s
-               [| (\x-> (gobserve $f DoNotTraceThreadId $s' x)) |]
+               [| (\x-> fst (gobserve $f DoNotTraceThreadId UnknownId $s' x)) |]
 \end{code}
 
 Generate class definition and class instances for list of types.
@@ -960,16 +962,24 @@ Our principle function and class
 -- 'observe' can also observe functions as well a structural values.
 -- 
 {-# NOINLINE gobserve #-}
-gobserve :: (a->Parent->a) -> TraceThreadId -> String -> a -> a
-gobserve f tti name a = generateContext f tti name a 
+gobserve :: (a->Parent->a) -> TraceThreadId -> Identifier -> String -> a -> (a,Int)
+gobserve f tti d name a = generateContext f tti d name a
 
 {-# NOINLINE gdmobserve #-}
 gdmobserve ::  (Observable a) => String -> a -> a
-gdmobserve = gobserve observer DoNotTraceThreadId
+gdmobserve lbl = fst . (gobserve observer DoNotTraceThreadId UnknownId lbl)
 
 {-# NOINLINE gdmobserveCC #-}
 gdmobserveCC ::  (Observable a) => String -> a -> a
-gdmobserveCC = gobserve observer TraceThreadId
+gdmobserveCC lbl = fst . (gobserve observer TraceThreadId UnknownId lbl)
+
+data Identifier = UnknownId | Identifier Int 
+     deriving (Show, Eq, Ord)
+
+{-# NOINLINE gdmobserve' #-}
+gdmobserve' :: (Observable a) => String -> Identifier -> a -> (a,Identifier)
+gdmobserve' lbl d x = let (y,i) = (gobserve observer DoNotTraceThreadId d lbl) x
+                      in  (y, Identifier i)
 
 {- This gets called before observer, allowing us to mark
  - we are entering a, before we do case analysis on
@@ -1011,15 +1021,15 @@ unsafeWithUniq fn
 \begin{code}
 data TraceThreadId = TraceThreadId | DoNotTraceThreadId
 
-generateContext :: (a->Parent->a) -> TraceThreadId -> String -> a -> a
-generateContext f tti label orig = unsafeWithUniq $ \ node ->
+generateContext :: (a->Parent->a) -> TraceThreadId -> Identifier -> String -> a -> (a,Int)
+generateContext f tti d label orig = unsafeWithUniq $ \ node ->
      do { t <- myThreadId
-        ; sendEvent node (Parent 0 0) (Observe label t)
+        ; sendEvent node (Parent 0 0) (Observe label t (Identifier node) d)
 	; return (observer_ f orig (Parent
 			{ observeParent = node
 			, observePort   = 0
 		        })
-		  )
+		 , node)
 	}
   where myThreadId = case tti of
           DoNotTraceThreadId -> return ThreadIdUnknown
@@ -1090,7 +1100,7 @@ data ThreadId = ThreadIdUnknown | ThreadId Concurrent.ThreadId
 
 -- MF TODO: Shouldn't we just have the CallStack as part of Observe?
 data Change
-	= Observe 	!String         ThreadId
+	= Observe 	!String         !ThreadId        !Identifier      !Identifier
 	| Cons    !Int 	!String
 	| Enter
         | NoEnter
