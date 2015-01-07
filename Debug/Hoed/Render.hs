@@ -34,8 +34,8 @@ renderCompStmts :: CDSSet -> [CompStmt]
 renderCompStmts = map renderCompStmt
 
 renderCompStmt :: CDS -> CompStmt
-renderCompStmt (CDSNamed name set)
-  = CompStmt name equation (head stack)
+renderCompStmt (CDSNamed name threadId set)
+  = CompStmt name threadId equation (head stack)
   where equation    = pretty 120 (commas doc)
         (doc,stack) = unzip rendered
         rendered    = map (renderNamedTop name) output
@@ -43,7 +43,7 @@ renderCompStmt (CDSNamed name set)
         commas [d]  = d
         commas ds   = (foldl (\acc d -> acc <> d <> text ", ") (text "{") ds) <> text "}"
 
-renderCompStmt _ = CompStmt "??" "??" emptyStack
+renderCompStmt _ = CompStmt "??" ThreadIdUnknown "??" emptyStack
 
 renderNamedTop :: String -> Output -> (DOC,CallStack)
 renderNamedTop name (OutData cds)
@@ -67,7 +67,8 @@ renderCallStack s
 ------------------------------------------------------------------------
 -- The CompStmt type
 
-data CompStmt = CompStmt {equLabel :: String, equRes :: String, equStack :: CallStack}
+data CompStmt = CompStmt {equLabel :: String, equThreadId :: ThreadId
+                         , equRes :: String, equStack :: CallStack}
                 deriving (Eq, Ord)
 
 instance Show CompStmt where
@@ -110,20 +111,20 @@ nextStack = nextStack_truncate
 
 -- Always push onto top of stack
 nextStack_vanilla :: CompStmt -> CallStack
-nextStack_vanilla (CompStmt cc _ ccs) = cc:ccs
+nextStack_vanilla (CompStmt cc _ _ ccs) = cc:ccs
 
 -- Drop on recursion
 nextStack_drop :: CompStmt -> CallStack
-nextStack_drop (CompStmt cc _ [])   = [cc]
-nextStack_drop (CompStmt cc _ ccs)
+nextStack_drop (CompStmt cc _ _ [])   = [cc]
+nextStack_drop (CompStmt cc _ _ ccs)
   = if ccs `contains` cc 
         then ccs
         else cc:ccs
 
 -- Remove everything between recursion (e.g. [f,g,f,h] becomes [f,h])
 nextStack_truncate :: CompStmt -> CallStack
-nextStack_truncate (CompStmt cc _ [])   = [cc]
-nextStack_truncate (CompStmt cc _ ccs)
+nextStack_truncate (CompStmt cc _ _ [])   = [cc]
+nextStack_truncate (CompStmt cc _ _ ccs)
   = if ccs `contains` cc 
         then dropWhile (/= cc) ccs
         else cc:ccs
@@ -254,9 +255,18 @@ callDep t c3 = foldl (\as (c2,c1) -> c1 ==> c2 : c2 ==> c3 : as) []
   where src ==> tgt = Arc src tgt ()
 
 mkGraph :: [CompStmt] -> CompGraph
-mkGraph cs = {-# SCC "mkGraph" #-} (dagify merge) . addRoot . toVertices $ g
+mkGraph cs = {-# SCC "mkGraph" #-} (dagify merge) . addRoot . toVertices . sameThread $ g
   where g :: Graph CompStmt ()
         g = let ts = mkTrees cs in Graph (head cs) cs (pushDeps ts cs ++ callDeps ts cs)
+
+        sameThread :: Graph CompStmt () -> Graph CompStmt ()
+        sameThread (Graph r vs as) = Graph r vs (filter (not . sameThread') as)
+        sameThread' (Arc v w _)
+          | equThreadId v == ThreadIdUnknown = False
+          | equThreadId w == ThreadIdUnknown = False
+          | equThreadId v == equThreadId w   = True
+          | otherwise                        = False
+
 
         toVertices :: Graph CompStmt () -> CompGraph
         toVertices = mapGraph (\s->Vertex [s] Unassessed)
@@ -280,10 +290,10 @@ mkGraph cs = {-# SCC "mkGraph" #-} (dagify merge) . addRoot . toVertices $ g
 -- %************************************************************************
 
 
-data CDS = CDSNamed String         CDSSet
-	 | CDSCons Int String     [CDSSet]
-	 | CDSFun  Int             CDSSet CDSSet CallStack
-	 | CDSEntered Int
+data CDS = CDSNamed      String ThreadId CDSSet
+	 | CDSCons       Int    String   [CDSSet]
+	 | CDSFun        Int             CDSSet CDSSet CallStack
+	 | CDSEntered    Int
 	 | CDSTerminated Int
 	deriving (Show,Eq,Ord)
 
@@ -310,10 +320,10 @@ eventsToCDS pairs = getChild 0 0
      getNode'' ::  Int -> Change -> CDS
      getNode'' node change =
        case change of
-	(Observe str) -> CDSNamed str (getChild node 0)
-	(Enter)       -> CDSEntered node
-	(NoEnter)     -> CDSTerminated node
-	(Fun str)     -> CDSFun node (getChild node 0) (getChild node 1) str
+	(Observe str t) -> CDSNamed str t (getChild node 0)
+	(Enter)         -> CDSEntered node
+	(NoEnter)       -> CDSTerminated node
+	(Fun str)       -> CDSFun node (getChild node 0) (getChild node 1) str
 	(Cons portc cons)
 		      -> CDSCons node cons 
 				[ getChild node n | n <- [0..(portc-1)]]
@@ -418,11 +428,11 @@ renderTop (OutLabel str set extras) =
 		<> renderTops extras) <> line
 
 rmEntry :: CDS -> CDS
-rmEntry (CDSNamed str set)   = CDSNamed str (rmEntrySet set)
-rmEntry (CDSCons i str sets) = CDSCons i str (map rmEntrySet sets)
-rmEntry (CDSFun i a b str)   = CDSFun i (rmEntrySet a) (rmEntrySet b) str
-rmEntry (CDSTerminated i)    = CDSTerminated i
-rmEntry (CDSEntered i)       = error "found bad CDSEntered"
+rmEntry (CDSNamed str t set)   = CDSNamed str t (rmEntrySet set)
+rmEntry (CDSCons i str sets)   = CDSCons i str (map rmEntrySet sets)
+rmEntry (CDSFun i a b str)     = CDSFun i (rmEntrySet a) (rmEntrySet b) str
+rmEntry (CDSTerminated i)      = CDSTerminated i
+rmEntry (CDSEntered i)         = error "found bad CDSEntered"
 
 rmEntrySet = map rmEntry . filter noEntered
   where
@@ -430,7 +440,7 @@ rmEntrySet = map rmEntry . filter noEntered
 	noEntered _              = True
 
 simplifyCDS :: CDS -> CDS
-simplifyCDS (CDSNamed str set) = CDSNamed str (simplifyCDSSet set)
+simplifyCDS (CDSNamed str t set) = CDSNamed str t (simplifyCDSSet set)
 simplifyCDS (CDSCons _ "throw" 
 		  [[CDSCons _ "ErrorCall" set]]
 	    ) = simplifyCDS (CDSCons 0 "error" set)
@@ -480,7 +490,7 @@ commonOutput = sortBy byLabel
 cdssToOutput :: CDSSet -> [Output]
 cdssToOutput =  map cdsToOutput
 
-cdsToOutput (CDSNamed name cdsset)
+cdsToOutput (CDSNamed name _ cdsset)
 	    = OutLabel name res1 res2
   where
       res1 = [ cdss | (OutData cdss) <- res ]

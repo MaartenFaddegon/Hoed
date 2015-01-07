@@ -48,6 +48,7 @@ module Debug.Hoed.Observe
   
      observe
   , gdmobserve
+  , gdmobserveCC
   , Observer(..)   -- contains a 'forall' typed observe (if supported).
   -- , Observing      -- a -> a
   , Observable(..) -- Class
@@ -66,6 +67,7 @@ module Debug.Hoed.Observe
   , Event(..)
   , Change(..)
   , Parent(..)
+  , ThreadId(..)
   , initUniq
   , startEventStream
   , endEventStream
@@ -96,14 +98,11 @@ import System.Environment
 import Language.Haskell.TH
 import GHC.Generics
 
--- The only non standard one we assume
---import IOExts
 import Data.IORef
 import System.IO.Unsafe
-\end{code}
 
-\begin{code}
-import Control.Concurrent
+import Control.Concurrent(takeMVar,putMVar,MVar,newMVar)
+import qualified Control.Concurrent as Concurrent
 \end{code}
 
 Needed to access the cost centre stack:
@@ -302,7 +301,7 @@ observe :: String -> Q Exp
 observe s = do n  <- methodName s
                let f  = return $ VarE n
                    s' = stringE s
-               [| (\x-> (gobserve $f $s' x)) |]
+               [| (\x-> (gobserve $f DoNotTraceThreadId $s' x)) |]
 \end{code}
 
 Generate class definition and class instances for list of types.
@@ -841,43 +840,43 @@ MF: when do we need this type?
 \begin{code}
 newtype Observer = O (forall a . (Observable a) => String -> a -> a)
 
-defaultObservers :: (Observable a) => String -> (Observer -> a) -> a
-defaultObservers label fn = unsafeWithUniq $ \ node ->
-     do { sendEvent node (Parent 0 0) (Observe label)
-	; let observe' sublabel a
-	       = unsafeWithUniq $ \ subnode ->
-		 do { sendEvent subnode (Parent node 0) 
-		                        (Observe sublabel)
-		    ; return (observer_ observer a (Parent
-			{ observeParent = subnode
-			, observePort   = 0
-		        }))
-		    }
-        ; return (observer_ observer (fn (O observe'))
-		       (Parent
-			{ observeParent = node
-			, observePort   = 0
-		        }))
-	}
-defaultFnObservers :: (Observable a, Observable b) 
-		      => String -> (Observer -> a -> b) -> a -> b
-defaultFnObservers label fn arg = unsafeWithUniq $ \ node ->
-     do { sendEvent node (Parent 0 0) (Observe label)
-	; let observe' sublabel a
-	       = unsafeWithUniq $ \ subnode ->
-		 do { sendEvent subnode (Parent node 0) 
-		                        (Observe sublabel)
-		    ; return (observer_ observer a (Parent
-			{ observeParent = subnode
-			, observePort   = 0
-		        }))
-		    }
-        ; return (observer_ observer (fn (O observe'))
-		       (Parent
-			{ observeParent = node
-			, observePort   = 0
-		        }) arg)
-	}
+-- defaultObservers :: (Observable a) => String -> (Observer -> a) -> a
+-- defaultObservers label fn = unsafeWithUniq $ \ node ->
+--      do { sendEvent node (Parent 0 0) (Observe label ThreadIdUnknown)
+-- 	; let observe' sublabel a
+-- 	       = unsafeWithUniq $ \ subnode ->
+-- 		 do { sendEvent subnode (Parent node 0) 
+-- 		                        (Observe sublabel ThreadIdUnknown)
+-- 		    ; return (observer_ observer a (Parent
+-- 			{ observeParent = subnode
+-- 			, observePort   = 0
+-- 		        }))
+-- 		    }
+--         ; return (observer_ observer (fn (O observe'))
+-- 		       (Parent
+-- 			{ observeParent = node
+-- 			, observePort   = 0
+-- 		        }))
+-- 	}
+-- defaultFnObservers :: (Observable a, Observable b) 
+-- 		      => String -> (Observer -> a -> b) -> a -> b
+-- defaultFnObservers label fn arg = unsafeWithUniq $ \ node ->
+--      do { sendEvent node (Parent 0 0) (Observe label ThreadIdUnknown)
+-- 	; let observe' sublabel a
+-- 	       = unsafeWithUniq $ \ subnode ->
+-- 		 do { sendEvent subnode (Parent node 0) 
+-- 		                        (Observe sublabel ThreadIdUnknown)
+-- 		    ; return (observer_ observer a (Parent
+-- 			{ observeParent = subnode
+-- 			, observePort   = 0
+-- 		        }))
+-- 		    }
+--         ; return (observer_ observer (fn (O observe'))
+-- 		       (Parent
+-- 			{ observeParent = node
+-- 			, observePort   = 0
+-- 		        }) arg)
+-- 	}
 \end{code}
 
 
@@ -961,12 +960,16 @@ Our principle function and class
 -- 'observe' can also observe functions as well a structural values.
 -- 
 {-# NOINLINE gobserve #-}
-gobserve :: (a->Parent->a) -> String -> a -> a
-gobserve f name a = generateContext f name a 
+gobserve :: (a->Parent->a) -> TraceThreadId -> String -> a -> a
+gobserve f tti name a = generateContext f tti name a 
 
 {-# NOINLINE gdmobserve #-}
 gdmobserve ::  (Observable a) => String -> a -> a
-gdmobserve = gobserve observer
+gdmobserve = gobserve observer DoNotTraceThreadId
+
+{-# NOINLINE gdmobserveCC #-}
+gdmobserveCC ::  (Observable a) => String -> a -> a
+gdmobserveCC = gobserve observer TraceThreadId
 
 {- This gets called before observer, allowing us to mark
  - we are entering a, before we do case analysis on
@@ -1006,15 +1009,22 @@ unsafeWithUniq fn
 \end{code}
 
 \begin{code}
-generateContext :: (a->Parent->a) -> String -> a -> a
-generateContext f label orig = unsafeWithUniq $ \ node ->
-     do { sendEvent node (Parent 0 0) (Observe label)
+data TraceThreadId = TraceThreadId | DoNotTraceThreadId
+
+generateContext :: (a->Parent->a) -> TraceThreadId -> String -> a -> a
+generateContext f tti label orig = unsafeWithUniq $ \ node ->
+     do { t <- myThreadId
+        ; sendEvent node (Parent 0 0) (Observe label t)
 	; return (observer_ f orig (Parent
 			{ observeParent = node
 			, observePort   = 0
 		        })
 		  )
 	}
+  where myThreadId = case tti of
+          DoNotTraceThreadId -> return ThreadIdUnknown
+          TraceThreadId      -> do t <- Concurrent.myThreadId
+                                   return (ThreadId t)
 
 send :: String -> ObserverM a -> Parent -> a
 send consLabel fn context = unsafeWithUniq $ \ node ->
@@ -1073,15 +1083,19 @@ data Event = Event
 		, parent     :: !Parent
 		, change     :: !Change
 		}
-	deriving (Show, Read)
+	deriving (Show)
 
+data ThreadId = ThreadIdUnknown | ThreadId Concurrent.ThreadId
+	deriving (Show,Eq,Ord)
+
+-- MF TODO: Shouldn't we just have the CallStack as part of Observe?
 data Change
-	= Observe 	!String
+	= Observe 	!String         ThreadId
 	| Cons    !Int 	!String
 	| Enter
         | NoEnter
 	| Fun           !CallStack
-	deriving (Show, Read)
+	deriving (Show)
 
 startEventStream :: IO ()
 startEventStream = writeIORef events []

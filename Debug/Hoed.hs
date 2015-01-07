@@ -1,6 +1,7 @@
 module Debug.Hoed
   ( observe
   , gdmobserve
+  , gdmobserveCC
   , Observer(..)   -- contains a 'forall' typed observe (if supported).
   , Observable(..) -- Class
   , runO	   -- IO a -> IO ()

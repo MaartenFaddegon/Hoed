@@ -105,7 +105,7 @@ redraw :: UI.Element -> IORef CompGraph -> UI ()
 redraw img treeRef 
   = do tree <- UI.liftIO $ readIORef treeRef
        UI.liftIO $ writeFile "debugTree.dot" (shw tree)
-       UI.liftIO $ system $ "dot -Tpng -Gsize=8,8 -Gdpi=100 debugTree.dot "
+       UI.liftIO $ system $ "dot -Tpng -Gsize=9,9 -Gdpi=100 debugTree.dot "
                           ++ "> wwwroot/debugTree.png"
        url <- UI.loadFile "image/png" "wwwroot/debugTree.png"
        UI.element img # UI.set UI.src url
