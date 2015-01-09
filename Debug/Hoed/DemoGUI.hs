@@ -26,6 +26,8 @@ showStmtN vs e i = do UI.element e # UI.set UI.text s; return ()
   where s = if i < length vs then showCompStmts (vs !! i)
                              else "Internal error: " ++ show i ++ " is out of range."
 
+data Filter = ShowAll | ShowSucc | ShowPred
+
 demoGUI :: [(String,String)] -> IORef CompGraph -> Window -> UI ()
 demoGUI sliceDict treeRef window
   = do return window # UI.set UI.title "Hoed debugging session"
@@ -35,10 +37,10 @@ demoGUI sliceDict treeRef window
        tree <- UI.liftIO $ readIORef treeRef
        let ns = filter (not . isRoot) (preorder tree)
 
-        -- Keep track of the current vertex
-       currentVertex <- UI.liftIO $ newIORef (0 :: Int)
-       let getCurrentVertex = UI.liftIO $ do n <- readIORef currentVertex; return (n,(ns !! n))
-           setCurrentVertex n = UI.liftIO $ writeIORef currentVertex n
+       -- Shared memory
+       filterRef           <- UI.liftIO $ newIORef ShowAll
+       filteredVerticesRef <- UI.liftIO $ newIORef ns
+       currentVertexRef    <- UI.liftIO $ newIORef (0 :: Int)
 
        -- Draw the computation graph
        img  <- UI.img 
@@ -52,14 +54,14 @@ demoGUI sliceDict treeRef window
 
        -- Menu to select which statement to show
        menu <- UI.select
-       updateMenu menu treeRef 0
-       listenToSelectionChange menu showStmt setCurrentVertex
+       updateMenu menu treeRef filterRef 0 currentVertexRef filteredVerticesRef
+       onSelectVertex menu showStmt currentVertexRef
 
        -- Filters
        ops <- mapM (\s->UI.option # UI.set UI.text s) 
                    ["Show all", "Show successors", "Show predecessors"]
        filterMenu <- UI.select #+ (map UI.element ops)
-       -- MF TODO: do something when selected
+       onSelectFilter filterMenu menu treeRef filterRef currentVertexRef filteredVerticesRef
 
        -- Status
        status <- UI.span
@@ -68,8 +70,10 @@ demoGUI sliceDict treeRef window
        -- Buttons to judge the current statement
        right <- UI.button # UI.set UI.text "right"
        wrong <- UI.button # UI.set UI.text "wrong"
-       onClick right status menu img treeRef Right getCurrentVertex
-       onClick wrong status menu img treeRef Wrong getCurrentVertex
+       let onJudge = onClick status menu img treeRef 
+                             currentVertexRef filterRef filteredVerticesRef
+       onJudge right Right
+       onJudge wrong Wrong
 
        -- Populate the main screen
        hr <- UI.hr
@@ -77,32 +81,64 @@ demoGUI sliceDict treeRef window
                                             , compStmt, hr,img'])
        return ()
 
-updateMenu :: UI.Element -> IORef CompGraph -> Int -> UI ()
-updateMenu menu treeRef sel = do
+updateMenu :: UI.Element -> IORef CompGraph -> IORef Filter -> Int
+              -> IORef Int -> IORef [Vertex] -> UI ()
+updateMenu menu treeRef filterRef sel currentVertexRef filteredVerticesRef = do
        g <- UI.liftIO $ readIORef treeRef
-       let ns = filter (not . isRoot) (preorder g)
+       f <- UI.liftIO $ readIORef filterRef
+       cv <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
        let fs = faultyVertices g
+           ns  = vertexFilter f g cv
        ops  <- mapM (\s->UI.option # UI.set UI.text s) $ map (summarizeVertex fs) ns
        (UI.element menu) # UI.set UI.children []
        UI.element menu #+ (map UI.element ops)
        (UI.element menu) # UI.set UI.selection (Just sel)
        return ()
 
-onClick :: UI.Element -> UI.Element -> UI.Element -> UI.Element -> IORef CompGraph 
-           -> Judgement -> IO (Int,Vertex) -> UI ()
-onClick b status menu img treeRef j getCurrentVertex = do
+vertexFilter :: Filter -> CompGraph -> Vertex -> [Vertex]
+vertexFilter f g cv = filter (not . isRoot) $ case f of 
+  ShowAll  -> preorder g
+  ShowSucc -> succs g cv
+  ShowPred -> preds g cv
+
+onClick :: UI.Element -> UI.Element -> UI.Element 
+           -> IORef CompGraph -> IORef Int -> IORef Filter -> IORef [Vertex]
+           -> UI.Element -> Judgement-> UI ()
+onClick status menu img treeRef currentVertexRef filterRef filteredVerticesRef b j = do
   on UI.click b $ \_ -> do
-        (i,v) <- UI.liftIO getCurrentVertex
+        i <- UI.liftIO $ readIORef currentVertexRef
+        v <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
         updateTree img treeRef (\tree -> markNode tree v j)
-        updateMenu menu treeRef i
+        updateMenu menu treeRef filterRef i currentVertexRef filteredVerticesRef
         updateStatus status treeRef
 
-listenToSelectionChange :: UI.Element -> (Int -> UI ()) -> (Int -> IO ()) -> UI ()
-listenToSelectionChange menu showStmt setN = do
+-- MF TODO: can m be changed between sending and handling this event? 
+-- I.e. can i be pointing to the wrong vertex, or even be out of bounds?
+lookupCurrentVertex :: IORef Int -> IORef [Vertex] -> IO Vertex
+lookupCurrentVertex currentVertexRef filteredVerticesRef = do
+  i <- readIORef currentVertexRef
+  m <- readIORef filteredVerticesRef
+  return (m !! i)
+
+onSelectVertex :: UI.Element -> (Int -> UI ()) -> IORef Int -> UI ()
+onSelectVertex menu showStmt currentVertexRef = do
   on UI.selectionChange menu $ \mi -> case mi of
-        Just i  -> do UI.liftIO $ setN i
+        Just i  -> do UI.liftIO $ writeIORef currentVertexRef i
                       showStmt i
         Nothing -> return ()
+
+onSelectFilter :: UI.Element -> UI.Element -> IORef CompGraph -> IORef Filter 
+                  -> IORef Int -> IORef [Vertex] -> UI ()
+onSelectFilter e menu treeRef filterRef currentVertexRef filteredVerticesRef = do
+  on UI.selectionChange e $ \mi -> do
+    v <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
+    let setFilter f = UI.liftIO $ writeIORef filterRef f
+    case mi of
+        Just 0 -> setFilter ShowAll
+        Just 1 -> setFilter ShowSucc
+        Just 2 -> setFilter ShowPred
+        _      -> return ()
+    updateMenu menu treeRef filterRef 0 currentVertexRef filteredVerticesRef
 
 -- MF TODO: We may need to reconsider how Vertex is defined,
 -- and how we determine equality. I think it could happen that
