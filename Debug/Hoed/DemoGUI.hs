@@ -21,12 +21,12 @@ import Data.List(intersperse)
 preorder :: CompGraph -> [Vertex]
 preorder = getPreorder . getDfs
 
--- MF TODO: should we not use lookupCurrentVertex here?
-showStmtN :: IORef [Vertex] -> UI.Element -> Int -> UI ()
-showStmtN filteredVerticesRef e i = do 
-  vs <- UI.liftIO $ readIORef filteredVerticesRef
-  let s = if i < length vs then showCompStmts (vs !! i)
-                             else "Internal error: " ++ show i ++ " is out of range."
+showStmt :: UI.Element -> IORef [Vertex] -> IORef Int -> UI ()
+showStmt e filteredVerticesRef currentVertexRef = do 
+  mv <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
+  let s = case mv of
+                Nothing  -> "Select vertex above to show details."
+                (Just v) -> showCompStmts v
   UI.element e # UI.set UI.text s
   return ()
 
@@ -42,7 +42,6 @@ demoGUI sliceDict treeRef window
        let ns = filter (not . isRoot) (preorder tree)
 
        -- Shared memory
-       filterRef           <- UI.liftIO $ newIORef ShowAll
        filteredVerticesRef <- UI.liftIO $ newIORef ns
        currentVertexRef    <- UI.liftIO $ newIORef (0 :: Int)
 
@@ -53,19 +52,19 @@ demoGUI sliceDict treeRef window
 
        -- Show computation statement(s) of current vertex
        compStmt <- UI.pre
-       let showStmt = showStmtN filteredVerticesRef compStmt
-       showStmt 0
+       -- let showStmt = showStmtN filteredVerticesRef compStmt
+       -- showStmt 0
 
        -- Menu to select which statement to show
        menu <- UI.select
-       updateMenu menu treeRef filterRef 0 currentVertexRef filteredVerticesRef
-       onSelectVertex menu showStmt currentVertexRef
+       updateMenu menu treeRef currentVertexRef filteredVerticesRef
+       onSelectVertex menu compStmt filteredVerticesRef currentVertexRef
 
        -- Filters
        ops <- mapM (\s->UI.option # UI.set UI.text s) 
                    ["Show all", "Show successors", "Show predecessors"]
        filterMenu <- UI.select #+ (map UI.element ops)
-       onSelectFilter filterMenu menu treeRef filterRef currentVertexRef filteredVerticesRef
+       onSelectFilter filterMenu menu treeRef currentVertexRef filteredVerticesRef
 
        -- Status
        status <- UI.span
@@ -75,7 +74,7 @@ demoGUI sliceDict treeRef window
        right <- UI.button # UI.set UI.text "right"
        wrong <- UI.button # UI.set UI.text "wrong"
        let onJudge = onClick status menu img treeRef 
-                             currentVertexRef filterRef filteredVerticesRef
+                             currentVertexRef filteredVerticesRef
        onJudge right Right
        onJudge wrong Wrong
 
@@ -85,20 +84,19 @@ demoGUI sliceDict treeRef window
                                             , compStmt, hr,img'])
        return ()
 
-updateMenu :: UI.Element -> IORef CompGraph -> IORef Filter -> Int
+updateMenu :: UI.Element -> IORef CompGraph
               -> IORef Int -> IORef [Vertex] -> UI ()
-updateMenu menu treeRef filterRef sel currentVertexRef filteredVerticesRef = do
-       g <- UI.liftIO $ readIORef treeRef
-       f <- UI.liftIO $ readIORef filterRef
-       cv <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
+updateMenu menu treeRef currentVertexRef filteredVerticesRef = do
+       g  <- UI.liftIO $ readIORef treeRef
+       i  <- UI.liftIO $ readIORef currentVertexRef
+       ns <- UI.liftIO $ readIORef filteredVerticesRef
        let fs = faultyVertices g
-           ns  = vertexFilter f g cv
-       UI.liftIO $ writeIORef filteredVerticesRef ns
-       -- MF TODO: update currentVertexRef to head of filteredVerticesRef ?
-       ops  <- mapM (\s->UI.option # UI.set UI.text s) $ map (summarizeVertex fs) ns
+       ops  <- mapM (\s->UI.option # UI.set UI.text s)
+                                $ if ns == [] then ["No matches found"]
+                                  else map (summarizeVertex fs) ns
        (UI.element menu) # UI.set UI.children []
        UI.element menu #+ (map UI.element ops)
-       (UI.element menu) # UI.set UI.selection (Just sel)
+       (UI.element menu) # UI.set UI.selection (Just i)
        return ()
 
 vertexFilter :: Filter -> CompGraph -> Vertex -> [Vertex]
@@ -108,43 +106,45 @@ vertexFilter f g cv = filter (not . isRoot) $ case f of
   ShowPred -> preds g cv
 
 onClick :: UI.Element -> UI.Element -> UI.Element 
-           -> IORef CompGraph -> IORef Int -> IORef Filter -> IORef [Vertex]
+           -> IORef CompGraph -> IORef Int -> IORef [Vertex]
            -> UI.Element -> Judgement-> UI ()
-onClick status menu img treeRef currentVertexRef filterRef filteredVerticesRef b j = do
+onClick status menu img treeRef currentVertexRef filteredVerticesRef b j = do
   on UI.click b $ \_ -> do
-        i <- UI.liftIO $ readIORef currentVertexRef
-        v <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
+        (Just v) <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
         updateTree img treeRef (\tree -> markNode tree v j)
-        updateMenu menu treeRef filterRef i currentVertexRef filteredVerticesRef
+        updateMenu menu treeRef currentVertexRef filteredVerticesRef
         updateStatus status treeRef
 
--- MF TODO: can m be changed between sending and handling this event? 
--- I.e. can i be pointing to the wrong vertex, or even be out of bounds?
-lookupCurrentVertex :: IORef Int -> IORef [Vertex] -> IO Vertex
+lookupCurrentVertex :: IORef Int -> IORef [Vertex] -> IO (Maybe Vertex)
 lookupCurrentVertex currentVertexRef filteredVerticesRef = do
   i <- readIORef currentVertexRef
   m <- readIORef filteredVerticesRef
-  return (m !! i)
+  return $ if i < length m then Just (m !! i) else Nothing
 
-onSelectVertex :: UI.Element -> (Int -> UI ()) -> IORef Int -> UI ()
-onSelectVertex menu showStmt currentVertexRef = do
+onSelectVertex :: UI.Element -> UI.Element -> IORef [Vertex] -> IORef Int -> UI ()
+onSelectVertex menu compStmt filteredVerticesRef currentVertexRef = do
   on UI.selectionChange menu $ \mi -> case mi of
         Just i  -> do UI.liftIO $ writeIORef currentVertexRef i
-                      showStmt i
+                      showStmt compStmt filteredVerticesRef currentVertexRef
+                      return ()
         Nothing -> return ()
 
-onSelectFilter :: UI.Element -> UI.Element -> IORef CompGraph -> IORef Filter 
+onSelectFilter :: UI.Element -> UI.Element -> IORef CompGraph
                   -> IORef Int -> IORef [Vertex] -> UI ()
-onSelectFilter e menu treeRef filterRef currentVertexRef filteredVerticesRef = do
+onSelectFilter e menu treeRef currentVertexRef filteredVerticesRef = do
   on UI.selectionChange e $ \mi -> do
-    v <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
-    let setFilter f = UI.liftIO $ writeIORef filterRef f
+    mcv <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
+    g <- UI.liftIO $ readIORef treeRef
+    let cv = case mcv of (Just v) -> v
+                         Nothing  -> head . (filter $ not . isRoot) . preorder $ g
+        applyFilter f = do UI.liftIO $ writeIORef filteredVerticesRef (vertexFilter f g cv)
+                           UI.liftIO $ writeIORef currentVertexRef    0
     case mi of
-        Just 0 -> setFilter ShowAll
-        Just 1 -> setFilter ShowSucc
-        Just 2 -> setFilter ShowPred
+        Just 0 -> applyFilter ShowAll
+        Just 1 -> applyFilter ShowSucc
+        Just 2 -> applyFilter ShowPred
         _      -> return ()
-    updateMenu menu treeRef filterRef 0 currentVertexRef filteredVerticesRef
+    updateMenu menu treeRef currentVertexRef filteredVerticesRef
 
 -- MF TODO: We may need to reconsider how Vertex is defined,
 -- and how we determine equality. I think it could happen that
