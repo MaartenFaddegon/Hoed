@@ -21,10 +21,14 @@ import Data.List(intersperse)
 preorder :: CompGraph -> [Vertex]
 preorder = getPreorder . getDfs
 
-showStmtN :: [Vertex] -> UI.Element -> Int -> UI ()
-showStmtN vs e i = do UI.element e # UI.set UI.text s; return ()
-  where s = if i < length vs then showCompStmts (vs !! i)
+-- MF TODO: should we not use lookupCurrentVertex here?
+showStmtN :: IORef [Vertex] -> UI.Element -> Int -> UI ()
+showStmtN filteredVerticesRef e i = do 
+  vs <- UI.liftIO $ readIORef filteredVerticesRef
+  let s = if i < length vs then showCompStmts (vs !! i)
                              else "Internal error: " ++ show i ++ " is out of range."
+  UI.element e # UI.set UI.text s
+  return ()
 
 data Filter = ShowAll | ShowSucc | ShowPred
 
@@ -49,7 +53,7 @@ demoGUI sliceDict treeRef window
 
        -- Show computation statement(s) of current vertex
        compStmt <- UI.pre
-       let showStmt = showStmtN ns compStmt
+       let showStmt = showStmtN filteredVerticesRef compStmt
        showStmt 0
 
        -- Menu to select which statement to show
@@ -89,6 +93,8 @@ updateMenu menu treeRef filterRef sel currentVertexRef filteredVerticesRef = do
        cv <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
        let fs = faultyVertices g
            ns  = vertexFilter f g cv
+       UI.liftIO $ writeIORef filteredVerticesRef ns
+       -- MF TODO: update currentVertexRef to head of filteredVerticesRef ?
        ops  <- mapM (\s->UI.option # UI.set UI.text s) $ map (summarizeVertex fs) ns
        (UI.element menu) # UI.set UI.children []
        UI.element menu #+ (map UI.element ops)
