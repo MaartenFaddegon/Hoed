@@ -67,16 +67,6 @@ demoGUI sliceDict treeRef window
        UI.getBody window    #+ (map UI.element [menu, right, wrong, compStmt, hr,img'])
        return ()
 
-       -- buttons <- UI.div    #. "buttons"
-       -- nowrap  <- UI.div    #. "nowrap"  #+ (map UI.element [buttons,img'])
-
-       -- ts <- toElems sliceDict ns
-       -- ds <- mapM (uncurry divpack) (zip ts (cycle [Odd,Even]))
-       -- UI.element buttons # UI.set UI.children ds
-       -- mapM_ (onClick buttons img treeRef Right) 
-       --       (zip (corButtons ts) (reverse ns))
-       -- mapM_ (onClick buttons img treeRef Wrong)
-       --       (zip (wrnButtons ts) (reverse ns))
 populateMenu :: UI.Element -> IORef CompGraph -> UI ()
 populateMenu menu treeRef = do
        g <- UI.liftIO $ readIORef treeRef
@@ -88,17 +78,6 @@ populateMenu menu treeRef = do
        UI.element menu #+ (map UI.element ops)
        return ()
 
---              Slice      Hr         CompStmt   Right    Wrong
-type ElemSet = (UI.Element,UI.Element,UI.Element,UI.Element,UI.Element)
-
-data OddEven = Odd | Even
-
-divpack :: ElemSet -> OddEven -> UI UI.Element
-divpack (e1,e2,e3,e4,e5) x
-  = UI.div #. lbl x #+ map UI.element [e1,e2,e3,e4,e5]
-    where lbl Odd  = "odd"
-          lbl Even = "even"
-
 onClick :: UI.Element -> UI.Element -> UI.Element -> IORef CompGraph -> Judgement -> IO Vertex 
            -> UI ()
 onClick b menu img treeRef j getCurrentVertex = do
@@ -107,24 +86,12 @@ onClick b menu img treeRef j getCurrentVertex = do
         updateTree img treeRef (\tree -> markNode tree n j)
         populateMenu menu treeRef
 
--- onClick :: UI.Element -> IORef CompGraph -> Judgement -> (UI.Element,Vertex) -> UI ()
--- onClick img treeRef status (b,n) 
---   = do on UI.click b $ \_ -> do 
---         updateTree img treeRef (\tree -> markNode tree n status)
---         -- UI.element b # UI.set UI.text "I have been clicked!"
---         -- UI.element buttons # UI.set UI.children []
-
 listenToSelectionChange :: UI.Element -> (Int -> UI ()) -> (Int -> IO ()) -> UI ()
 listenToSelectionChange menu showStmt setN = do
   on UI.selectionChange menu $ \mi -> case mi of
         Just i  -> do UI.liftIO $ setN i
                       showStmt i
         Nothing -> return ()
-
-    -- op <- UI.option # UI.set UI.text ("You selected option " ++ show mi)
-    -- UI.element menu #+ [UI.element op]
-    -- UI.element menutxt # UI.set UI.text ("You selected option " ++ show mi)
-    -- return ()
 
 -- MF TODO: We may need to reconsider how Vertex is defined,
 -- and how we determine equality. I think it could happen that
@@ -137,32 +104,6 @@ markNode g v s = mapGraph f g
 
         (===) :: Vertex -> Vertex -> Bool
         v1 === v2 = (equations v1) == (equations v2)
-
-corButtons :: [ElemSet] -> [UI.Element]
-corButtons = foldl (\es (_,_,_,e,_) -> e : es) []
-
-wrnButtons :: [ElemSet] -> [UI.Element]
-wrnButtons = foldl (\es (_,_,_,_,e) -> e : es) []
-
--- toOptions :: [String] -> UI [UI.Element]
--- toOptions = mapM toOption'
---   where toOption' :: String -> UI UI.Element
---         toOption' s = UI.option # UI.set UI.text s
-
-toElems :: [(String,String)] -> [Vertex] -> UI [ElemSet]
-toElems sliceDict xs = mapM (toElem sliceDict) xs
-
-toElem :: [(String,String)] -> Vertex -> UI ElemSet
-toElem sliceDict v 
-  = do slc <- UI.pre    # UI.set UI.text (foldl (\acc e -> acc ++ getSlice e) "" $ equations v)
-       hr  <- UI.hr
-       shw <- UI.pre    # UI.set UI.text (foldl (\acc e -> acc ++ show e ++ "\n") "" $ equations v)
-       cor <- UI.button # UI.set UI.text "right"
-       wrg <- UI.button # UI.set UI.text "wrong"
-       return (slc,hr,shw,cor,wrg)
-   where getSlice e = case equLabel e `lookup` sliceDict of
-              Nothing -> ""
-              Just s  -> s
 
 data MaxStringLength = ShorterThan Int | Unlimited
 
