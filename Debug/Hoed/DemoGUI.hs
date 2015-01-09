@@ -16,7 +16,6 @@ import System.Process(system)
 import Data.IORef
 import Data.List(intersperse)
 
-
 --------------------------------------------------------------------------------
 
 preorder :: CompGraph -> [Vertex]
@@ -38,7 +37,7 @@ demoGUI sliceDict treeRef window
 
         -- Keep track of the current vertex
        currentVertex <- UI.liftIO $ newIORef (0 :: Int)
-       let getCurrentVertex = UI.liftIO $ do n <- readIORef currentVertex; return (ns !! n)
+       let getCurrentVertex = UI.liftIO $ do n <- readIORef currentVertex; return (n,(ns !! n))
            setCurrentVertex n = UI.liftIO $ writeIORef currentVertex n
 
        -- Draw the computation graph
@@ -53,38 +52,50 @@ demoGUI sliceDict treeRef window
 
        -- Menu to select which statement to show
        menu <- UI.select
-       populateMenu menu treeRef
+       updateMenu menu treeRef 0
        listenToSelectionChange menu showStmt setCurrentVertex
+
+       -- Filters
+       ops <- mapM (\s->UI.option # UI.set UI.text s) 
+                   ["Show all", "Show successors", "Show predecessors"]
+       filterMenu <- UI.select #+ (map UI.element ops)
+       -- MF TODO: do something when selected
+
+       -- Status
+       status <- UI.span
+       updateStatus status treeRef 
 
        -- Buttons to judge the current statement
        right <- UI.button # UI.set UI.text "right"
        wrong <- UI.button # UI.set UI.text "wrong"
-       onClick right menu img treeRef Right getCurrentVertex
-       onClick wrong menu img treeRef Wrong getCurrentVertex
+       onClick right status menu img treeRef Right getCurrentVertex
+       onClick wrong status menu img treeRef Wrong getCurrentVertex
 
        -- Populate the main screen
        hr <- UI.hr
-       UI.getBody window    #+ (map UI.element [menu, right, wrong, compStmt, hr,img'])
+       UI.getBody window #+ (map UI.element [ menu, right, wrong, filterMenu, status
+                                            , compStmt, hr,img'])
        return ()
 
-populateMenu :: UI.Element -> IORef CompGraph -> UI ()
-populateMenu menu treeRef = do
+updateMenu :: UI.Element -> IORef CompGraph -> Int -> UI ()
+updateMenu menu treeRef sel = do
        g <- UI.liftIO $ readIORef treeRef
        let ns = filter (not . isRoot) (preorder g)
        let fs = faultyVertices g
        ops  <- mapM (\s->UI.option # UI.set UI.text s) $ map (summarizeVertex fs) ns
-       -- UI.element menu # UI.set UI.children [ops] -- (map UI.element ops)
        (UI.element menu) # UI.set UI.children []
        UI.element menu #+ (map UI.element ops)
+       (UI.element menu) # UI.set UI.selection (Just sel)
        return ()
 
-onClick :: UI.Element -> UI.Element -> UI.Element -> IORef CompGraph -> Judgement -> IO Vertex 
-           -> UI ()
-onClick b menu img treeRef j getCurrentVertex = do
+onClick :: UI.Element -> UI.Element -> UI.Element -> UI.Element -> IORef CompGraph 
+           -> Judgement -> IO (Int,Vertex) -> UI ()
+onClick b status menu img treeRef j getCurrentVertex = do
   on UI.click b $ \_ -> do
-        n <- UI.liftIO getCurrentVertex
-        updateTree img treeRef (\tree -> markNode tree n j)
-        populateMenu menu treeRef
+        (i,v) <- UI.liftIO getCurrentVertex
+        updateTree img treeRef (\tree -> markNode tree v j)
+        updateMenu menu treeRef i
+        updateStatus status treeRef
 
 listenToSelectionChange :: UI.Element -> (Int -> UI ()) -> (Int -> IO ()) -> UI ()
 listenToSelectionChange menu showStmt setN = do
@@ -127,6 +138,20 @@ summarizeVertex fs v = shorten (ShorterThan 27) (noNewlines $ showCompStmts v) +
               Unassessed     -> " ??"
               Wrong          -> " :("
               Right          -> " :)"
+
+updateStatus :: UI.Element -> IORef CompGraph -> UI ()
+updateStatus e compGraphRef = do
+  g <- UI.liftIO $ readIORef compGraphRef
+  let getLabel   = commas . (map equLabel) . equations
+      isJudged v = status v /= Unassessed
+      slen       = show . length
+      ns = filter (not . isRoot) (preorder g)
+      js = filter isJudged ns
+      fs = faultyVertices g
+      txt = if length fs > 0 then " Fault detected in: " ++ getLabel (head fs)
+                             else " Judged " ++ slen js ++ "/" ++ slen ns
+  UI.element e # UI.set UI.text txt
+  return ()
 
 updateTree :: UI.Element -> IORef CompGraph -> (CompGraph -> CompGraph)
            -> UI ()
