@@ -290,8 +290,8 @@ mkGraph cs = {-# SCC "mkGraph" #-} (dagify merge)
         addSequenceDependencies :: Graph CompStmt () -> Graph CompStmt ()
         addSequenceDependencies (Graph r vs as) = Graph r vs (seqDeps vs ++ as)
         seqDeps vs = [Arc v w () |v <- vs, w <- vs, seqDep v w]
-        seqDep v w = case equDependsOn v of
-          (InSequenceAfter i) -> i == equIdentifier w
+        seqDep v w = case equDependsOn w of
+          (InSequenceAfter i) -> i == equIdentifier v
           _                     -> False
 
         
