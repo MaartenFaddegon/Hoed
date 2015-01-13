@@ -135,9 +135,9 @@ logO filePath program = {- SCC "logO" -} do
   return ()
 
   where showGraph g        = showWith g showVertex showArc
-        showVertex Root    = "root"
-        showVertex v       = showCompStmts v ++ "\nwith stack " 
-                             ++ (show . equStack . head . equations $ v)
+        showVertex Root    = ("root","")
+        showVertex v       = (showCompStmts v ++ "\nwith stack "
+                              ++ (show . equStack . head . equations $ v), "")
         showArc _          = ""
         showCompStmts      = showCompStmts' . equations
         showCompStmts' [e] = show e

@@ -47,7 +47,7 @@ demoGUI sliceDict treeRef window
 
        -- Draw the computation graph
        img  <- UI.img 
-       redraw img treeRef
+       redraw img treeRef Nothing
        img' <- UI.center #+ [UI.element img]
 
        -- Show computation statement(s) of current vertex
@@ -58,7 +58,7 @@ demoGUI sliceDict treeRef window
        -- Menu to select which statement to show
        menu <- UI.select
        updateMenu menu treeRef currentVertexRef filteredVerticesRef
-       onSelectVertex menu compStmt filteredVerticesRef currentVertexRef
+       onSelectVertex menu compStmt filteredVerticesRef currentVertexRef (redrawWith img treeRef)
 
        -- Filters
        ops <- mapM (\s->UI.option # UI.set UI.text s) 
@@ -111,7 +111,7 @@ onClick :: UI.Element -> UI.Element -> UI.Element
 onClick status menu img treeRef currentVertexRef filteredVerticesRef b j = do
   on UI.click b $ \_ -> do
         (Just v) <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
-        updateTree img treeRef (\tree -> markNode tree v j)
+        updateTree img treeRef (Just v) (\tree -> markNode tree v j)
         updateMenu menu treeRef currentVertexRef filteredVerticesRef
         updateStatus status treeRef
 
@@ -121,11 +121,13 @@ lookupCurrentVertex currentVertexRef filteredVerticesRef = do
   m <- readIORef filteredVerticesRef
   return $ if i < length m then Just (m !! i) else Nothing
 
-onSelectVertex :: UI.Element -> UI.Element -> IORef [Vertex] -> IORef Int -> UI ()
-onSelectVertex menu compStmt filteredVerticesRef currentVertexRef = do
+onSelectVertex :: UI.Element -> UI.Element -> IORef [Vertex] -> IORef Int 
+                  -> (IORef [Vertex] -> IORef Int -> UI ()) -> UI ()
+onSelectVertex menu compStmt filteredVerticesRef currentVertexRef myRedraw = do
   on UI.selectionChange menu $ \mi -> case mi of
         Just i  -> do UI.liftIO $ writeIORef currentVertexRef i
                       showStmt compStmt filteredVerticesRef currentVertexRef
+                      myRedraw filteredVerticesRef currentVertexRef 
                       return ()
         Nothing -> return ()
 
@@ -195,39 +197,51 @@ updateStatus e compGraphRef = do
   UI.element e # UI.set UI.text txt
   return ()
 
-updateTree :: UI.Element -> IORef CompGraph -> (CompGraph -> CompGraph)
+updateTree :: UI.Element -> IORef CompGraph -> (Maybe Vertex) -> (CompGraph -> CompGraph)
            -> UI ()
-updateTree img treeRef f
+updateTree img treeRef mcv f
   = do tree <- UI.liftIO $ readIORef treeRef
        UI.liftIO $ writeIORef treeRef (f tree)
-       redraw img treeRef
+       redraw img treeRef mcv
 
-redraw :: UI.Element -> IORef CompGraph -> UI ()
-redraw img treeRef 
+redrawWith :: UI.Element -> IORef CompGraph -> IORef [Vertex] -> IORef Int -> UI ()
+redrawWith img treeRef filteredVerticesRef currentVertexRef = do
+  mv <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
+  redraw img treeRef mv
+
+redraw :: UI.Element -> IORef CompGraph -> (Maybe Vertex) -> UI ()
+redraw img treeRef mcv
   = do tree <- UI.liftIO $ readIORef treeRef
        UI.liftIO $ writeFile "debugTree.dot" (shw tree)
-       UI.liftIO $ system $ "dot -Tpng -Gsize=9,9 -Gdpi=100 debugTree.dot "
+       UI.liftIO $ system $ "dot -Tpng -Gsize=9,5 -Gdpi=100 debugTree.dot "
                           ++ "> wwwroot/debugTree.png"
        url <- UI.loadFile "image/png" "wwwroot/debugTree.png"
        UI.element img # UI.set UI.src url
        return ()
 
-  where shw g = showWith g (summarizeVertex $ faultyVertices g) showArc
-        showVertex :: [Vertex] -> Vertex -> String
-        showVertex _ Root = "root"
-        showVertex fs v = showStatus fs v ++ ":\n" ++ showCompStmts v
-                          ++ "\nwith stack " ++ (show . equStack . head . equations $ v)
+  where shw g = showWith g (coloVertex $ faultyVertices g) showArc
+        coloVertex fs v = ( summarizeVertex fs v 
+                          , case mcv of (Just w) -> if equations v == equations w 
+                                                        then "style=filled fillcolor=yellow"
+                                                        else ""
+                                        Nothing  ->          ""
+                          )
+        showArc _  = ""
 
-        showVertexSimple fs v = showStatus fs v ++ ":" ++ showCompStmtsSimple v
-        showCompStmtsSimple = commas . (map equLabel) . equations
+        -- showVertex :: [Vertex] -> Vertex -> String
+        -- showVertex _ Root = "root"
+        -- showVertex fs v = showStatus fs v ++ ":\n" ++ showCompStmts v
+        --                   ++ "\nwith stack " ++ (show . equStack . head . equations $ v)
 
-        showStatus fs v
-          | v `elem` fs = "Faulty"
-          | otherwise   = (show . status) v
+        -- showVertexSimple fs v = showStatus fs v ++ ":" ++ showCompStmtsSimple v
+        -- showCompStmtsSimple = commas . (map equLabel) . equations
+
+        -- showStatus fs v
+        --   | v `elem` fs = "Faulty"
+        --   | otherwise   = (show . status) v
 
         -- showVertex = show
         -- showVertex = (foldl (++) "") . (map show) . equations
-        showArc _  = ""
 
 commas :: [String] -> String
 commas [e] = e
