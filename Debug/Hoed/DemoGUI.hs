@@ -50,21 +50,30 @@ demoGUI sliceDict treeRef window
        redraw img treeRef Nothing
        img' <- UI.center #+ [UI.element img]
 
-       -- Show computation statement(s) of current vertex
+       -- Field to show computation statement(s) of current vertex
        compStmt <- UI.pre
-       -- let showStmt = showStmtN filteredVerticesRef compStmt
-       -- showStmt 0
 
        -- Menu to select which statement to show
        menu <- UI.select
        updateMenu menu treeRef currentVertexRef filteredVerticesRef
        onSelectVertex menu compStmt filteredVerticesRef currentVertexRef (redrawWith img treeRef)
 
-       -- Filters
-       ops <- mapM (\s->UI.option # UI.set UI.text s) 
-                   ["Show all", "Show successors", "Show predecessors"]
-       filterMenu <- UI.select #+ (map UI.element ops)
-       onSelectFilter filterMenu menu treeRef currentVertexRef filteredVerticesRef
+       -- Buttons for the various filters
+       filterTxt   <- UI.span   # UI.set UI.text "Filters: "
+       showAllBut  <- UI.button # UI.set UI.text "Show all"
+       showSuccBut <- UI.button # UI.set UI.text "Show successors"
+       showPredBut <- UI.button # UI.set UI.text "Show predecessors"
+       filters     <- UI.div #+ (map return [filterTxt, showAllBut, showSuccBut, showPredBut])
+       let onClickFilter' = onClickFilter menu treeRef currentVertexRef filteredVerticesRef
+       onClickFilter' showAllBut  ShowAll
+       onClickFilter' showSuccBut ShowSucc
+       onClickFilter' showPredBut ShowPred
+
+       -- The obsoleted menu with filters. MF TODO: delete this code
+       -- ops <- mapM (\s->UI.option # UI.set UI.text s) 
+       --             ["Show all", "Show successors", "Show predecessors"]
+       -- filterMenu <- UI.select #+ (map UI.element ops)
+       -- onSelectFilter filterMenu menu treeRef currentVertexRef filteredVerticesRef
 
        -- Status
        status <- UI.span
@@ -80,7 +89,7 @@ demoGUI sliceDict treeRef window
 
        -- Populate the main screen
        hr <- UI.hr
-       UI.getBody window #+ (map UI.element [ menu, right, wrong, filterMenu, status
+       UI.getBody window #+ (map UI.element [filters, menu, right, wrong, status
                                             , compStmt, hr,img'])
        return ()
 
@@ -131,21 +140,17 @@ onSelectVertex menu compStmt filteredVerticesRef currentVertexRef myRedraw = do
                       return ()
         Nothing -> return ()
 
-onSelectFilter :: UI.Element -> UI.Element -> IORef CompGraph
-                  -> IORef Int -> IORef [Vertex] -> UI ()
-onSelectFilter e menu treeRef currentVertexRef filteredVerticesRef = do
-  on UI.selectionChange e $ \mi -> do
+onClickFilter :: UI.Element -> IORef CompGraph -> IORef Int -> IORef [Vertex] 
+                  -> UI.Element -> Filter -> UI ()
+onClickFilter menu treeRef currentVertexRef filteredVerticesRef e fil = do
+  on UI.click e $ \_ -> do
     mcv <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
     g <- UI.liftIO $ readIORef treeRef
     let cv = case mcv of (Just v) -> v
                          Nothing  -> head . (filter $ not . isRoot) . preorder $ g
         applyFilter f = do UI.liftIO $ writeIORef filteredVerticesRef (vertexFilter f g cv)
-                           UI.liftIO $ writeIORef currentVertexRef    0
-    case mi of
-        Just 0 -> applyFilter ShowAll
-        Just 1 -> applyFilter ShowSucc
-        Just 2 -> applyFilter ShowPred
-        _      -> return ()
+                           UI.liftIO $ writeIORef currentVertexRef 0
+    applyFilter fil
     updateMenu menu treeRef currentVertexRef filteredVerticesRef
 
 -- MF TODO: We may need to reconsider how Vertex is defined,
