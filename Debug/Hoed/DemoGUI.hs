@@ -47,7 +47,7 @@ demoGUI sliceDict treeRef window
 
        -- Draw the computation graph
        img  <- UI.img 
-       redraw img treeRef Nothing
+       redraw img treeRef (Just $ head ns)
        img' <- UI.center #+ [UI.element img]
 
        -- Field to show computation statement(s) of current vertex
@@ -55,8 +55,10 @@ demoGUI sliceDict treeRef window
 
        -- Menu to select which statement to show
        menu <- UI.select
+       showStmt compStmt filteredVerticesRef currentVertexRef
        updateMenu menu treeRef currentVertexRef filteredVerticesRef
-       onSelectVertex menu compStmt filteredVerticesRef currentVertexRef (redrawWith img treeRef)
+       let selectVertex' = selectVertex compStmt filteredVerticesRef currentVertexRef                                           $ redrawWith img treeRef
+       on UI.selectionChange menu selectVertex'
 
        -- Buttons for the various filters
        filterTxt   <- UI.span   # UI.set UI.text "Filters: "
@@ -65,15 +67,10 @@ demoGUI sliceDict treeRef window
        showPredBut <- UI.button # UI.set UI.text "Show predecessors"
        filters     <- UI.div #+ (map return [filterTxt, showAllBut, showSuccBut, showPredBut])
        let onClickFilter' = onClickFilter menu treeRef currentVertexRef filteredVerticesRef
+                                          selectVertex'
        onClickFilter' showAllBut  ShowAll
        onClickFilter' showSuccBut ShowSucc
        onClickFilter' showPredBut ShowPred
-
-       -- The obsoleted menu with filters. MF TODO: delete this code
-       -- ops <- mapM (\s->UI.option # UI.set UI.text s) 
-       --             ["Show all", "Show successors", "Show predecessors"]
-       -- filterMenu <- UI.select #+ (map UI.element ops)
-       -- onSelectFilter filterMenu menu treeRef currentVertexRef filteredVerticesRef
 
        -- Status
        status <- UI.span
@@ -130,19 +127,30 @@ lookupCurrentVertex currentVertexRef filteredVerticesRef = do
   m <- readIORef filteredVerticesRef
   return $ if i < length m then Just (m !! i) else Nothing
 
-onSelectVertex :: UI.Element -> UI.Element -> IORef [Vertex] -> IORef Int 
-                  -> (IORef [Vertex] -> IORef Int -> UI ()) -> UI ()
-onSelectVertex menu compStmt filteredVerticesRef currentVertexRef myRedraw = do
-  on UI.selectionChange menu $ \mi -> case mi of
+-- onSelectVertex :: UI.Element -> UI.Element -> IORef [Vertex] -> IORef Int 
+--                   -> (IORef [Vertex] -> IORef Int -> UI ()) -> UI ()
+-- onSelectVertex menu compStmt filteredVerticesRef currentVertexRef myRedraw = do
+--   on UI.selectionChange menu $ \mi -> case mi of
+--         Just i  -> do UI.liftIO $ writeIORef currentVertexRef i
+--                       showStmt compStmt filteredVerticesRef currentVertexRef
+--                       myRedraw filteredVerticesRef currentVertexRef 
+--                       return ()
+--         Nothing -> return ()
+
+selectVertex :: UI.Element -> IORef [Vertex] -> IORef Int  
+        -> (IORef [Vertex] -> IORef Int -> UI ()) -> Maybe Int -> UI ()
+selectVertex compStmt filteredVerticesRef currentVertexRef myRedraw mi = case mi of
         Just i  -> do UI.liftIO $ writeIORef currentVertexRef i
                       showStmt compStmt filteredVerticesRef currentVertexRef
                       myRedraw filteredVerticesRef currentVertexRef 
                       return ()
         Nothing -> return ()
 
+
+
 onClickFilter :: UI.Element -> IORef CompGraph -> IORef Int -> IORef [Vertex] 
-                  -> UI.Element -> Filter -> UI ()
-onClickFilter menu treeRef currentVertexRef filteredVerticesRef e fil = do
+                  -> (Maybe Int -> UI ()) -> UI.Element -> Filter -> UI ()
+onClickFilter menu treeRef currentVertexRef filteredVerticesRef selectVertex' e fil = do
   on UI.click e $ \_ -> do
     mcv <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
     g <- UI.liftIO $ readIORef treeRef
@@ -152,6 +160,7 @@ onClickFilter menu treeRef currentVertexRef filteredVerticesRef e fil = do
                            UI.liftIO $ writeIORef currentVertexRef 0
     applyFilter fil
     updateMenu menu treeRef currentVertexRef filteredVerticesRef
+    selectVertex' (Just 0)
 
 -- MF TODO: We may need to reconsider how Vertex is defined,
 -- and how we determine equality. I think it could happen that

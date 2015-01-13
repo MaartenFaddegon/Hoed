@@ -294,8 +294,6 @@ mkGraph cs = {-# SCC "mkGraph" #-} (dagify merge)
           (InSequenceAfter i) -> i == equIdentifier v
           _                     -> False
 
-        
-
         toVertices :: Graph CompStmt () -> CompGraph
         toVertices = mapGraph (\s->Vertex [s] Unassessed)
 
