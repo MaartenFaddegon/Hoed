@@ -973,13 +973,13 @@ gdmobserve lbl = fst . (gobserve observer DoNotTraceThreadId UnknownId lbl)
 gdmobserveCC ::  (Observable a) => String -> a -> a
 gdmobserveCC lbl = fst . (gobserve observer TraceThreadId UnknownId lbl)
 
-data Identifier = UnknownId | Identifier Int 
+data Identifier = UnknownId | DependsJustOn Int | InSequenceAfter Int
      deriving (Show, Eq, Ord)
 
 {-# NOINLINE gdmobserve' #-}
-gdmobserve' :: (Observable a) => String -> Identifier -> a -> (a,Identifier)
+gdmobserve' :: (Observable a) => String -> Identifier -> a -> (a,Int)
 gdmobserve' lbl d x = let (y,i) = (gobserve observer DoNotTraceThreadId d lbl) x
-                      in  (y, Identifier i)
+                      in  (y, i)
 
 {- This gets called before observer, allowing us to mark
  - we are entering a, before we do case analysis on
@@ -1024,7 +1024,7 @@ data TraceThreadId = TraceThreadId | DoNotTraceThreadId
 generateContext :: (a->Parent->a) -> TraceThreadId -> Identifier -> String -> a -> (a,Int)
 generateContext f tti d label orig = unsafeWithUniq $ \ node ->
      do { t <- myThreadId
-        ; sendEvent node (Parent 0 0) (Observe label t (Identifier node) d)
+        ; sendEvent node (Parent 0 0) (Observe label t node d)
 	; return (observer_ f orig (Parent
 			{ observeParent = node
 			, observePort   = 0
@@ -1100,7 +1100,7 @@ data ThreadId = ThreadIdUnknown | ThreadId Concurrent.ThreadId
 
 -- MF TODO: Shouldn't we just have the CallStack as part of Observe?
 data Change
-	= Observe 	!String         !ThreadId        !Identifier      !Identifier
+	= Observe 	!String         !ThreadId        !Int      !Identifier
 	| Cons    !Int 	!String
 	| Enter
         | NoEnter

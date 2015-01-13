@@ -43,7 +43,7 @@ renderCompStmt (CDSNamed name threadId identifier dependsOn set)
         commas [d]  = d
         commas ds   = (foldl (\acc d -> acc <> d <> text ", ") (text "{") ds) <> text "}"
 
-renderCompStmt _ = CompStmt "??" ThreadIdUnknown UnknownId UnknownId "??" emptyStack
+-- renderCompStmt _ = CompStmt "??" ThreadIdUnknown (-1) UnknownId "??" emptyStack
 
 renderNamedTop :: String -> Output -> (DOC,CallStack)
 renderNamedTop name (OutData cds)
@@ -68,7 +68,7 @@ renderCallStack s
 -- The CompStmt type
 
 data CompStmt = CompStmt {equLabel :: String, equThreadId :: ThreadId
-                         , equIdentifier :: Identifier, equDependsOn :: Identifier
+                         , equIdentifier :: Int, equDependsOn :: Identifier
                          , equRes :: String, equStack :: CallStack}
                 deriving (Eq, Ord)
 
@@ -263,7 +263,8 @@ mkGraph cs = {-# SCC "mkGraph" #-} (dagify merge)
                                    . addRoot 
                                    . toVertices 
                                    . sameThread 
-                                   . specifiedDependency
+                                   . filterDependsJustOn
+                                   . addSequenceDependencies
                                    . nubArcs
                                    $ g
   where g :: Graph CompStmt ()
@@ -280,12 +281,20 @@ mkGraph cs = {-# SCC "mkGraph" #-} (dagify merge)
             || equThreadId v == equThreadId w   = True
           | otherwise                           = False
 
+        filterDependsJustOn :: Graph CompStmt () -> Graph CompStmt ()
+        filterDependsJustOn (Graph r vs as) = Graph r vs (filter (filterDependsJustOn') as)
+        filterDependsJustOn' (Arc v w _) = case equDependsOn w of
+          (DependsJustOn i) -> i == equIdentifier v
+          _                 -> True
 
-        specifiedDependency :: Graph CompStmt () -> Graph CompStmt ()
-        specifiedDependency (Graph r vs as) = Graph r vs (filter (specifiedDependency') as)
-        specifiedDependency' (Arc v w _) = case equDependsOn w of
-          UnknownId -> True
-          _         -> equDependsOn w == equIdentifier v
+        addSequenceDependencies :: Graph CompStmt () -> Graph CompStmt ()
+        addSequenceDependencies (Graph r vs as) = Graph r vs (seqDeps vs ++ as)
+        seqDeps vs = [Arc v w () |v <- vs, w <- vs, seqDep v w]
+        seqDep v w = case equDependsOn v of
+          (InSequenceAfter i) -> i == equIdentifier w
+          _                     -> False
+
+        
 
         toVertices :: Graph CompStmt () -> CompGraph
         toVertices = mapGraph (\s->Vertex [s] Unassessed)
@@ -309,7 +318,7 @@ mkGraph cs = {-# SCC "mkGraph" #-} (dagify merge)
 -- %************************************************************************
 
 
-data CDS = CDSNamed      String ThreadId Identifier Identifier CDSSet
+data CDS = CDSNamed      String ThreadId Int Identifier CDSSet
 	 | CDSCons       Int    String   [CDSSet]
 	 | CDSFun        Int             CDSSet CDSSet CallStack
 	 | CDSEntered    Int

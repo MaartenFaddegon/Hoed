@@ -12,8 +12,8 @@ import Debug.Hoed(gdmobserve,Observable(..),runO,send,gdmobserve',Identifier(..)
 import System.IO.Unsafe
 import Data.List
 
-twotimes :: Identifier -> Integer -> Integer
-twotimes d j = (fst $ gdmobserve' "twotimes" d
+twotimes :: Int -> Integer -> Integer
+twotimes d j = (fst $ gdmobserve' "twotimes" (DependsJustOn d)
                ( \i -> {-# SCC "twotimes" #-} 
                   2 + i -- bug: should be 2 * i
                )) j
