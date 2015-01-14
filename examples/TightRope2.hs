@@ -4,7 +4,7 @@
 -- on the left and right gets too big he falls off the rope. This
 -- is indicated by Nothing.
 
-import Debug.Hoed(runO,gdmobserve,gdmobserve',Identifier(..))
+import Debug.Hoed(runO,gdmobserve,gdmobserve',Identifier(..),TracedMonad(..))
 
 type Birds = Int
 type Pole  = (Birds,Birds)
@@ -30,20 +30,5 @@ walk :: Maybe Pole
 walk = gdmobserve "walk" $ {-# SCC "walk" #-}
         return (0,0) *>>= landRight 1   >>== landLeft 1
           >>== landRight 2 >>== landRight (-1) >>=* landRight 1
-
-class (Monad m) => TracedMonad m where
-  (*>>=) :: Monad m => m a               -> (Identifier -> a -> (m b, Int)) -> (m b, Identifier)
-  (>>==) :: Monad m => (m a, Identifier) -> (Identifier -> a -> (m b, Int)) -> (m b, Identifier)
-  (>>=*) :: Monad m => (m a, Identifier) -> (Identifier -> a -> (m b, Int)) -> m b
-
-instance TracedMonad Maybe where
-  (Just x)    *>>= f = let (y,i) = f UnknownId x in (y,InSequenceAfter i)
-  Nothing     *>>= f = (Nothing, UnknownId)
-
-  (Just x, d) >>== f = let (y,i) = f d x in (y,InSequenceAfter i)
-  (Nothing,_) >>== _ = (Nothing, UnknownId)
-
-  (Just x,d)  >>=* f = fst (f d x)
-  (Nothing,_) >>=* f = Nothing
 
 main = runO [] $ print walk
