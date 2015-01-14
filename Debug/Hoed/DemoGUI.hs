@@ -15,6 +15,7 @@ import Graphics.UI.Threepenny (startGUI,defaultConfig,tpPort,tpStatic
 import System.Process(system)
 import Data.IORef
 import Data.List(intersperse)
+import Text.Regex.Posix
 
 --------------------------------------------------------------------------------
 
@@ -30,7 +31,7 @@ showStmt e filteredVerticesRef currentVertexRef = do
   UI.element e # UI.set UI.text s
   return ()
 
-data Filter = ShowAll | ShowSucc | ShowPred
+data Filter = ShowAll | ShowSucc | ShowPred | ShowMatch
 
 demoGUI :: [(String,String)] -> IORef CompGraph -> Window -> UI ()
 demoGUI sliceDict treeRef window
@@ -44,6 +45,7 @@ demoGUI sliceDict treeRef window
        -- Shared memory
        filteredVerticesRef <- UI.liftIO $ newIORef ns
        currentVertexRef    <- UI.liftIO $ newIORef (0 :: Int)
+       regexRef            <- UI.liftIO $ newIORef ""
 
        -- Draw the computation graph
        img  <- UI.img 
@@ -61,16 +63,22 @@ demoGUI sliceDict treeRef window
        on UI.selectionChange menu selectVertex'
 
        -- Buttons for the various filters
-       filterTxt   <- UI.span   # UI.set UI.text "Filters: "
-       showAllBut  <- UI.button # UI.set UI.text "Show all"
-       showSuccBut <- UI.button # UI.set UI.text "Show successors"
-       showPredBut <- UI.button # UI.set UI.text "Show predecessors"
-       filters     <- UI.div #+ (map return [filterTxt, showAllBut, showSuccBut, showPredBut])
+       filterTxt    <- UI.span   # UI.set UI.text "Filters: "
+       showAllBut   <- UI.button # UI.set UI.text "Show all"
+       showSuccBut  <- UI.button # UI.set UI.text "Show successors"
+       showPredBut  <- UI.button # UI.set UI.text "Show predecessors"
+       showMatchBut <- UI.button # UI.set UI.text "Matches "
+       matchField   <- UI.input
+       filters      <- UI.div #+ (map return [ filterTxt, showAllBut, showSuccBut, showPredBut
+                                             , showMatchBut, matchField])
+
+       on UI.valueChange matchField $ \s -> UI.liftIO $ writeIORef regexRef s
        let onClickFilter' = onClickFilter menu treeRef currentVertexRef filteredVerticesRef
-                                          selectVertex'
-       onClickFilter' showAllBut  ShowAll
-       onClickFilter' showSuccBut ShowSucc
-       onClickFilter' showPredBut ShowPred
+                                          selectVertex' regexRef
+       onClickFilter' showAllBut   ShowAll
+       onClickFilter' showSuccBut  ShowSucc
+       onClickFilter' showPredBut  ShowPred
+       onClickFilter' showMatchBut ShowMatch
 
        -- Status
        status <- UI.span
@@ -105,11 +113,14 @@ updateMenu menu treeRef currentVertexRef filteredVerticesRef = do
        (UI.element menu) # UI.set UI.selection (Just i)
        return ()
 
-vertexFilter :: Filter -> CompGraph -> Vertex -> [Vertex]
-vertexFilter f g cv = filter (not . isRoot) $ case f of 
-  ShowAll  -> preorder g
-  ShowSucc -> succs g cv
-  ShowPred -> preds g cv
+vertexFilter :: Filter -> CompGraph -> Vertex -> String -> [Vertex]
+vertexFilter f g cv r = filter (not . isRoot) $ case f of 
+  ShowAll   -> preorder g
+  ShowSucc  -> succs g cv
+  ShowPred  -> preds g cv
+  ShowMatch -> filter matches (preorder g)
+    where matches Root = False
+          matches v    = showCompStmts v =~ r
 
 onClick :: UI.Element -> UI.Element -> UI.Element 
            -> IORef CompGraph -> IORef Int -> IORef [Vertex]
@@ -147,16 +158,16 @@ selectVertex compStmt filteredVerticesRef currentVertexRef myRedraw mi = case mi
         Nothing -> return ()
 
 
-
 onClickFilter :: UI.Element -> IORef CompGraph -> IORef Int -> IORef [Vertex] 
-                  -> (Maybe Int -> UI ()) -> UI.Element -> Filter -> UI ()
-onClickFilter menu treeRef currentVertexRef filteredVerticesRef selectVertex' e fil = do
+                  -> (Maybe Int -> UI ()) -> IORef String -> UI.Element -> Filter -> UI ()
+onClickFilter menu treeRef currentVertexRef filteredVerticesRef selectVertex' regexRef e fil = do
   on UI.click e $ \_ -> do
     mcv <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
     g <- UI.liftIO $ readIORef treeRef
+    r <- UI.liftIO $ readIORef regexRef
     let cv = case mcv of (Just v) -> v
                          Nothing  -> head . (filter $ not . isRoot) . preorder $ g
-        applyFilter f = do UI.liftIO $ writeIORef filteredVerticesRef (vertexFilter f g cv)
+        applyFilter f = do UI.liftIO $ writeIORef filteredVerticesRef (vertexFilter f g cv r)
                            UI.liftIO $ writeIORef currentVertexRef 0
     applyFilter fil
     updateMenu menu treeRef currentVertexRef filteredVerticesRef

@@ -25,6 +25,7 @@ library
                        , filepath
                        , libgraph == 1.3
                        , RBTree == 0.0.5
+                       , regex-posix
   default-language:    Haskell2010
 
 ---------------------------------------------------------------------------
