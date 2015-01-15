@@ -56,6 +56,7 @@ module Debug.Hoed.Observe
 
    -- * For advanced users, that want to render their own datatypes.
   , (<<)           -- (Observable a) => ObserverM (a -> b) -> a -> ObserverM b
+  ,(*>>=),(>>==),(>>=*)
   , thunk          -- (Observable a) => a -> ObserverM a	
   , nothunk
   , send
@@ -823,8 +824,8 @@ For now, we only display IOExceptions and calls to Error.
 
 \begin{code}
 instance Observable Exception.SomeException where
---  observer (IOException a)      = observeOpaque "IOException" (IOException a)
---  observer (ErrorCall a)        = send "ErrorCall"   (return ErrorCall << a)
+-- observer (IOException a)      = observeOpaque "IOException" (IOException a)
+-- observer (ErrorCall a)        = send "ErrorCall"   (return ErrorCall << a)
   observer other                = send "<Exception>" (return other)
 
 instance Observable Dynamic where { observer = observeOpaque "<Dynamic>" }
@@ -1230,3 +1231,15 @@ handleExc :: Parent -> Exception.SomeException -> IO a
 handleExc context exc = return (send "throw" (return throw << exc) context)
 \end{code}
 
+%************************************************************************
+
+\begin{code}
+(*>>=) :: Monad m => m a -> (Identifier -> (a -> m b, Int)) -> (m b, Identifier)
+x *>>= f = let (g,i) = f UnknownId in (x >>= g,InSequenceAfter i)
+
+(>>==) :: Monad m => (m a, Identifier) -> (Identifier -> (a -> m b, Int)) -> (m b, Identifier)
+(x,d) >>== f = let (g,i) = f d in (x >>= g,InSequenceAfter i)
+
+(>>=*) :: Monad m => (m a, Identifier) -> (Identifier -> (a -> m b, Int)) -> m b
+(x,d) >>=* f = let (g,i) = f d in x >>= g
+\end{code}

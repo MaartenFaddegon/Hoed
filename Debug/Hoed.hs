@@ -13,6 +13,7 @@ module Debug.Hoed
 
    -- * For advanced users, that want to render their own datatypes.
   , (<<)           -- (Observable a) => ObserverM (a -> b) -> a -> ObserverM b
+  ,(*>>=),(>>==),(>>=*)
   , thunk          -- (Observable a) => a -> ObserverM a	
   , nothunk
   , send
