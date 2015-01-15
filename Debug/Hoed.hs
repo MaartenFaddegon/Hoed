@@ -6,7 +6,6 @@ module Debug.Hoed
   , Identifier(..)
   , Observer(..)   -- contains a 'forall' typed observe (if supported).
   , Observable(..) -- Class
-  , TracedMonad(..)
   , runO	   -- IO a -> IO ()
   , logO
   , printO	   -- a -> IO ()

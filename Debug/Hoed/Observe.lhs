@@ -53,7 +53,6 @@ module Debug.Hoed.Observe
   , Observer(..)   -- contains a 'forall' typed observe (if supported).
   -- , Observing      -- a -> a
   , Observable(..) -- Class
-  , TracedMonad(..)
 
    -- * For advanced users, that want to render their own datatypes.
   , (<<)           -- (Observable a) => ObserverM (a -> b) -> a -> ObserverM b
@@ -115,8 +114,12 @@ import GHC.Foreign as GHC
 import GHC.Ptr
 \end{code}
 
-
-
+For the TracedMonad instance of IO:
+\begin{code}
+import GHC.Base
+-- import Control.Monad.ST(RealWorld)
+-- import Control.Monad.State(State)
+\end{code}
 
 \begin{code}
 import Control.Exception ( Exception, throw )
@@ -1227,22 +1230,3 @@ handleExc :: Parent -> Exception.SomeException -> IO a
 handleExc context exc = return (send "throw" (return throw << exc) context)
 \end{code}
 
-
-%************************************************************************
-
-\begin{code}
-class (Monad m) => TracedMonad m where
-  (*>>=) :: Monad m => m a               -> (Identifier -> a -> (m b, Int)) -> (m b, Identifier)
-  (>>==) :: Monad m => (m a, Identifier) -> (Identifier -> a -> (m b, Int)) -> (m b, Identifier)
-  (>>=*) :: Monad m => (m a, Identifier) -> (Identifier -> a -> (m b, Int)) -> m b
-
-instance TracedMonad Maybe where
-  (Just x)    *>>= f = let (y,i) = f UnknownId x in (y,InSequenceAfter i)
-  Nothing     *>>= f = (Nothing, UnknownId)
-
-  (Just x, d) >>== f = let (y,i) = f d x in (y,InSequenceAfter i)
-  (Nothing,_) >>== _ = (Nothing, UnknownId)
-
-  (Just x,d)  >>=* f = fst (f d x)
-  (Nothing,_) >>=* f = Nothing
-\end{code}
