@@ -27,6 +27,10 @@ import Data.Graph.Libgraph
 import Data.Array as Array
 import Data.Tree.RBTree(RBTree(..),insertOrd,emptyRB,search)
 
+head' :: String -> [a] -> a
+head' msg [] = error msg
+head' _   xs = head xs
+
 ------------------------------------------------------------------------
 -- Render equations from CDS set
 
@@ -35,13 +39,17 @@ renderCompStmts = map renderCompStmt
 
 renderCompStmt :: CDS -> CompStmt
 renderCompStmt (CDSNamed name threadId identifier dependsOn set)
-  = CompStmt name threadId identifier dependsOn equation (head stack)
+  = CompStmt name threadId identifier dependsOn equation hstack
   where equation    = pretty 120 (commas doc)
-        (doc,stack) = unzip rendered
+        (doc,stacks)= unzip rendered
         rendered    = map (renderNamedTop name) output
         output      = cdssToOutput set
         commas [d]  = d
         commas ds   = (foldl (\acc d -> acc <> d <> text ", ") (text "{") ds) <> text "}"
+        hstack      = case stacks of
+                        []    -> []
+                        (x:_) -> x
+                        
 
 -- renderCompStmt _ = CompStmt "??" ThreadIdUnknown (-1) UnknownId "??" emptyStack
 
@@ -268,7 +276,8 @@ mkGraph cs = {-# SCC "mkGraph" #-} (dagify merge)
                                    . nubArcs
                                    $ g
   where g :: Graph CompStmt ()
-        g = let ts = mkTrees cs in Graph (head cs) cs (pushDeps ts cs ++ callDeps ts cs)
+        g = let ts = mkTrees cs in Graph (head' msg cs) cs (pushDeps ts cs ++ callDeps ts cs)
+        msg = "mkGraph: No computation statements to construct graph from!"
 
         nubArcs :: Graph CompStmt () -> Graph CompStmt ()
         nubArcs (Graph r vs as) = Graph r vs (nub as)
@@ -304,8 +313,9 @@ mkGraph cs = {-# SCC "mkGraph" #-} (dagify merge)
                 in  Graph Root (Root : vs) (es ++ as)
 
         merge :: [Vertex] -> Vertex
-        merge vs = let v = head vs; cs' = map equations vs
+        merge vs = let v = head' msgvs vs; cs' = map equations vs
                    in v{equations=foldl (++) [] cs'}
+        msgvs = "mkGraph.merge: No vertices to merge."
 
         src ==> tgt = Arc src tgt ()
 
