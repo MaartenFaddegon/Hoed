@@ -123,8 +123,8 @@ import GHC.Base
 \end{code}
 
 \begin{code}
-import Control.Exception ( Exception, throw )
 import qualified Control.Exception as Exception
+import Control.Exception (Exception, throw, ErrorCall(..))
 {-
  ( catch
 		, Exception(..)
@@ -820,13 +820,14 @@ instance (Observable a) => Observable (IO a) where
 
 
 The Exception *datatype* (not exceptions themselves!).
-For now, we only display IOExceptions and calls to Error.
 
 \begin{code}
 instance Observable Exception.SomeException where
--- observer (IOException a)      = observeOpaque "IOException" (IOException a)
--- observer (ErrorCall a)        = send "ErrorCall"   (return ErrorCall << a)
-  observer other                = send "<Exception>" (return other)
+  observer e = send ("<Exception> " ++ show e) (return e)
+
+-- instance Observable ErrorCall where
+--   observer (ErrorCall a)        = send "ErrorCall"   (return ErrorCall << a)
+
 
 instance Observable Dynamic where { observer = observeOpaque "<Dynamic>" }
 \end{code}
