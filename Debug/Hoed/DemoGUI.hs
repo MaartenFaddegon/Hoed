@@ -128,11 +128,14 @@ onClick :: UI.Element -> UI.Element -> UI.Element
 onClick status menu img treeRef currentVertexRef filteredVerticesRef b j = do
   on UI.click b $ \_ -> do
         (Just v) <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
-        -- MF TODO: we also need to update the vertex in 'filteredVerticesRef'
-        -- Now filtering is broken after judging a vertex!
+        replaceFilteredVertex v (v{status=j})
         updateTree img treeRef (Just v) (\tree -> markNode tree v j)
         updateMenu menu treeRef currentVertexRef filteredVerticesRef
         updateStatus status treeRef
+
+  where replaceFilteredVertex v w = do
+          vs <- UI.liftIO $ readIORef filteredVerticesRef
+          UI.liftIO $ writeIORef filteredVerticesRef $ map (\x -> if x == v then w else x) vs
 
 lookupCurrentVertex :: IORef Int -> IORef [Vertex] -> IO (Maybe Vertex)
 lookupCurrentVertex currentVertexRef filteredVerticesRef = do
