@@ -124,7 +124,7 @@ import GHC.Base
 
 \begin{code}
 import qualified Control.Exception as Exception
-import Control.Exception (Exception, throw, ErrorCall(..))
+import Control.Exception (Exception, throw, ErrorCall(..), SomeException(..))
 {-
  ( catch
 		, Exception(..)
@@ -822,7 +822,7 @@ instance (Observable a) => Observable (IO a) where
 The Exception *datatype* (not exceptions themselves!).
 
 \begin{code}
-instance Observable Exception.SomeException where
+instance Observable SomeException where
   observer e = send ("<Exception> " ++ show e) (return e)
 
 -- instance Observable ErrorCall where
@@ -1225,10 +1225,10 @@ Here we provide stubs for the functionally that is not supported
 by some compilers, and provide some combinators of various flavors.
 
 \begin{code}
-ourCatchAllIO :: IO a -> (Exception.SomeException -> IO a) -> IO a
+ourCatchAllIO :: IO a -> (SomeException -> IO a) -> IO a
 ourCatchAllIO = Exception.catch
 
-handleExc :: Parent -> Exception.SomeException -> IO a
+handleExc :: Parent -> SomeException -> IO a
 handleExc context exc = return (send "throw" (return throw << exc) context)
 \end{code}
 

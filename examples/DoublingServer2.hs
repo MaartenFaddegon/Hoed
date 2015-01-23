@@ -1,5 +1,6 @@
 -- Based on the TrivialServer-example from Marlow, Parallel and Concurrent
 -- Programming in Haskell
+-- 
 
 {-# LANGUAGE StandaloneDeriving #-}
 

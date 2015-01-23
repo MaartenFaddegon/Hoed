@@ -37,12 +37,31 @@ library
 --
 ---------------------------------------------------------------------------
 
-Executable hoed-examples-HeadOnEmpty
+Executable hoed-examples-HeadOnEmpty1
   build-depends:       base >= 4 && < 5
                        , Hoed
                        , threepenny-gui
                        , filepath
   main-is:             HeadOnEmpty.hs
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+
+Executable hoed-examples-HeadOnEmpty2
+  build-depends:       base >= 4 && < 5
+                       , Hoed
+                       , threepenny-gui
+                       , filepath
+  main-is:             HeadOnEmpty2.hs
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+
+Executable hoed-examples-IOException
+  build-depends:       base >= 4 && < 5
+                       , Hoed
+                       , threepenny-gui
+                       , filepath
+                       , hood
+  main-is:             IOException.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
 
