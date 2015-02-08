@@ -7,12 +7,13 @@
 
 import Prelude hiding (foldl)
 import qualified Prelude
-import Debug.Hoed(printO,gdmobserve,gdmobserve',Identifier(..))
+import Debug.Hoed(printO,gdmobserve,gdmobserve',Identifier(..),Observable)
 
 -- Prelude.foldl :: (b -> a -> b) -> b [a] -> b
 
-foldl :: ((b,Identifier) -> a -> (b,Int)) -> b -> [a] -> b
-foldl fn z xs = fst $ Prelude.foldl fn' (z,UnknownId) xs
+foldl :: (Observable a, Observable b) => ((b,Identifier) -> a -> (b,Int)) -> b -> [a] -> b
+foldl fn z = gdmobserve "foldl" 
+               (\xs -> fst $ {-# SCC "foldl" #-} Prelude.foldl fn' (z,UnknownId) xs)
   where fn' a x = let (r,i) = fn a x in (r,InSequenceAfter i)
 
 -- g :: Int -> Int -> Int

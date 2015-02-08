@@ -3,6 +3,10 @@
 # cabal configure -w /home/maarten/Code/ghc/inplace/bin/ghc-stage2 --enable-library-profiling --enable-executable-profiling --disable-optimization
 
 
-cabal configure --enable-library-profiling \
-                --enable-executable-profiling \
+# For earlier version of cabal:
+# cabal configure --enable-library-profiling \
+#                 --enable-executable-profiling \
+#                 --disable-optimization
+
+cabal configure --enable-profiling \
                 --disable-optimization
