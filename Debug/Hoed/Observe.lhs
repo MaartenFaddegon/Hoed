@@ -46,7 +46,7 @@ module Debug.Hoed.Observe
   (
    -- * The main Hood API
   
-     observe
+    observeTempl
   , gdmobserve
   , gdmobserve'
   , gdmobserveCC
@@ -304,11 +304,11 @@ Generate a new observe from generated observers and the gobserve mechanism.
 Where gobserve is the 'classic' observe but parametrized.
 
 \begin{code}
-observe :: String -> Q Exp
-observe s = do n  <- methodName s
-               let f  = return $ VarE n
-                   s' = stringE s
-               [| (\x-> fst (gobserve $f DoNotTraceThreadId UnknownId $s' x)) |]
+observeTempl :: String -> Q Exp
+observeTempl s = do n  <- methodName s
+                    let f  = return $ VarE n
+                        s' = stringE s
+                    [| (\x-> fst (gobserve $f DoNotTraceThreadId UnknownId $s' x)) |]
 \end{code}
 
 Generate class definition and class instances for list of types.

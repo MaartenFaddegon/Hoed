@@ -10,18 +10,18 @@
 > main = logO "hoed-tests-Example3.graph" $ print (k 1)
 
 > k :: Int -> Int
-> k  x = $(observe "k") k' x
+> k  x = $(observeTempl "k") k' x
 > k' x = {-# SCC "k" #-} k'' x
 > k'' x = (l x) + (m $ x + 1)
 
 > l :: Int -> Int
-> l  x  = $(observe "l") l' x
+> l  x  = $(observeTempl "l") l' x
 > l' x  = {-# SCC "l" #-} m x
 
 > m :: Int -> Int
-> m  x = $(observe "m") m' x
+> m  x = $(observeTempl "m") m' x
 > m' x = {-# SCC "m" #-} n x
 
 > n :: Int -> Int
-> n  x = $(observe "n") n' x
+> n  x = $(observeTempl "n") n' x
 > n' x = {-# SCC "n" #-} x

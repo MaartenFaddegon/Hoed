@@ -1,5 +1,5 @@
 module Debug.Hoed
-  ( observe
+  ( observeTempl
   , gdmobserve
   , gdmobserveCC
   , gdmobserve'

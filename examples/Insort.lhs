@@ -10,14 +10,14 @@ A Declarative Debugging Scheme.
 Insertion sort.
 
 > isort :: [Int] -> [Int]
-> isort ns = $(observe "isort") (\ns -> {-# SCC "isort" #-} isort' ns) ns
+> isort ns = $(observeTempl "isort") (\ns -> {-# SCC "isort" #-} isort' ns) ns
 > isort' []     = []
 > isort' (n:ns) = insert n (isort ns)
 
 Insert number into sorted list.
 
 > insert :: Int -> [Int] -> [Int]
-> insert n ms = ($(observe "insert") (\n ms -> {-# SCC "insert" #-} insert' n ms)) n ms
+> insert n ms = ($(observeTempl "insert") (\n ms -> {-# SCC "insert" #-} insert' n ms)) n ms
 > insert' :: Int -> [Int] -> [Int]
 > insert' n []      = [n]
 > insert' n (m:ms)
@@ -25,7 +25,7 @@ Insert number into sorted list.
 >       | otherwise = m : (insert n ms)
 
 > main = runO slices . print $
->          $(observe "result") ({-# SCC "result" #-} isort [1,2])
+>          $(observeTempl "result") ({-# SCC "result" #-} isort [1,2])
 
 Slices, these should be generated automatically from the original code.
 
