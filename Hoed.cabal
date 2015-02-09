@@ -2,7 +2,7 @@ name:                Hoed
 version:             0.2.0.0
 synopsis:            Lighweight debugging based on the observing of intermediate values and the cost centre stack at time of evaluation.
 -- description:         TODO
-homepage:            http://maartenfaddegon.nl/pub
+homepage:            http://maartenfaddegon.nl
 license:             BSD3
 license-file:        LICENSE
 author:              Maarten Faddegon
@@ -28,6 +28,7 @@ library
                        , regex-posix
                        , mtl
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 ---------------------------------------------------------------------------
 --
@@ -45,6 +46,7 @@ Executable hoed-examples-Foldl
   main-is:             Foldl.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-examples-HeadOnEmpty1
   build-depends:       base >= 4 && < 5
@@ -54,6 +56,7 @@ Executable hoed-examples-HeadOnEmpty1
   main-is:             HeadOnEmpty.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-examples-HeadOnEmpty2
   build-depends:       base >= 4 && < 5
@@ -63,16 +66,18 @@ Executable hoed-examples-HeadOnEmpty2
   main-is:             HeadOnEmpty2.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
+  ghc-options:         -O0
 
-Executable hoed-examples-IOException
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
-                       , hood
-  main-is:             IOException.hs
-  hs-source-dirs:      examples
-  default-language:    Haskell2010
+-- Executable hoed-examples-IOException
+--   build-depends:       base >= 4 && < 5
+--                        , Hoed
+--                        , threepenny-gui
+--                        , filepath
+--                        , hood
+--   main-is:             IOException.hs
+--   hs-source-dirs:      examples
+--   default-language:    Haskell2010
+--   ghc-options:         -O0
 
 Executable hoed-examples-IndirectRecursion
   build-depends:       base >= 4 && < 5
@@ -82,6 +87,7 @@ Executable hoed-examples-IndirectRecursion
   main-is:             IndirectRecursion.lhs
   hs-source-dirs:      examples
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-examples-Pretty
   build-depends:       base >= 4 && < 5
@@ -92,6 +98,7 @@ Executable hoed-examples-Pretty
   main-is:             Pretty.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-examples-Example1
   build-depends:       base >= 4 && < 5
@@ -101,6 +108,7 @@ Executable hoed-examples-Example1
   main-is:             Example1.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 -- Executable hoed-examples-Example2
 --   build-depends:       base >= 4 && < 5
@@ -119,6 +127,7 @@ Executable hoed-examples-Example3
   main-is:             Example3.lhs
   hs-source-dirs:      examples
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-examples-Example4
   build-depends:       base >= 4 && < 5
@@ -128,6 +137,7 @@ Executable hoed-examples-Example4
   main-is:             Example4.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-examples-Insort1
   build-depends:       base >= 4 && < 5
@@ -137,6 +147,7 @@ Executable hoed-examples-Insort1
   main-is:             Insort.lhs
   hs-source-dirs:      examples
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-examples-Insort2
   build-depends:       base >= 4 && < 5
@@ -146,6 +157,7 @@ Executable hoed-examples-Insort2
   main-is:             Insort2.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-examples-DoublingServer1
   build-depends:       base >= 4 && < 5
@@ -156,6 +168,7 @@ Executable hoed-examples-DoublingServer1
   main-is:             DoublingServer.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-examples-DoublingServer2
   build-depends:       base >= 4 && < 5
@@ -166,6 +179,7 @@ Executable hoed-examples-DoublingServer2
   main-is:             DoublingServer2.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-examples-DoublingServer3
   build-depends:       base >= 4 && < 5
@@ -176,6 +190,7 @@ Executable hoed-examples-DoublingServer3
   main-is:             DoublingServer3.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-examples-DoublingServer4
   build-depends:       base >= 4 && < 5
@@ -186,6 +201,7 @@ Executable hoed-examples-DoublingServer4
   main-is:             DoublingServer4.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-examples-DoublingServer5
   build-depends:       base >= 4 && < 5
@@ -196,6 +212,7 @@ Executable hoed-examples-DoublingServer5
   main-is:             DoublingServer5.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-examples-Hashmap
   build-depends:       base >= 4 && < 5
@@ -206,6 +223,7 @@ Executable hoed-examples-Hashmap
   main-is:             Hashmap.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-examples-Responsibility
   build-depends:       base >= 4 && < 5
@@ -216,6 +234,7 @@ Executable hoed-examples-Responsibility
   main-is:             Responsibility.lhs
   hs-source-dirs:      examples
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-examples-TightRope1
   build-depends:       base >= 4 && < 5
@@ -225,6 +244,7 @@ Executable hoed-examples-TightRope1
   main-is:             TightRope.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-examples-TightRope2
   build-depends:       base >= 4 && < 5
@@ -234,6 +254,7 @@ Executable hoed-examples-TightRope2
   main-is:             TightRope2.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-examples-TightRope3
   build-depends:       base >= 4 && < 5
@@ -243,6 +264,7 @@ Executable hoed-examples-TightRope3
   main-is:             TightRope3.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-examples-AskName
   build-depends:       base >= 4 && < 5
@@ -252,6 +274,7 @@ Executable hoed-examples-AskName
   main-is:             AskName.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 ---------------------------------------------------------------------------
 --
@@ -270,6 +293,7 @@ Executable hoed-tests-DoublingServer
   main-is:             DoublingServer.hs
   hs-source-dirs:      tests
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-tests-Insort2
   build-depends:       base >= 4 && < 5
@@ -279,6 +303,7 @@ Executable hoed-tests-Insort2
   main-is:             Insort2.hs
   hs-source-dirs:      tests
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-tests-Example1
   build-depends:       base >= 4 && < 5
@@ -288,6 +313,7 @@ Executable hoed-tests-Example1
   main-is:             Example1.hs
   hs-source-dirs:      tests
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-tests-Example3
   build-depends:       base >= 4 && < 5
@@ -297,6 +323,7 @@ Executable hoed-tests-Example3
   main-is:             Example3.lhs
   hs-source-dirs:      tests
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-tests-Example4
   build-depends:       base >= 4 && < 5
@@ -306,6 +333,7 @@ Executable hoed-tests-Example4
   main-is:             Example4.hs
   hs-source-dirs:      tests
   default-language:    Haskell2010
+  ghc-options:         -O0
 
 Executable hoed-tests-IndirectRecursion
   build-depends:       base >= 4 && < 5
@@ -315,3 +343,4 @@ Executable hoed-tests-IndirectRecursion
   main-is:             IndirectRecursion.lhs
   hs-source-dirs:      tests
   default-language:    Haskell2010
+  ghc-options:         -O0
