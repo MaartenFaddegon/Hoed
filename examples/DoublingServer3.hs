@@ -62,15 +62,13 @@ client x = do
   s <- hGetLine h; pr s -- Get and print response from server
 
 main :: IO ()
-main = runO slices $ observe "main" $ {-# SCC "main" #-} withSocketsDo $ do
+main = runO $ observe "main" $ {-# SCC "main" #-} withSocketsDo $ do
   sock <- listenOn (PortNumber (fromIntegral port))
   printf "server: Listening on port %d.\n" port
   forkIO (server 2 sock) -- Start server in own thread.
   client 2               -- Connect with two clients from this thread to the server.
   client 3
   threadDelay 1000       -- Give server-thread some time to terminate.
-
-slices = []
 
 instance Observable Handle where observer h = send (show h) (return h)
 instance Observable Socket where observer s = send "socket" (return s)

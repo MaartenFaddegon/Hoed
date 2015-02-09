@@ -16,7 +16,7 @@ instance Observable Output
 ------------------------------------------------------------------------
 -- The main program with the failing testcase.
 
-main = runO [] $ print (renderCompStmts cdss)
+main = runO $ print (renderCompStmts cdss)
 
 cdss = [CDSNamed "f" [CDSFun 0 [CDSCons 0 "2" []] [CDSCons 0 "1" []] [],CDSFun 0 [CDSCons 0 "0" []] [CDSCons 0 "0" []] []],CDSNamed "g" [CDSFun 0 [CDSCons 0 "2" []] [CDSCons 0 "1" []] ["f"]]]
 

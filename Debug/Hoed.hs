@@ -1,35 +1,52 @@
+{-|
+Module      : Debug.Hoed
+Description : Lighweight algorithmic debugging based on observing of intermediate values and the cost centre stack.
+Copyright   : (c) 2000 Andy Gill, (c) 2010 University of Kansas, (c) 2013-2014 Maarten Faddegon
+License     : BSD3
+Maintainer  : hoed@maartenfaddegon.nl
+Stability   : experimental
+Portability : POSIX
+
+Hoed is a tracer and debugger for the programming language Haskell. You can
+trace a program by annotating functions in suspected modules and linking your
+program against standard profiling libraries. 
+
+After running the program a computation tree is constructed and displayed in a
+web browser. You can freely browse this tree to get a better understanding of
+your program. If your program misbehaves, you can judge the computation
+statements in the tree as 'right' or 'wrong' according to your intention. When
+enough statements are judged the debugger tells you the location of the fault
+in your code.
+
+-}
+
 module Debug.Hoed
-  ( observeTempl
-  , observe
+  ( -- * Basic annotations
+    observe
+  , runO
+  , printO
+
+    -- * Experimental annotations
+  , observeTempl
+  , observedTypes
   , observeCC
   , observe'
   , Identifier(..)
-  , Observer(..)   -- contains a 'forall' typed observe (if supported).
-  , Observable(..) -- Class
-  , runO	   -- IO a -> IO ()
-  , logO
-  , printO	   -- a -> IO ()
-  , putStrO	   -- String -> IO ()
-
-   -- * For advanced users, that want to render their own datatypes.
-  , (<<)           -- (Observable a) => ObserverM (a -> b) -> a -> ObserverM b
   ,(*>>=),(>>==),(>>=*)
-  , thunk          -- (Observable a) => a -> ObserverM a	
+  , logO
+
+   -- * The Observable class
+  , Observer(..)
+  , Observable(..)
+  , (<<)
+  , thunk
   , nothunk
   , send
   , observeBase
   , observeOpaque
-
-  , observedTypes
-
-  -- * For users that want to write there own render drivers.
-  
-  , debugO	   -- IO a -> IO [CDS]
+  , debugO
   , CDS(..)
-
   , Generic
-
-  , ccsToStrings -- TODO, we don't really wan't to export this, do we?
   ) where
 
 
@@ -76,40 +93,29 @@ debugO program =
 	; return (eventsToCDS events)
 	}
 
--- | print a value, with debugging 
+-- | Short for @runO . print@.
 printO :: (Show a) => a -> IO ()
-printO expr = runO [] (print expr)
+printO expr = runO (print expr)
 
 -- | print a string, with debugging 
 putStrO :: String -> IO ()
-putStrO expr = runO [] (putStr expr)
+putStrO expr = runO (putStr expr)
 
 -- | The main entry point; run some IO code, and debug inside it.
+--   After the IO action is completed, an algorithmic debugging session is started at
+--   @http://localhost:10000/@ to which you can connect with your webbrowser.
 -- 
--- An example of using this debugger is 
+-- For example:
 --
--- @runO (print [ observe "+1" (+1) x | x <- observe "xs" [1..3]])@
--- 
--- @[2,3,4]
--- -- +1
---  { \ 1  -> 2
---  }
--- -- +1
---  { \ 2  -> 3
---  }
--- -- +1
---  { \ 3  -> 4
---  }
--- -- xs
---  1 : 2 : 3 : []@
--- 
--- Which says, the return is @[2,3,4]@, there were @3@ calls to +1
--- (showing arguments and results), and @xs@, which was the list
--- @1 : 2 : 3 : []@.
+-- @ 
+--   main = runO $ do print (triple 3)
+--                    print (triple 2)
+-- @
 -- 
 
-runO :: [(String,String)] -> IO a -> IO ()
-runO slices program = {- SCC "runO" -} do
+runO :: IO a -> IO ()
+runO program = {- SCC "runO" -} do
+  let slices = [] -- MF TODO: this whole slices business should probably just go?
   compGraph <- runO' program
   debugSession slices compGraph
   return ()

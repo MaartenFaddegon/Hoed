@@ -2,7 +2,7 @@ import Debug.Hoed
 import GHC.IO(failIO)
 import Control.Exception(catch,SomeException)
 
-main = runO [] $ do
+main = runO $ do
   (print (h xs))     `catch` (handleExc "First one went wrong:")
   ((f xs) >>= print) `catch` (handleExc "Second one went wrong:")
 

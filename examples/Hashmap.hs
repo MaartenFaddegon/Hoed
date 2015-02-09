@@ -84,7 +84,7 @@ instance Observable Testkey
 data Testkey = One | Two | Three deriving (Eq, Generic)
 data Testval = Wennemars | Kramer | Verheijen deriving (Eq, Generic)
 
-main = runO slices $ print test
+main = runO $ print test
 
 instance Hashable Testkey where
         hash One   = 10
@@ -100,29 +100,3 @@ map1 = ( (add (Two, Verheijen))
 -- test = lookup Two map1 == lookup Two (remove One map1)
 test = (==) (observe "testLeft" $ {-# SCC "testLeft" #-} lookup Two map1 )
             (observe "testRight" $ {-# SCC "testRight" #-} lookup Two (remove One map1))
-
---------------------------------------------------------------------------------
-
-slices :: [(String,String)]
-slices = [ ("testLeft", "lookup Two map1")
-         , ("testRight", "lookup Two (remove One map1)")
-         , ("add", "let idx = (hash key) `mod` (size hashmap)\n"
-                 ++"in insert hashmap idx (key,elem)")
-         , ("lookup", "let idx = find hashmap\n"
-                    ++"               ((hash key) % hashmap)\n"
-                    ++"               key\n"
-                    ++"in fmap (\\i -> fromJust $ hashmap !!! i) idx")
-         , ("find",  "case hashmap !!! idx of\n"
-                  ++ "  Nothing            -> Nothing\n"
-                  ++ "  (Just (key',elem))\n"
-                  ++ "      -> if key == key' \n"
-                  ++ "         then Just idx\n"
-                  ++ "         else find hashmap\n"
-                  ++ "                  ((idx+1) % hashmap)\n"
-                  ++ "                  key\n")
-
-         , ("remove",  "case find hashmap ((hash key) % hashmap)\n"
-                    ++ "                  key of\n"
-                    ++ "  Nothing  -> hashmap\n"
-                    ++ "  Just idx -> hashmap /// (idx,Nothing)\n")
-         ]

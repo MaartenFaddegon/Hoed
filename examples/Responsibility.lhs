@@ -26,7 +26,7 @@ sacc "outer" 1 + (sacc "inner" 2 * x)
 >       in  ((observe "h") ({-# SCC "h" #-} f . g))
 
 
-> main = runO [] $ do print (ex1 4)
->                     print (ex2 4)
->                     print (ex3 4)
->                     print (ex4 4)
+> main = runO $ do print (ex1 4)
+>                  print (ex2 4)
+>                  print (ex3 4)
+>                  print (ex4 4)

@@ -971,6 +971,24 @@ Our principle function and class
 gobserve :: (a->Parent->a) -> TraceThreadId -> Identifier -> String -> a -> (a,Int)
 gobserve f tti d name a = generateContext f tti d name a
 
+{- | 
+Functions which you suspect of misbehaving are annotated with observe and
+should have a cost centre set. The name of the function, the label of the cost
+centre and the label given to observe need to be the same.
+
+Consider the following function:
+
+@triple x = x + x@
+
+This function is annotated as follows:
+
+@triple y = (observe "triple" (\x -> {-# SCC "triple" #-} x + x)) y
+
+To produce computation statements like:
+
+@triple 3 = 6@
+
+-}
 {-# NOINLINE observe #-}
 observe ::  (Observable a) => String -> a -> a
 observe lbl = fst . (gobserve observer DoNotTraceThreadId UnknownId lbl)

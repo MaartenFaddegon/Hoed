@@ -7,7 +7,7 @@ data Person = Person { name :: String, age :: Int, city :: String }
 
 instance Observable Person
 
-main = runO [] $ observe "main" 
+main = runO $ observe "main" 
         ({-# SCC "main" #-} emptyPerson *>>= getName >>== getAge >>=* getCity >>= print)
 
 emptyPerson :: IO Person

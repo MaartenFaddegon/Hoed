@@ -7,7 +7,7 @@
 > $(observedTypes "n" [])
 
 
-> main = runO [] $ print (k 1)
+> main = runO $ print (k 1)
 
 > k :: Int -> Int
 > k  x = $(observeTempl "k") k' x

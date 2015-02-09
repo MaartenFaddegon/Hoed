@@ -23,17 +23,5 @@ insert' n (m:ms)
       | n <= m    = n : ms -- bug: `m' is missing in this case
       | otherwise = m : (insert n ms)
 
-main = runO slices . print $
+main = printO $
          (observe "result") ({-# SCC "result" #-} isort [1,2])
-
--- Slices, these should be generated automatically from the original code.
-
-slices
-  = [ ("result",  "isort [1,2]")
-    , ("isort" ,  "isort []     = []\n"
-               ++ "isort (n:ns) = insert n (isort ns)")
-    , ("insert",  " insert n []       = [n]\n"
-               ++ " insert n (m:ms)\n"
-               ++ "       | n <= m    = n : ms\n"
-               ++ "       | otherwise = m : (insert n ms)\n")
-    ]

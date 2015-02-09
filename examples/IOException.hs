@@ -3,7 +3,7 @@ import Debug.Hoed
 import GHC.IO(failIO)
 import Control.Exception(catch, SomeException(..))
 
-main = runO [] $ 
+main = runO $ 
   do (x >>= print) `catchAll` \e -> print ("oops-x: " ++ show e)
      (y >>= print) `catchAll` \e -> print ("oops-y: " ++ show e)
 

@@ -1,6 +1,6 @@
 name:                Hoed
-version:             0.2.0.0
-synopsis:            Lighweight debugging based on the observing of intermediate values and the cost centre stack at time of evaluation.
+version:             0.2.0
+synopsis:            Lighweight algorithmic debugging based on observing of intermediate values and the cost centre stack.
 -- description:         TODO
 homepage:            http://maartenfaddegon.nl
 license:             BSD3

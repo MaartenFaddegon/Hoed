@@ -31,7 +31,7 @@ walk = observe "walk" $ {-# SCC "walk" #-}
         return (0,0) *>>= landRight 1   >>== landLeft 1
           >>== landRight 2 >>== landRight (-1) >>=* landRight 1
 
-main = runO [] $ print walk
+main = runO $ print walk
 
 --------------------------------------------------------------------------------
 -- This used to be part of Observe, but implementing instance of TracedMonad
