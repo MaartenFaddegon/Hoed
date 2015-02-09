@@ -4,13 +4,13 @@
 -- on the left and right gets too big he falls off the rope. This
 -- is indicated by Nothing.
 
-import Debug.Hoed(runO,gdmobserve,gdmobserve',Identifier(..))
+import Debug.Hoed(runO,observe,observe',Identifier(..))
 
 type Birds = Int
 type Pole  = (Birds,Birds)
 
 landLeft :: Birds -> Identifier -> Pole -> (Maybe Pole, Int)
-landLeft n d p = let (f,i) = gdmobserve' "landLeft" d 
+landLeft n d p = let (f,i) = observe' "landLeft" d 
                                 (\n' p' -> {-# SCC "landLeft" #-} landLeft' n' p')
                   in (f n p, i)
 landLeft' n (left,right)
@@ -18,7 +18,7 @@ landLeft' n (left,right)
   | otherwise                    = Nothing
 
 landRight :: Birds -> Identifier -> Pole -> (Maybe Pole, Int)
-landRight n d p = let (f,i) = gdmobserve' "landRight" d 
+landRight n d p = let (f,i) = observe' "landRight" d 
                                  (\n' p' -> {-# SCC "landRight" #-} landRight' n' p')
                    in (f n p, i)
 landRight' n (left,right)
@@ -27,7 +27,7 @@ landRight' n (left,right)
         where x + y = x Prelude.+ (abs y)
 
 walk :: Maybe Pole
-walk = gdmobserve "walk" $ {-# SCC "walk" #-}
+walk = observe "walk" $ {-# SCC "walk" #-}
         return (0,0) *>>= landRight 1   >>== landLeft 1
           >>== landRight 2 >>== landRight (-1) >>=* landRight 1
 

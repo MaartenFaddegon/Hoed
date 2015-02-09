@@ -29,7 +29,7 @@ xs // (idx,x) = take idx xs ++ x : (drop (idx + 1) xs)
 add :: (Observable k, Observable v, Hashable k)
     => (k,v) -> Hashmap (k,v) -> Hashmap (k,v)
 add (key,elem) hashmap
-  = ( -- gdmobserve "add"
+  = ( -- observe "add"
       (\(key,elem) hashmap -> {-# SCC "add" #-}
         let idx = (hash key) `mod` (size hashmap)
         in insert hashmap idx (key,elem)
@@ -44,7 +44,7 @@ insert hashmap idx x = case hashmap !!! idx of
 lookup :: (Observable k, Observable v, Eq k, Hashable k) 
        => k -> Hashmap (k,v) -> Maybe (k,v)
 lookup key hashmap
-  = (gdmobserve "lookup"
+  = (observe "lookup"
       (\key hashmap -> {-# SCC "lookup" #-} 
         let idx = find hashmap ((hash key) % hashmap) key
         in fmap (\i -> fromJust $ hashmap !!! i) idx
@@ -54,7 +54,7 @@ lookup key hashmap
 find :: (Observable k, Observable v, Eq k) 
      => Hashmap (k,v) -> Int -> k -> Maybe Int
 find hashmap idx key 
-  = ( gdmobserve "find"
+  = ( observe "find"
       (\hashmap idx key -> {-# SCC "find" #-} 
         case hashmap !!! idx of
           Nothing            -> Nothing
@@ -67,7 +67,7 @@ find hashmap idx key
 remove :: (Eq k, Hashable k, Observable k, Observable v)
        => k -> Hashmap (k,v) -> Hashmap (k,v)
 remove key hashmap 
-  = ( gdmobserve "remove"
+  = ( observe "remove"
       (\key hashmap -> {-# SCC "remove" #-} 
         case find hashmap ((hash key) % hashmap) key of
           Nothing  -> hashmap
@@ -98,8 +98,8 @@ map1 = ( (add (Two, Verheijen))
 
 
 -- test = lookup Two map1 == lookup Two (remove One map1)
-test = (==) (gdmobserve "testLeft" $ {-# SCC "testLeft" #-} lookup Two map1 )
-            (gdmobserve "testRight" $ {-# SCC "testRight" #-} lookup Two (remove One map1))
+test = (==) (observe "testLeft" $ {-# SCC "testLeft" #-} lookup Two map1 )
+            (observe "testRight" $ {-# SCC "testRight" #-} lookup Two (remove One map1))
 
 --------------------------------------------------------------------------------
 

@@ -8,18 +8,18 @@ import Network
 import Text.Printf
 import Control.Monad
 import Control.Concurrent
-import Debug.Hoed(gdmobserve,Observable(..),runO,send,gdmobserve',Identifier(..))
+import Debug.Hoed(observe,Observable(..),runO,send,observe',Identifier(..))
 import System.IO.Unsafe
 import Data.List
 
 twotimes :: Int -> Integer -> Integer
-twotimes d j = (fst $ gdmobserve' "twotimes" (DependsJustOn d)
+twotimes d j = (fst $ observe' "twotimes" (DependsJustOn d)
                ( \i -> {-# SCC "twotimes" #-} 
                   2 + i -- bug: should be 2 * i
                )) j
 
 double :: String -> String
-double s' = let (res,d) = gdmobserve' "double" UnknownId
+double s' = let (res,d) = observe' "double" UnknownId
                           (\s -> {-# SCC "double" #-} show (twotimes d (read s :: Integer)))
             in res s'
 
@@ -42,7 +42,7 @@ port :: Int
 port = 44444
 
 server :: Int -> Socket -> IO ()
-server = gdmobserve "server" (\x sock -> {-# SCC "server" #-} server' x sock)
+server = observe "server" (\x sock -> {-# SCC "server" #-} server' x sock)
   where server' 0 _ = putStrLn "server: Shutting down."
         server' x sock = do
           (handle, host, port) <- accept sock

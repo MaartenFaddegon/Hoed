@@ -8,14 +8,14 @@ main = runO [] $ do
 
 -- Functions like 'readLn' use failIO. These exception are NOT traced.
 f :: [Int] -> IO Int
-f = gdmobserve "f" (\ys -> failIO "Oops from f")
+f = observe "f" (\ys -> failIO "Oops from f")
 
 -- Functions like 'head' use error. These exceptions are traced.
 h :: [Int] -> Int
-h = gdmobserve "h" (\ys -> error "Oops from h!")
+h = observe "h" (\ys -> error "Oops from h!")
 
 xs :: [Int]
-xs = gdmobserve "xs" ({-# SCC "xs" #-} [])
+xs = observe "xs" ({-# SCC "xs" #-} [])
 
 handleExc :: String -> SomeException -> IO ()
 handleExc s e = putStrLn (s ++ show e)

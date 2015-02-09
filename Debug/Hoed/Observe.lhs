@@ -47,9 +47,9 @@ module Debug.Hoed.Observe
    -- * The main Hood API
   
     observeTempl
-  , gdmobserve
-  , gdmobserve'
-  , gdmobserveCC
+  , observe
+  , observe'
+  , observeCC
   , Observer(..)   -- contains a 'forall' typed observe (if supported).
   -- , Observing      -- a -> a
   , Observable(..) -- Class
@@ -971,20 +971,20 @@ Our principle function and class
 gobserve :: (a->Parent->a) -> TraceThreadId -> Identifier -> String -> a -> (a,Int)
 gobserve f tti d name a = generateContext f tti d name a
 
-{-# NOINLINE gdmobserve #-}
-gdmobserve ::  (Observable a) => String -> a -> a
-gdmobserve lbl = fst . (gobserve observer DoNotTraceThreadId UnknownId lbl)
+{-# NOINLINE observe #-}
+observe ::  (Observable a) => String -> a -> a
+observe lbl = fst . (gobserve observer DoNotTraceThreadId UnknownId lbl)
 
-{-# NOINLINE gdmobserveCC #-}
-gdmobserveCC ::  (Observable a) => String -> a -> a
-gdmobserveCC lbl = fst . (gobserve observer TraceThreadId UnknownId lbl)
+{-# NOINLINE observeCC #-}
+observeCC ::  (Observable a) => String -> a -> a
+observeCC lbl = fst . (gobserve observer TraceThreadId UnknownId lbl)
 
 data Identifier = UnknownId | DependsJustOn Int | InSequenceAfter Int
      deriving (Show, Eq, Ord)
 
-{-# NOINLINE gdmobserve' #-}
-gdmobserve' :: (Observable a) => String -> Identifier -> a -> (a,Int)
-gdmobserve' lbl d x = let (y,i) = (gobserve observer DoNotTraceThreadId d lbl) x
+{-# NOINLINE observe' #-}
+observe' :: (Observable a) => String -> Identifier -> a -> (a,Int)
+observe' lbl d x = let (y,i) = (gobserve observer DoNotTraceThreadId d lbl) x
                       in  (y, i)
 
 {- This gets called before observer, allowing us to mark

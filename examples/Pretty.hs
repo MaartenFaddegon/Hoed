@@ -3,7 +3,7 @@
 
 import Data.List(sort,sortBy,partition)
 import Data.Array as Array
-import Debug.Hoed(gdmobserve,Observable(..),runO,Generic)
+import Debug.Hoed(observe,Observable(..),runO,Generic)
 
 ------------------------------------------------------------------------
 -- Make our datatypes observable
@@ -24,10 +24,10 @@ cdss = [CDSNamed "f" [CDSFun 0 [CDSCons 0 "2" []] [CDSCons 0 "1" []] [],CDSFun 0
 -- Render equations from CDS set
 
 renderCompStmts :: CDSSet -> [CompStmt]
-renderCompStmts = gdmobserve "renderCompStmts" ({-# SCC "renderCompStmts" #-} map renderCompStmt)
+renderCompStmts = observe "renderCompStmts" ({-# SCC "renderCompStmts" #-} map renderCompStmt)
 
 renderCompStmt :: CDS -> CompStmt
-renderCompStmt c' = gdmobserve "renderCompStmt" (\c-> {-# SCC "renderCompStmt" #-} renderCompStmt' c) c'
+renderCompStmt c' = observe "renderCompStmt" (\c-> {-# SCC "renderCompStmt" #-} renderCompStmt' c) c'
 renderCompStmt' (CDSNamed name set) = CompStmt name equation (head stack)
   where equation    = pretty 80 (foldr (<>) nil doc) -- BUG: foldr (<>) just puts equations
                                                      -- beside eachother, rather than seperating
@@ -40,7 +40,7 @@ renderCompStmt' (CDSNamed name set) = CompStmt name equation (head stack)
 renderCompStmt' _ = CompStmt "??" "??" emptyStack
 
 renderNamedTop :: String -> Output -> (DOC,CallStack)
-renderNamedTop arg1 arg2 = gdmobserve "renderNamedTop" 
+renderNamedTop arg1 arg2 = observe "renderNamedTop" 
                            (\arg1' arg2' -> {-# SCC "renderNamedTop" #-} renderNamedTop' arg1' arg2'
                            ) arg1 arg2
 renderNamedTop' name (OutData cds)
@@ -193,7 +193,7 @@ renderFn callStack (args, res)
                )
 
 renderNamedFn :: String -> ([CDSSet],CDSSet) -> DOC
-renderNamedFn arg1 arg2 = gdmobserve "renderNamedFn" 
+renderNamedFn arg1 arg2 = observe "renderNamedFn" 
                                 (\arg1' arg2' -> {-# SCC "renderNamedFn" #-}
                                 renderNamedFn' arg1' arg2') arg1 arg2
 renderNamedFn' name (args,res)
@@ -391,7 +391,7 @@ better			:: Int -> Int -> Doc -> Doc -> Doc
 better w k x y		= if (w-k) >= toplen x then x else y
 
 pretty			:: Int -> DOC -> String
-pretty w x = gdmobserve "pretty" (\w' x'-> {-# SCC "pretty" #-} pretty' w' x') w x
+pretty w x = observe "pretty" (\w' x'-> {-# SCC "pretty" #-} pretty' w' x') w x
 pretty' w x		= layout (best w 0 x)
 
 ------------------------------------------------------------------------

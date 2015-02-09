@@ -8,18 +8,18 @@ import Network
 import Text.Printf
 import Control.Monad
 import Control.Concurrent
-import Debug.Hoed(gdmobserve,gdmobserveCC,Observable(..),runO,send)
+import Debug.Hoed(observe,observeCC,Observable(..),runO,send)
 import System.IO.Unsafe
 import Data.List
 
 twotimes :: Integer -> Integer
-twotimes j = (gdmobserveCC "twotimes"
+twotimes j = (observeCC "twotimes"
              ( \i -> {-# SCC "twotimes" #-} 
                 2 + i -- bug: should be 2 * i
              )) j
 
 double :: String -> String
-double s' = gdmobserveCC "double" 
+double s' = observeCC "double" 
             (\s -> {-# SCC "double" #-} show (twotimes (read s :: Integer))) s'
 
 loop h = do
@@ -41,7 +41,7 @@ port :: Int
 port = 44444
 
 server :: Int -> Socket -> IO ()
-server = gdmobserveCC "server" (\x sock -> {-# SCC "server" #-} server' x sock)
+server = observeCC "server" (\x sock -> {-# SCC "server" #-} server' x sock)
   where server' 0 _ = putStrLn "server: Shutting down."
         server' x sock = do
           (handle, host, port) <- accept sock
@@ -62,7 +62,7 @@ client x = do
   s <- hGetLine h; pr s -- Get and print response from server
 
 main :: IO ()
-main = runO slices $ gdmobserve "main" $ {-# SCC "main" #-} withSocketsDo $ do
+main = runO slices $ observe "main" $ {-# SCC "main" #-} withSocketsDo $ do
   sock <- listenOn (PortNumber (fromIntegral port))
   printf "server: Listening on port %d.\n" port
   forkIO (server 2 sock) -- Start server in own thread.

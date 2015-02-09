@@ -7,23 +7,23 @@ data Person = Person { name :: String, age :: Int, city :: String }
 
 instance Observable Person
 
-main = runO [] $ gdmobserve "main" 
+main = runO [] $ observe "main" 
         ({-# SCC "main" #-} emptyPerson *>>= getName >>== getAge >>=* getCity >>= print)
 
 emptyPerson :: IO Person
 emptyPerson = return (Person "" 0 "")
 
 getName :: Identifier -> (Person -> IO Person, Int)
-getName d = let (f,i) = gdmobserve' "getName" d (\p' -> {-# SCC "getName" #-} getName' p')
+getName d = let (f,i) = observe' "getName" d (\p' -> {-# SCC "getName" #-} getName' p')
             in (f, i)
 getName' p = getLine >>= \x -> return (p{ name = x })
 
 getAge :: Identifier -> (Person -> IO Person, Int)
-getAge d = let (f,i) = gdmobserve' "getAge" d (\p' -> {-# SCC "getAge" #-} getAge' p')
+getAge d = let (f,i) = observe' "getAge" d (\p' -> {-# SCC "getAge" #-} getAge' p')
            in (f, i)
 getAge' p = readLn >>= \x -> return (p{ age = x })
 
 getCity :: Identifier -> (Person -> IO Person, Int)
-getCity d = let (f,i) = gdmobserve' "getCity" d (\p' -> {-# SCC "getCity" #-} getCity' p')
+getCity d = let (f,i) = observe' "getCity" d (\p' -> {-# SCC "getCity" #-} getCity' p')
             in (f, i)
 getCity' p = getLine >>= \x -> return (p{ city = x })

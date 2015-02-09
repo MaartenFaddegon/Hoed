@@ -1,8 +1,8 @@
 module Debug.Hoed
   ( observeTempl
-  , gdmobserve
-  , gdmobserveCC
-  , gdmobserve'
+  , observe
+  , observeCC
+  , observe'
   , Identifier(..)
   , Observer(..)   -- contains a 'forall' typed observe (if supported).
   , Observable(..) -- Class

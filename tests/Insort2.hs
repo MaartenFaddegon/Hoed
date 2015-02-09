@@ -1,7 +1,7 @@
 -- Haskell version of the buggy insertion sort as shown in Lee Naish
 -- A Declarative Debugging Scheme.
 --
--- As Insort1, but with gdmobserve rather than templated observers.
+-- As Insort1, but with observe rather than templated observers.
 
 {-# LANGUAGE StandaloneDeriving #-}
 import Debug.Hoed
@@ -9,14 +9,14 @@ import Debug.Hoed
 -- Insertion sort.
 
 isort :: [Int] -> [Int]
-isort ns = gdmobserve "isort" (\ns -> {-# SCC "isort" #-} isort' ns) ns
+isort ns = observe "isort" (\ns -> {-# SCC "isort" #-} isort' ns) ns
 isort' []     = []
 isort' (n:ns) = insert n (isort ns)
 
 -- Insert number into sorted list.
 
 insert :: Int -> [Int] -> [Int]
-insert n ms = (gdmobserve "insert" (\n ms -> {-# SCC "insert" #-} insert' n ms)) n ms
+insert n ms = (observe "insert" (\n ms -> {-# SCC "insert" #-} insert' n ms)) n ms
 insert' :: Int -> [Int] -> [Int]
 insert' n []      = [n]
 insert' n (m:ms)
@@ -24,7 +24,7 @@ insert' n (m:ms)
       | otherwise = m : (insert n ms)
 
 main = logO "hoed-tests-Insort2.graph" . print $
-         (gdmobserve "result") ({-# SCC "result" #-} isort [1,2])
+         (observe "result") ({-# SCC "result" #-} isort [1,2])
 
 -- Slices, these should be generated automatically from the original code.
 
