@@ -18,6 +18,14 @@ statements in the tree as 'right' or 'wrong' according to your intention. When
 enough statements are judged the debugger tells you the location of the fault
 in your code.
 
+I made this debugger in the context of my Ph.D. research.
+Read more about the theory behind Hoed at <http://maartenfaddegon.nl/#pub>.
+
+I am keen to hear about your experience with Hoed:
+where did you find it useful and where would you like to see improvement?
+You can send me an e-mail at hoed@maartenfaddegon.nl, or use the
+github issue tracker <https://github.com/MaartenFaddegon/hoed/issues>.
+
 -}
 
 module Debug.Hoed
