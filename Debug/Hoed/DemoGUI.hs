@@ -242,10 +242,10 @@ redrawWith img treeRef filteredVerticesRef currentVertexRef = do
 redraw :: UI.Element -> IORef CompGraph -> (Maybe Vertex) -> UI ()
 redraw img treeRef mcv
   = do tree <- UI.liftIO $ readIORef treeRef
-       UI.liftIO $ writeFile "debugTree.dot" (shw tree)
-       UI.liftIO $ system $ "dot -Tpng -Gsize=9,5 -Gdpi=100 debugTree.dot "
-                          ++ "> wwwroot/debugTree.png"
-       url <- UI.loadFile "image/png" "wwwroot/debugTree.png"
+       UI.liftIO $ writeFile ".Hoed/debugTree.dot" (shw tree)
+       UI.liftIO $ system $ "dot -Tpng -Gsize=9,5 -Gdpi=100 .Hoed/debugTree.dot "
+                          ++ "> .Hoed/wwwroot/debugTree.png"
+       url <- UI.loadFile "image/png" ".Hoed/wwwroot/debugTree.png"
        UI.element img # UI.set UI.src url
        return ()
 

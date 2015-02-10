@@ -80,6 +80,8 @@ import System.IO.Unsafe
 import Data.Graph.Libgraph
 import Graphics.UI.Threepenny
 
+import System.Directory(createDirectoryIfMissing)
+
 
 -- %************************************************************************
 -- %*									*
@@ -194,8 +196,34 @@ parseArgs (arg:_) = case arg of
 
 debugSession :: [(String,String)] -> CompGraph -> IO ()
 debugSession slices tree
-  = do treeRef <- newIORef tree
+  = do createDirectoryIfMissing True ".Hoed/wwwroot/css"
+       writeFile ".Hoed/wwwroot/debug.css" stylesheet
+       treeRef <- newIORef tree
        startGUI defaultConfig
            { tpPort       = Just 10000
-           , tpStatic     = Just "./wwwroot"
+           , tpStatic     = Just "./.Hoed/wwwroot"
            } (demoGUI slices treeRef)
+
+
+stylesheet
+  =  "div {\n"
+  ++ "  padding:0;\n"
+  ++ "  margin:0;\n"
+  ++ "}\n"
+  ++ ".buttons {\n"
+  ++ "  float:top;\n"
+  ++ "  height:50vh;\n"
+  ++ "  overflow-y: scroll;\n"
+  ++ "  overflow-x: hidden;\n"
+  ++ "}\n"
+  ++ ".nowrap {\n"
+  ++ "  white-space: nowrap;\n"
+  ++ "}\n"
+  ++ ".odd {\n"
+  ++ "  background-color: lightgray;\n"
+  ++ "  padding: 10px 0;\n"
+  ++ "}\n"
+  ++ ".even {\n"
+  ++ "  background-color: white;\n"
+  ++ "  padding: 10px 0;\n"
+  ++ "}\n"

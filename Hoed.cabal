@@ -36,6 +36,7 @@ library
                        , RBTree == 0.0.5
                        , regex-posix
                        , mtl
+                       , directory
   default-language:    Haskell2010
   ghc-options:         -O0
 
