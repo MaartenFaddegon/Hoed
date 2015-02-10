@@ -14,7 +14,7 @@ import Graphics.UI.Threepenny (startGUI,defaultConfig,tpPort,tpStatic
                               )
 import System.Process(system)
 import Data.IORef
-import Data.List(intersperse)
+import Data.List(intersperse,nub)
 import Text.Regex.Posix
 
 --------------------------------------------------------------------------------
@@ -242,7 +242,7 @@ redrawWith img treeRef filteredVerticesRef currentVertexRef = do
 redraw :: UI.Element -> IORef CompGraph -> (Maybe Vertex) -> UI ()
 redraw img treeRef mcv
   = do tree <- UI.liftIO $ readIORef treeRef
-       UI.liftIO $ writeFile ".Hoed/debugTree.dot" (shw tree)
+       UI.liftIO $ writeFile ".Hoed/debugTree.dot" (shw $ summarize tree mcv)
        UI.liftIO $ system $ "dot -Tpng -Gsize=9,5 -Gdpi=100 .Hoed/debugTree.dot "
                           ++ "> .Hoed/wwwroot/debugTree.png"
        url <- UI.loadFile "image/png" ".Hoed/wwwroot/debugTree.png"
@@ -251,27 +251,29 @@ redraw img treeRef mcv
 
   where shw g = showWith g (coloVertex $ faultyVertices g) showArc
         coloVertex fs v = ( summarizeVertex fs v 
-                          , case mcv of (Just w) -> if equations v == equations w 
-                                                        then "style=filled fillcolor=yellow"
-                                                        else ""
-                                        Nothing  ->          ""
+                          , if isCurrentVertex mcv v then "style=filled fillcolor=yellow"
+                                                     else ""
                           )
         showArc _  = ""
 
-        -- showVertex :: [Vertex] -> Vertex -> String
-        -- showVertex _ Root = "root"
-        -- showVertex fs v = showStatus fs v ++ ":\n" ++ showCompStmts v
-        --                   ++ "\nwith stack " ++ (show . equStack . head . equations $ v)
+-- MF TODO: summarize now just "throws away" some vertices if there are too
+-- many. Better would be to inject summarizing nodes (e.g. "and 25 more").
+summarize :: CompGraph -> Maybe Vertex -> CompGraph
+summarize g mcv = Graph (root g) keep as
+  where keep1 v = take 7 $ succs g v
+        keep'   = nub $ Root : foldl (\ks v -> ks ++ keep1 v) [] (vertices g)
+        keep    = case filter (isCurrentVertex mcv) (vertices g) of
+                        []    -> keep'
+                        (w:_) -> if w `elem` keep' then keep' else w : keep
+        as      = filter (\(Arc v w _) -> v `elem` keep && w `elem` keep) (arcs g)
 
-        -- showVertexSimple fs v = showStatus fs v ++ ":" ++ showCompStmtsSimple v
-        -- showCompStmtsSimple = commas . (map equLabel) . equations
-
-        -- showStatus fs v
-        --   | v `elem` fs = "Faulty"
-        --   | otherwise   = (show . status) v
-
-        -- showVertex = show
-        -- showVertex = (foldl (++) "") . (map show) . equations
+isCurrentVertex :: Maybe Vertex -> Vertex -> Bool
+isCurrentVertex mcv v = case v of
+  Root -> False
+  _    -> case mcv of 
+                Nothing     -> False
+                (Just Root) -> False
+                (Just w)    -> equations v == equations w
 
 commas :: [String] -> String
 commas [e] = e
