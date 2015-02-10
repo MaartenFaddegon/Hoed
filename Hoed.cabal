@@ -12,6 +12,15 @@ category:            Debug, Trace
 build-type:          Simple
 cabal-version:       >=1.10
 
+flag buildExamples
+  description: Build example executables.
+  default: False
+
+flag validate
+  description: Build validation executables.
+  default: False
+
+
 library
   exposed-modules:     Debug.Hoed
   other-modules:       Debug.Hoed.Observe
@@ -30,6 +39,8 @@ library
   default-language:    Haskell2010
   ghc-options:         -O0
 
+
+
 ---------------------------------------------------------------------------
 --
 -- A list of example-programs that bind to a debugging session after the
@@ -38,31 +49,41 @@ library
 --
 ---------------------------------------------------------------------------
 
+
 Executable hoed-examples-Foldl
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+  else
+    buildable: False
   main-is:             Foldl.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-examples-HeadOnEmpty1
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+  else
+    buildable: False
   main-is:             HeadOnEmpty.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-examples-HeadOnEmpty2
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+  else
+    buildable: False
   main-is:             HeadOnEmpty2.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
@@ -80,31 +101,40 @@ Executable hoed-examples-HeadOnEmpty2
 --   ghc-options:         -O0
 
 Executable hoed-examples-IndirectRecursion
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+  else
+    buildable: False
   main-is:             IndirectRecursion.lhs
   hs-source-dirs:      examples
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-examples-Pretty
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
-                       , array
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+                         , array
+  else
+    buildable: False
   main-is:             Pretty.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-examples-Example1
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+  else
+    buildable: False
   main-is:             Example1.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
@@ -120,157 +150,202 @@ Executable hoed-examples-Example1
 --   default-language:    Haskell2010
 
 Executable hoed-examples-Example3
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+  else
+    buildable: False
   main-is:             Example3.lhs
   hs-source-dirs:      examples
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-examples-Example4
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+  else
+    buildable: False
   main-is:             Example4.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-examples-Insort1
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+  else
+    buildable: False
   main-is:             Insort.lhs
   hs-source-dirs:      examples
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-examples-Insort2
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+  else
+    buildable: False
   main-is:             Insort2.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-examples-DoublingServer1
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
-                       , network
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+                         , network
+  else
+    buildable: False
   main-is:             DoublingServer.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-examples-DoublingServer2
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
-                       , network
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+                         , network
+  else
+    buildable: False
   main-is:             DoublingServer2.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-examples-DoublingServer3
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
-                       , network
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+                         , network
+  else
+    buildable: False
   main-is:             DoublingServer3.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-examples-DoublingServer4
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
-                       , network
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+                         , network
+  else
+    buildable: False
   main-is:             DoublingServer4.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-examples-DoublingServer5
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
-                       , network
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+                         , network
+  else
+    buildable: False
   main-is:             DoublingServer5.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-examples-Hashmap
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
-                       , array
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+                         , array
+  else
+    buildable: False
   main-is:             Hashmap.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-examples-Responsibility
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
-                       , array
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+                         , array
+  else
+    buildable: False
   main-is:             Responsibility.lhs
   hs-source-dirs:      examples
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-examples-TightRope1
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+  else
+    buildable: False
   main-is:             TightRope.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-examples-TightRope2
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+  else
+    buildable: False
   main-is:             TightRope2.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-examples-TightRope3
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+  else
+    buildable: False
   main-is:             TightRope3.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-examples-AskName
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+  else
+    buildable: False
   main-is:             AskName.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
@@ -285,61 +360,79 @@ Executable hoed-examples-AskName
 ---------------------------------------------------------------------------
 
 Executable hoed-tests-DoublingServer
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
-                       , network
+  if flag(validate)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+                         , network
+  else
+    buildable: False
   main-is:             DoublingServer.hs
   hs-source-dirs:      tests
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-tests-Insort2
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
+  if flag(validate)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+  else
+    buildable: False
   main-is:             Insort2.hs
   hs-source-dirs:      tests
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-tests-Example1
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
+  if flag(validate)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+  else
+    buildable: False
   main-is:             Example1.hs
   hs-source-dirs:      tests
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-tests-Example3
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
+  if flag(validate)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+  else
+    buildable: False
   main-is:             Example3.lhs
   hs-source-dirs:      tests
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-tests-Example4
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
+  if flag(validate)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+  else
+    buildable: False
   main-is:             Example4.hs
   hs-source-dirs:      tests
   default-language:    Haskell2010
   ghc-options:         -O0
 
 Executable hoed-tests-IndirectRecursion
-  build-depends:       base >= 4 && < 5
-                       , Hoed
-                       , threepenny-gui
-                       , filepath
+  if flag(validate)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+  else
+    buildable: False
   main-is:             IndirectRecursion.lhs
   hs-source-dirs:      tests
   default-language:    Haskell2010
