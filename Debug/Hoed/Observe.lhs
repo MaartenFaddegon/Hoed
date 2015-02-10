@@ -988,6 +988,17 @@ To produce computation statements like:
 
 @triple 3 = 6@
 
+To observe a value its type needs to of class Observable.
+We provided instances for many types already.
+If you defined your own type, and want to observe a function
+that takes a value of this type as argument or returns a value of this type,
+an Observable instance can be derived as follows:
+
+@  
+  data MyType = MyNumber Int | MyName String deriving Generic
+
+  instance Observable MyType
+@
 -}
 {-# NOINLINE observe #-}
 observe ::  (Observable a) => String -> a -> a
