@@ -18,7 +18,7 @@ statements in the tree as 'right' or 'wrong' according to your intention. When
 enough statements are judged the debugger tells you the location of the fault
 in your code.
 
-I made this debugger in the context of my Ph.D. research.
+I work on this debugger in the context of my Ph.D. research.
 Read more about the theory behind Hoed at <http://maartenfaddegon.nl/#pub>.
 
 I am keen to hear about your experience with Hoed:
