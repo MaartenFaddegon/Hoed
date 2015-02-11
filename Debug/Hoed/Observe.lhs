@@ -982,7 +982,7 @@ Consider the following function:
 
 This function is annotated as follows:
 
-@triple y = (observe "triple" (\x -> {-# SCC "triple" #-} x + x)) y@
+> triple y = (observe "triple" (\x -> {# SCC "triple" #}  x + x)) y
 
 To produce computation statements like:
 
