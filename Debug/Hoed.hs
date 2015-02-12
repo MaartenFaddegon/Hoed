@@ -1,6 +1,6 @@
 {-|
 Module      : Debug.Hoed
-Description : Lighweight algorithmic debugging based on observing of intermediate values and the cost centre stack.
+Description : Lighweight algorithmic debugging based on observing intermediate values and the cost centre stack.
 Copyright   : (c) 2000 Andy Gill, (c) 2010 University of Kansas, (c) 2013-2014 Maarten Faddegon
 License     : BSD3
 Maintainer  : hoed@maartenfaddegon.nl
