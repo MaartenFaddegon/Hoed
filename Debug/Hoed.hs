@@ -18,8 +18,16 @@ statements in the tree as 'right' or 'wrong' according to your intention. When
 enough statements are judged the debugger tells you the location of the fault
 in your code.
 
+<<http://www.cs.kent.ac.uk/people/rpg/mf357/hoedv2.0.0.png>>
+
 I work on this debugger in the context of my Ph.D. research.
 Read more about the theory behind Hoed at <http://maartenfaddegon.nl/#pub>.
+
+To use Hoed on your own program, annotate your program as described below.
+For best results profiling is enabled and optimization disabled.
+If you use cabal to build your project, this is be done with:
+
+> cabal configure --disable-optimization --enable-profiling
 
 I am keen to hear about your experience with Hoed:
 where did you find it useful and where would you like to see improvement?

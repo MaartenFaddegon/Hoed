@@ -29,14 +29,10 @@ You are now ready to download and install Hoed from Hackage:
 If you installed libraries for your project before and profiling was disabled
 you need to re-install these libraries before using Hoed.
 
-## Example
-
-TODO: do an example here.
-
 ## Other Tracers
 
 Many of the ideas for Hoed come from the Hat project. Hoed is the Dutch word
-for a hat (as in, a thing to keep your head warm). Compared to Hoed, Hat can
+for a hat. Compared to Hoed, Hat can
 give more detailed traces. However, Hat requires all modules to be transformed
 and is therefore not practical for most programs.
 
