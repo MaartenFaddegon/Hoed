@@ -9,7 +9,7 @@ import Prelude hiding(Right)
 import Debug.Hoed.Render
 import Data.Graph.Libgraph
 import qualified Graphics.UI.Threepenny as UI
-import Graphics.UI.Threepenny (startGUI,defaultConfig,tpPort,tpStatic
+import Graphics.UI.Threepenny (startGUI,defaultConfig, loadFile
                               , Window, UI, (#), (#+), (#.), string, on
                               )
 import System.Process(system)

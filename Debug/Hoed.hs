@@ -92,9 +92,9 @@ import System.Directory(createDirectoryIfMissing)
 
 
 -- %************************************************************************
--- %*									*
+-- %*                                                                   *
 -- \subsection{External start functions}
--- %*									*
+-- %*                                                                   *
 -- %************************************************************************
 
 -- Run the observe ridden code.
@@ -103,13 +103,13 @@ import System.Directory(createDirectoryIfMissing)
 debugO :: IO a -> IO [CDS]
 debugO program = 
      do { initUniq
-	; startEventStream
+        ; startEventStream
         ; let errorMsg e = "[Escaping Exception in Code : " ++ show e ++ "]"
-	; ourCatchAllIO (do { program ; return () }) 
-			(hPutStrLn stderr . errorMsg)
+        ; ourCatchAllIO (do { program ; return () }) 
+                        (hPutStrLn stderr . errorMsg)
         ; events <- endEventStream
-	; return (eventsToCDS events)
-	}
+        ; return (eventsToCDS events)
+        }
 
 -- | Short for @runO . print@.
 printO :: (Show a) => a -> IO ()

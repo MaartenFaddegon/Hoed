@@ -60,9 +60,9 @@ renderNamedTop name (OutData cds)
     )
   where (pairs',callStack) = findFn [cds] 
         pairs           = (nub . (sort)) pairs'
-	-- local nub for sorted lists
-	nub []                  = []
-	nub (a:a':as) | a == a' = nub (a' : as)
+        -- local nub for sorted lists
+        nub []                  = []
+        nub (a:a':as) | a == a' = nub (a' : as)
         nub (a:as)              = a : nub as
 
 renderCallStack :: CallStack -> DOC
@@ -320,18 +320,18 @@ mkGraph cs = {-# SCC "mkGraph" #-} (dagify merge)
         src ==> tgt = Arc src tgt ()
 
 -- %************************************************************************
--- %*									*
+-- %*                                                                   *
 -- \subsection{The CDS and converting functions}
--- %*									*
+-- %*                                                                   *
 -- %************************************************************************
 
 
 data CDS = CDSNamed      String ThreadId Int Identifier CDSSet
-	 | CDSCons       Int    String   [CDSSet]
-	 | CDSFun        Int             CDSSet CDSSet CallStack
-	 | CDSEntered    Int
-	 | CDSTerminated Int
-	deriving (Show,Eq,Ord)
+         | CDSCons       Int    String   [CDSSet]
+         | CDSFun        Int             CDSSet CDSSet CallStack
+         | CDSEntered    Int
+         | CDSTerminated Int
+        deriving (Show,Eq,Ord)
 
 type CDSSet = [CDS]
 
@@ -344,55 +344,55 @@ eventsToCDS pairs = getChild 0 0
 
      mid_arr :: Array Int [(Int,CDS)]
      mid_arr = accumArray (flip (:)) [] bnds
-		[ (pnode,(pport,res node))
-	        | (Event node (Parent pnode pport) _) <- pairs
-		]
+                [ (pnode,(pport,res node))
+                | (Event node (Parent pnode pport) _) <- pairs
+                ]
 
-     out_arr = array bnds	-- never uses 0 index
-	        [ (node,getNode'' node change)
-	 	| (Event node _ change) <- pairs
-		]
+     out_arr = array bnds       -- never uses 0 index
+                [ (node,getNode'' node change)
+                | (Event node _ change) <- pairs
+                ]
 
      getNode'' ::  Int -> Change -> CDS
      getNode'' node change =
        case change of
-	(Observe str t i d) -> CDSNamed str t i d (getChild node 0)
-	(Enter)             -> CDSEntered node
-	(NoEnter)           -> CDSTerminated node
-	(Fun str)           -> CDSFun node (getChild node 0) (getChild node 1) str
-	(Cons portc cons)
-		            -> CDSCons node cons 
-			          [ getChild node n | n <- [0..(portc-1)]]
+        (Observe str t i d) -> CDSNamed str t i d (getChild node 0)
+        (Enter)             -> CDSEntered node
+        (NoEnter)           -> CDSTerminated node
+        (Fun str)           -> CDSFun node (getChild node 0) (getChild node 1) str
+        (Cons portc cons)
+                            -> CDSCons node cons 
+                                  [ getChild node n | n <- [0..(portc-1)]]
 
      getChild :: Int -> Int -> CDSSet
      getChild pnode pport =
-	[ content
+        [ content
         | (pport',content) <- (!) mid_arr pnode
-	, pport == pport'
-	]
+        , pport == pport'
+        ]
 
 render  :: Int -> Bool -> CDS -> DOC
 render prec par (CDSCons _ ":" [cds1,cds2]) =
-	if (par && not needParen)  
-	then doc -- dont use paren (..) because we dont want a grp here!
-	else paren needParen doc
+        if (par && not needParen)  
+        then doc -- dont use paren (..) because we dont want a grp here!
+        else paren needParen doc
    where
-	doc = grp (brk <> renderSet' 5 False cds1 <> text " : ") <>
-	      renderSet' 4 True cds2
-	needParen = prec > 4
+        doc = grp (brk <> renderSet' 5 False cds1 <> text " : ") <>
+              renderSet' 4 True cds2
+        needParen = prec > 4
 render prec par (CDSCons _ "," cdss) | length cdss > 0 =
-	nest 2 (text "(" <> foldl1 (\ a b -> a <> text ", " <> b)
-			    (map renderSet cdss) <>
-		text ")")
+        nest 2 (text "(" <> foldl1 (\ a b -> a <> text ", " <> b)
+                            (map renderSet cdss) <>
+                text ")")
 render prec par (CDSCons _ name cdss) =
-	paren (length cdss > 0 && prec /= 0)
-	      (nest 2
-	         (text name <> foldr (<>) nil
-			 	[ sep <> renderSet' 10 False cds
-			 	| cds <- cdss 
-			 	]
-		 )
-	      )
+        paren (length cdss > 0 && prec /= 0)
+              (nest 2
+                 (text name <> foldr (<>) nil
+                                [ sep <> renderSet' 10 False cds
+                                | cds <- cdss 
+                                ]
+                 )
+              )
 
 {- renderSet handles the various styles of CDSSet.
  -}
@@ -403,29 +403,29 @@ renderSet = renderSet' 0 False
 renderSet' :: Int -> Bool -> CDSSet -> DOC
 renderSet' _ _      [] = text "_"
 renderSet' prec par [cons@(CDSCons {})]    = render prec par cons
-renderSet' prec par cdss		   = 
-	nest 0 (text "{ " <> foldl1 (\ a b -> a <> line <>
-				    text ", " <> b)
-				    (map (renderFn caller) pairs) <>
-	        line <> text "}")
+renderSet' prec par cdss                   = 
+        nest 0 (text "{ " <> foldl1 (\ a b -> a <> line <>
+                                    text ", " <> b)
+                                    (map (renderFn caller) pairs) <>
+                line <> text "}")
 
    where
-	(pairs',caller) = findFn cdss
+        (pairs',caller) = findFn cdss
         pairs           = (nub . sort) pairs'
-	-- local nub for sorted lists
-	nub []                  = []
-	nub (a:a':as) | a == a' = nub (a' : as)
+        -- local nub for sorted lists
+        nub []                  = []
+        nub (a:a':as) | a == a' = nub (a' : as)
         nub (a:as)              = a : nub as
 
 renderFn :: CallStack -> ([CDSSet],CDSSet) -> DOC
 renderFn callStack (args, res)
-	= grp  (nest 3 
-		(text "\\ " <>
-		 foldr (\ a b -> nest 0 (renderSet' 10 False a) <> sp <> b)
-		       nil
-		       args <> sep <>
-		 text "-> " <> renderSet' 0 False res
-		)
+        = grp  (nest 3 
+                (text "\\ " <>
+                 foldr (\ a b -> nest 0 (renderSet' 10 False a) <> sp <> b)
+                       nil
+                       args <> sep <>
+                 text "-> " <> renderSet' 0 False res
+                )
                )
 
 renderNamedFn :: String -> ([CDSSet],CDSSet) -> DOC
@@ -459,9 +459,9 @@ renderTops tops = line <> foldr (<>) nil (map renderTop tops)
 
 renderTop :: Output -> DOC
 renderTop (OutLabel str set extras) =
-	nest 2 (text ("-- " ++ str) <> line <>
-		renderSet set
-		<> renderTops extras) <> line
+        nest 2 (text ("-- " ++ str) <> line <>
+                renderSet set
+                <> renderTops extras) <> line
 
 rmEntry :: CDS -> CDS
 rmEntry (CDSNamed str t i d set)   = CDSNamed str t i d (rmEntrySet set)
@@ -472,18 +472,18 @@ rmEntry (CDSEntered i)             = error "found bad CDSEntered"
 
 rmEntrySet = map rmEntry . filter noEntered
   where
-	noEntered (CDSEntered _) = False
-	noEntered _              = True
+        noEntered (CDSEntered _) = False
+        noEntered _              = True
 
 simplifyCDS :: CDS -> CDS
 simplifyCDS (CDSNamed str t i d set) = CDSNamed str t i d (simplifyCDSSet set)
 simplifyCDS (CDSCons _ "throw" 
-		  [[CDSCons _ "ErrorCall" set]]
-	    ) = simplifyCDS (CDSCons 0 "error" set)
+                  [[CDSCons _ "ErrorCall" set]]
+            ) = simplifyCDS (CDSCons 0 "error" set)
 simplifyCDS cons@(CDSCons i str sets) = 
-	case spotString [cons] of
-	  Just str | not (null str) -> CDSCons 0 (show str) []
-	  _ -> CDSCons 0 str (map simplifyCDSSet sets)
+        case spotString [cons] of
+          Just str | not (null str) -> CDSCons 0 (show str) []
+          _ -> CDSCons 0 str (map simplifyCDSSet sets)
 
 simplifyCDS (CDSFun i a b str) = CDSFun 0 (simplifyCDSSet a) (simplifyCDSSet b) str
 
@@ -493,16 +493,16 @@ simplifyCDSSet = map simplifyCDS
 
 spotString :: CDSSet -> Maybe String
 spotString [CDSCons _ ":"
-		[[CDSCons _ str []]
-		,rest
-		]
-	   ] 
-	= do { ch <- case reads str of
-	               [(ch,"")] -> return ch
+                [[CDSCons _ str []]
+                ,rest
+                ]
+           ] 
+        = do { ch <- case reads str of
+                       [(ch,"")] -> return ch
                        _ -> Nothing
-	     ; more <- spotString rest
-	     ; return (ch : more)
-	     }
+             ; more <- spotString rest
+             ; return (ch : more)
+             }
 spotString [CDSCons _ "[]" []] = return []
 spotString other = Nothing
 
@@ -515,7 +515,7 @@ sp = text " "
 
 data Output = OutLabel String CDSSet [Output]
             | OutData  CDS
-	      deriving (Eq,Ord,Show)
+              deriving (Eq,Ord,Show)
 
 
 commonOutput :: [Output] -> [Output]
@@ -527,7 +527,7 @@ cdssToOutput :: CDSSet -> [Output]
 cdssToOutput =  map cdsToOutput
 
 cdsToOutput (CDSNamed name _ _ _ cdsset)
-	    = OutLabel name res1 res2
+            = OutLabel name res1 res2
   where
       res1 = [ cdss | (OutData cdss) <- res ]
       res2 = [ out  | out@(OutLabel {}) <- res ]
@@ -536,92 +536,92 @@ cdsToOutput cons@(CDSCons {}) = OutData cons
 cdsToOutput    fn@(CDSFun {}) = OutData fn
 
 -- %************************************************************************
--- %*									*
+-- %*                                                                   *
 -- \subsection{A Pretty Printer}
--- %*									*
+-- %*                                                                   *
 -- %************************************************************************
 
 -- This pretty printer is based on Wadler's pretty printer.
 
-data DOC		= NIL			-- nil	  
-			| DOC :<> DOC		-- beside 
-			| NEST Int DOC
-			| TEXT String
-			| LINE			-- always "\n"
-			| SEP			-- " " or "\n"
-			| BREAK			-- ""  or "\n"
-			| DOC :<|> DOC		-- choose one
-			deriving (Eq,Show)
-data Doc		= Nil
-			| Text Int String Doc
-			| Line Int Int Doc
-			deriving (Show,Eq)
+data DOC                = NIL                   -- nil    
+                        | DOC :<> DOC           -- beside 
+                        | NEST Int DOC
+                        | TEXT String
+                        | LINE                  -- always "\n"
+                        | SEP                   -- " " or "\n"
+                        | BREAK                 -- ""  or "\n"
+                        | DOC :<|> DOC          -- choose one
+                        deriving (Eq,Show)
+data Doc                = Nil
+                        | Text Int String Doc
+                        | Line Int Int Doc
+                        deriving (Show,Eq)
 
 
-mkText			:: String -> Doc -> Doc
-mkText s d		= Text (toplen d + length s) s d
+mkText                  :: String -> Doc -> Doc
+mkText s d              = Text (toplen d + length s) s d
 
-mkLine			:: Int -> Doc -> Doc
-mkLine i d		= Line (toplen d + i) i d
+mkLine                  :: Int -> Doc -> Doc
+mkLine i d              = Line (toplen d + i) i d
 
-toplen			:: Doc -> Int
-toplen Nil		= 0
-toplen (Text w s x)	= w
-toplen (Line w s x)	= 0
+toplen                  :: Doc -> Int
+toplen Nil              = 0
+toplen (Text w s x)     = w
+toplen (Line w s x)     = 0
 
-nil			= NIL
-x <> y			= x :<> y
-nest i x		= NEST i x
-text s 			= TEXT s
-line			= LINE
-sep			= SEP
-brk			= BREAK
+nil                     = NIL
+x <> y                  = x :<> y
+nest i x                = NEST i x
+text s                  = TEXT s
+line                    = LINE
+sep                     = SEP
+brk                     = BREAK
 
-fold x			= grp (brk <> x)
+fold x                  = grp (brk <> x)
 
-grp 			:: DOC -> DOC
-grp x			= 
-	case flatten x of
-	  Just x' -> x' :<|> x
-	  Nothing -> x
+grp                     :: DOC -> DOC
+grp x                   = 
+        case flatten x of
+          Just x' -> x' :<|> x
+          Nothing -> x
 
-flatten 		:: DOC -> Maybe DOC
-flatten	NIL		= return NIL
-flatten (x :<> y)	= 
-	do x' <- flatten x
-	   y' <- flatten y
-	   return (x' :<> y')
-flatten (NEST i x)	= 
-	do x' <- flatten x
-	   return (NEST i x')
-flatten (TEXT s)	= return (TEXT s)
-flatten LINE		= Nothing		-- abort
-flatten SEP		= return (TEXT " ")	-- SEP is space
-flatten BREAK		= return NIL		-- BREAK is nil
-flatten (x :<|> y)	= flatten x
+flatten                 :: DOC -> Maybe DOC
+flatten NIL             = return NIL
+flatten (x :<> y)       = 
+        do x' <- flatten x
+           y' <- flatten y
+           return (x' :<> y')
+flatten (NEST i x)      = 
+        do x' <- flatten x
+           return (NEST i x')
+flatten (TEXT s)        = return (TEXT s)
+flatten LINE            = Nothing               -- abort
+flatten SEP             = return (TEXT " ")     -- SEP is space
+flatten BREAK           = return NIL            -- BREAK is nil
+flatten (x :<|> y)      = flatten x
 
-layout 			:: Doc -> String
-layout Nil		= ""
-layout (Text _ s x)	= s ++ layout x
-layout (Line _ i x)	= '\n' : replicate i ' ' ++ layout x
+layout                  :: Doc -> String
+layout Nil              = ""
+layout (Text _ s x)     = s ++ layout x
+layout (Line _ i x)     = '\n' : replicate i ' ' ++ layout x
 
 best w k doc = be w k [(0,doc)]
 
-be 			:: Int -> Int -> [(Int,DOC)] -> Doc
-be w k []		= Nil
-be w k ((i,NIL):z)	= be w k z
-be w k ((i,x :<> y):z)	= be w k ((i,x):(i,y):z)
+be                      :: Int -> Int -> [(Int,DOC)] -> Doc
+be w k []               = Nil
+be w k ((i,NIL):z)      = be w k z
+be w k ((i,x :<> y):z)  = be w k ((i,x):(i,y):z)
 be w k ((i,NEST j x):z) = be w k ((k+j,x):z)
-be w k ((i,TEXT s):z)	= s `mkText` be w (k+length s) z
-be w k ((i,LINE):z)	= i `mkLine` be w i z
-be w k ((i,SEP):z)	= i `mkLine` be w i z
-be w k ((i,BREAK):z)	= i `mkLine` be w i z
+be w k ((i,TEXT s):z)   = s `mkText` be w (k+length s) z
+be w k ((i,LINE):z)     = i `mkLine` be w i z
+be w k ((i,SEP):z)      = i `mkLine` be w i z
+be w k ((i,BREAK):z)    = i `mkLine` be w i z
 be w k ((i,x :<|> y):z) = better w k 
-				(be w k ((i,x):z))
-				(be w k ((i,y):z))
+                                (be w k ((i,x):z))
+                                (be w k ((i,y):z))
 
-better			:: Int -> Int -> Doc -> Doc -> Doc
-better w k x y		= if (w-k) >= toplen x then x else y
+better                  :: Int -> Int -> Doc -> Doc -> Doc
+better w k x y          = if (w-k) >= toplen x then x else y
 
-pretty			:: Int -> DOC -> String
-pretty w x		= layout (best w 0 x)
+pretty                  :: Int -> DOC -> String
+pretty w x              = layout (best w 0 x)

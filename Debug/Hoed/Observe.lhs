@@ -36,9 +36,9 @@ This was ported for the version found on www.haskell.org/hood.
 
 
 %************************************************************************
-%*									*
+%*                                                                      *
 \subsection{Exports}
-%*									*
+%*                                                                      *
 %************************************************************************
 
 \begin{code}
@@ -57,7 +57,7 @@ module Debug.Hoed.Observe
    -- * For advanced users, that want to render their own datatypes.
   , (<<)           -- (Observable a) => ObserverM (a -> b) -> a -> ObserverM b
   ,(*>>=),(>>==),(>>=*)
-  , thunk          -- (Observable a) => a -> ObserverM a	
+  , thunk          -- (Observable a) => a -> ObserverM a        
   , nothunk
   , send
   , observeBase
@@ -82,9 +82,9 @@ module Debug.Hoed.Observe
 
 
 %************************************************************************
-%*									*
+%*                                                                      *
 \subsection{Imports and infixing}
-%*									*
+%*                                                                      *
 %************************************************************************
 
 \begin{code}
@@ -117,7 +117,7 @@ import GHC.Ptr
 
 For the TracedMonad instance of IO:
 \begin{code}
-import GHC.Base
+import GHC.Base hiding (mapM)
 -- import Control.Monad.ST(RealWorld)
 -- import Control.Monad.State(State)
 \end{code}
@@ -127,9 +127,9 @@ import qualified Control.Exception as Exception
 import Control.Exception (Exception, throw, ErrorCall(..), SomeException(..))
 {-
  ( catch
-		, Exception(..)
-		, throw
-		) as Exception
+                , Exception(..)
+                , throw
+                ) as Exception
 -}
 import Data.Dynamic ( Dynamic )
 \end{code}
@@ -140,16 +140,16 @@ infixl 9 <<
 
 
 %************************************************************************
-%*									*
+%*                                                                      *
 \subsection{GDM Generics}
-%*									*
+%*                                                                      *
 %************************************************************************
 
 he generic implementation of the observer function.
 
 \begin{code}
 class Observable a where
-	observer  :: a -> Parent -> a 
+        observer  :: a -> Parent -> a 
         default observer :: (Generic a, GObservable (Rep a)) => a -> Parent -> a
         observer x c = to (gdmobserver (from x) c)
 
@@ -255,9 +255,9 @@ gdmFunObserver cxt fn arg
 
 
 %************************************************************************
-%*									*
+%*                                                                      *
 \subsection{Cost Centre Stack}
-%*									*
+%*                                                                      *
 %************************************************************************
 
 \begin{code}
@@ -295,9 +295,9 @@ ccsToStrings ccs0 = go ccs0 []
 
 
 %************************************************************************
-%*									*
+%*                                                                      *
 \subsection{Generics}
-%*									*
+%*                                                                      *
 %************************************************************************
 
 Generate a new observe from generated observers and the gobserve mechanism.
@@ -466,9 +466,9 @@ gobservableInstance s qt
 
 updateContext :: Name -> [Pred] -> [Pred]
 updateContext cn ps = map f ps
-        where f (ClassP n ts)
-                | nameBase n == "Observable" = ClassP cn ts
-                | otherwise                  = ClassP n  ts
+        where f (AppT (ConT n) ts) -- TH<2.10: f (ClassP n ts)
+                  | nameBase n == "Observable" = (AppT (ConT cn) ts) -- ClassP cn ts
+                  | otherwise                  = (AppT (ConT n)  ts) -- ClassP n  ts
               f p = p
 
 gobservableBaseInstance :: String -> Q Type -> Q [Dec]
@@ -544,10 +544,8 @@ gfunObserver s
            a  = VarT (mkName "a")
            b  = VarT (mkName "b")
            f  = return $ AppT (AppT ArrowT a) b
-           a' = return a
-           b' = return b
-       p <- return $ ClassP cn a'
-       q <- return $ ClassP cn b'
+       p <- return $ AppT (ConT cn) a
+       q <- return $ AppT (ConT cn) b
        c <- return [p,q]
        n <- [t| $ct $f |]
        m <- gobserverFun (methodName s)
@@ -594,7 +592,8 @@ isObservableT t@(ConT _) = isInstance (mkName "Observable") [t]
 isObservableT _          = return False 
 
 isObservableP :: Pred -> Q Bool
-isObservableP (ClassP n _) = return $ (nameBase n) == "Observable"
+-- TH<2.10: isObservableP (ClassP n _) = return $ (nameBase n) == "Observable"
+isObservableP (AppT (ConT n) _) = return $ (nameBase n) == "Observable"
 isObservableP _            = return False
 
 
@@ -662,8 +661,8 @@ getPBindings qt = do t <- qt
 getPBindings' :: [Pred] -> Q [Pred]
 getPBindings' []     = return []
 getPBindings' (p:ps) = do pbs <- getPBindings' ps
-                          return $ case p of (ClassP n t)   -> p : pbs
-                                             _            -> pbs
+                          return $ case p of (AppT (ConT n) t) -> p : pbs
+                                             _                 -> pbs
 
 -- Given a parametrized type, get a list with its type variables
 -- e.g. [a,b] in (MyData a b) Int Float
@@ -698,9 +697,9 @@ getName t = do t' <- t
 
 getName' :: Type -> Q Name
 getName' t = case t of 
-      		(ForallT _ _ t'') -> getName' t''
+                (ForallT _ _ t'') -> getName' t''
                 (AppT t'' _)      -> getName' t''
-      		(ConT name)       -> return name
+                (ConT name)       -> return name
                 ListT             -> return $ mkName "[]"
                 TupleT _          -> return $ mkName "(,)"
                 t''               -> error ("getName can't handle " ++ show t'')
@@ -721,8 +720,8 @@ guniqueVariables n = replicateM n (newName "x")
 observableCxt :: [TyVarBndr] -> Q Cxt
 observableCxt tvs = return [classpObservable $ map (\v -> (tvname v)) tvs]
 
-classpObservable :: [Type] -> Pred
-classpObservable = ClassP (mkName "Observable")
+classpObservable :: [Type] -> Type
+classpObservable = foldl AppT (ConT (mkName "Observable"))
 
 qcontObservable :: Q Type
 qcontObservable = return contObservable
@@ -740,22 +739,22 @@ tvname (KindedTV name _) = VarT name
 \end{code}
 
 %************************************************************************
-%*									*
+%*                                                                      *
 \subsection{Instances}
-%*									*
+%*                                                                      *
 %************************************************************************
 
  The Haskell Base types
 
 \begin{code}
-instance Observable Int 	where { observer = observeBase }
-instance Observable Bool 	where { observer = observeBase }
-instance Observable Integer 	where { observer = observeBase }
-instance Observable Float 	where { observer = observeBase }
-instance Observable Double	where { observer = observeBase }
-instance Observable Char 	where { observer = observeBase }
+instance Observable Int         where { observer = observeBase }
+instance Observable Bool        where { observer = observeBase }
+instance Observable Integer     where { observer = observeBase }
+instance Observable Float       where { observer = observeBase }
+instance Observable Double      where { observer = observeBase }
+instance Observable Char        where { observer = observeBase }
 
-instance Observable ()		where { observer = observeOpaque "()" }
+instance Observable ()          where { observer = observeOpaque "()" }
 
 -- utilities for base types.
 -- The strictness (by using seq) is the same 
@@ -779,11 +778,11 @@ instance (Observable a,Observable b,Observable c) => Observable (a,b,c) where
   observer (a,b,c) = send "," (return (,,) << a << b << c)
 
 instance (Observable a,Observable b,Observable c,Observable d) 
-	  => Observable (a,b,c,d) where
+          => Observable (a,b,c,d) where
   observer (a,b,c,d) = send "," (return (,,,) << a << b << c << d)
 
 instance (Observable a,Observable b,Observable c,Observable d,Observable e) 
-	 => Observable (a,b,c,d,e) where
+         => Observable (a,b,c,d,e) where
   observer (a,b,c,d,e) = send "," (return (,,,,) << a << b << c << d << e)
 
 instance (Observable a) => Observable [a] where
@@ -804,8 +803,8 @@ Arrays.
 \begin{code}
 instance (Ix a,Observable a,Observable b) => Observable (Array.Array a b) where
   observer arr = send "array" (return Array.array << Array.bounds arr 
-					          << Array.assocs arr
-			      )
+                                                  << Array.assocs arr
+                              )
 \end{code}
 
 IO monad.
@@ -813,8 +812,8 @@ IO monad.
 \begin{code}
 instance (Observable a) => Observable (IO a) where
   observer fn cxt = 
-	do res <- fn
-	   send "<IO>" (return return << res) cxt
+        do res <- fn
+           send "<IO>" (return return << res) cxt
 \end{code}
 
 
@@ -834,9 +833,9 @@ instance Observable Dynamic where { observer = observeOpaque "<Dynamic>" }
 
 
 %************************************************************************
-%*									*
+%*                                                                      *
 \subsection{Classes and Data Definitions}
-%*									*
+%*                                                                      *
 %************************************************************************
 
 \begin{code}
@@ -851,47 +850,47 @@ newtype Observer = O (forall a . (Observable a) => String -> a -> a)
 -- defaultObservers :: (Observable a) => String -> (Observer -> a) -> a
 -- defaultObservers label fn = unsafeWithUniq $ \ node ->
 --      do { sendEvent node (Parent 0 0) (Observe label ThreadIdUnknown)
--- 	; let observe' sublabel a
--- 	       = unsafeWithUniq $ \ subnode ->
--- 		 do { sendEvent subnode (Parent node 0) 
--- 		                        (Observe sublabel ThreadIdUnknown)
--- 		    ; return (observer_ observer a (Parent
--- 			{ observeParent = subnode
--- 			, observePort   = 0
--- 		        }))
--- 		    }
+--      ; let observe' sublabel a
+--             = unsafeWithUniq $ \ subnode ->
+--               do { sendEvent subnode (Parent node 0) 
+--                                      (Observe sublabel ThreadIdUnknown)
+--                  ; return (observer_ observer a (Parent
+--                      { observeParent = subnode
+--                      , observePort   = 0
+--                      }))
+--                  }
 --         ; return (observer_ observer (fn (O observe'))
--- 		       (Parent
--- 			{ observeParent = node
--- 			, observePort   = 0
--- 		        }))
--- 	}
+--                     (Parent
+--                      { observeParent = node
+--                      , observePort   = 0
+--                      }))
+--      }
 -- defaultFnObservers :: (Observable a, Observable b) 
--- 		      => String -> (Observer -> a -> b) -> a -> b
+--                    => String -> (Observer -> a -> b) -> a -> b
 -- defaultFnObservers label fn arg = unsafeWithUniq $ \ node ->
 --      do { sendEvent node (Parent 0 0) (Observe label ThreadIdUnknown)
--- 	; let observe' sublabel a
--- 	       = unsafeWithUniq $ \ subnode ->
--- 		 do { sendEvent subnode (Parent node 0) 
--- 		                        (Observe sublabel ThreadIdUnknown)
--- 		    ; return (observer_ observer a (Parent
--- 			{ observeParent = subnode
--- 			, observePort   = 0
--- 		        }))
--- 		    }
+--      ; let observe' sublabel a
+--             = unsafeWithUniq $ \ subnode ->
+--               do { sendEvent subnode (Parent node 0) 
+--                                      (Observe sublabel ThreadIdUnknown)
+--                  ; return (observer_ observer a (Parent
+--                      { observeParent = subnode
+--                      , observePort   = 0
+--                      }))
+--                  }
 --         ; return (observer_ observer (fn (O observe'))
--- 		       (Parent
--- 			{ observeParent = node
--- 			, observePort   = 0
--- 		        }) arg)
--- 	}
+--                     (Parent
+--                      { observeParent = node
+--                      , observePort   = 0
+--                      }) arg)
+--      }
 \end{code}
 
 
 %************************************************************************
-%*									*
+%*                                                                      *
 \subsection{The ObserveM Monad}
-%*									*
+%*                                                                      *
 %************************************************************************
 
 The Observer monad, a simple state monad, 
@@ -900,36 +899,43 @@ for placing numbers on sub-observations.
 \begin{code}
 newtype ObserverM a = ObserverM { runMO :: Int -> Int -> (a,Int) }
 
+instance Functor ObserverM where
+    fmap  = liftM
+
+instance Applicative ObserverM where
+    pure  = return
+    (<*>) = ap
+
 instance Monad ObserverM where
-	return a = ObserverM (\ c i -> (a,i))
-	fn >>= k = ObserverM (\ c i ->
-		case runMO fn c i of
-		  (r,i2) -> runMO (k r) c i2
-		)
+        return a = ObserverM (\ c i -> (a,i))
+        fn >>= k = ObserverM (\ c i ->
+                case runMO fn c i of
+                  (r,i2) -> runMO (k r) c i2
+                )
 
 thunk :: (a -> Parent -> a) -> a -> ObserverM a
 thunk f a = ObserverM $ \ parent port ->
-		( observer_ f a (Parent
-				{ observeParent = parent
-				, observePort   = port
-				}) 
-		, port+1 )
+                ( observer_ f a (Parent
+                                { observeParent = parent
+                                , observePort   = port
+                                }) 
+                , port+1 )
 
 gthunk :: (GObservable f) => f a -> ObserverM (f a)
 gthunk a = ObserverM $ \ parent port ->
-		( gdmobserver_ a (Parent
-				{ observeParent = parent
-				, observePort   = port
-				}) 
-		, port+1 )
+                ( gdmobserver_ a (Parent
+                                { observeParent = parent
+                                , observePort   = port
+                                }) 
+                , port+1 )
 
 nothunk :: a -> ObserverM a
 nothunk a = ObserverM $ \ parent port ->
-		( observer__ a (Parent
-				{ observeParent = parent
-				, observePort   = port
-				}) 
-		, port+1 )
+                ( observer__ a (Parent
+                                { observeParent = parent
+                                , observePort   = port
+                                }) 
+                , port+1 )
 
 
 (<<) :: (Observable a) => ObserverM (a -> b) -> a -> ObserverM b
@@ -947,9 +953,9 @@ gdMapM f c a = do { c' <- c ; a' <- f a ; return (c' a') }
 
 
 %************************************************************************
-%*									*
+%*                                                                      *
 \subsection{observe and friends}
-%*									*
+%*                                                                      *
 %************************************************************************
 
 Our principle function and class
@@ -1036,9 +1042,9 @@ observer__ a context = sendNoEnterPacket a context
 
 \begin{code}
 data Parent = Parent
-	{ observeParent :: !Int	-- my parent
-	, observePort   :: !Int	-- my branch number
-	} deriving (Show, Read)
+        { observeParent :: !Int -- my parent
+        , observePort   :: !Int -- my branch number
+        } deriving (Show, Read)
 root = Parent 0 0
 \end{code}
 
@@ -1049,8 +1055,8 @@ The functions that output the data. All are dirty.
 unsafeWithUniq :: (Int -> IO a) -> a
 unsafeWithUniq fn 
   = unsafePerformIO $ do { node <- getUniq
-		         ; fn node
-		         }
+                         ; fn node
+                         }
 \end{code}
 
 \begin{code}
@@ -1060,12 +1066,12 @@ generateContext :: (a->Parent->a) -> TraceThreadId -> Identifier -> String -> a 
 generateContext f tti d label orig = unsafeWithUniq $ \ node ->
      do { t <- myThreadId
         ; sendEvent node (Parent 0 0) (Observe label t node d)
-	; return (observer_ f orig (Parent
-			{ observeParent = node
-			, observePort   = 0
-		        })
-		 , node)
-	}
+        ; return (observer_ f orig (Parent
+                        { observeParent = node
+                        , observePort   = 0
+                        })
+                 , node)
+        }
   where myThreadId = case tti of
           DoNotTraceThreadId -> return ThreadIdUnknown
           TraceThreadId      -> do t <- Concurrent.myThreadId
@@ -1074,31 +1080,31 @@ generateContext f tti d label orig = unsafeWithUniq $ \ node ->
 send :: String -> ObserverM a -> Parent -> a
 send consLabel fn context = unsafeWithUniq $ \ node ->
      do { let (r,portCount) = runMO fn node 0
-	; sendEvent node context (Cons portCount consLabel)
-	; return r
-	}
+        ; sendEvent node context (Cons portCount consLabel)
+        ; return r
+        }
 
 
 sendEnterPacket :: (a -> Parent -> a) -> a -> Parent -> a
 sendEnterPacket f r context = unsafeWithUniq $ \ node ->
-     do	{ sendEvent node context Enter
-	; ourCatchAllIO (evaluate (f r context))
-	                (handleExc context)
-	}
+     do { sendEvent node context Enter
+        ; ourCatchAllIO (evaluate (f r context))
+                        (handleExc context)
+        }
 
 gsendEnterPacket :: (GObservable f) => f a -> Parent -> f a
 gsendEnterPacket r context = unsafeWithUniq $ \ node ->
-     do	{ sendEvent node context Enter
-	; ourCatchAllIO (evaluate (gdmobserver r context))
-	                (handleExc context)
-	}
+     do { sendEvent node context Enter
+        ; ourCatchAllIO (evaluate (gdmobserver r context))
+                        (handleExc context)
+        }
 
 sendNoEnterPacket :: a -> Parent -> a
 sendNoEnterPacket r context = unsafeWithUniq $ \ node ->
-     do	{ sendEvent node context NoEnter
-	; ourCatchAllIO (evaluate r)
-	                (handleExc context)
-	}
+     do { sendEvent node context NoEnter
+        ; ourCatchAllIO (evaluate r)
+                        (handleExc context)
+        }
 
 evaluate :: a -> IO a
 evaluate a = a `seq` return a
@@ -1107,61 +1113,61 @@ evaluate a = a `seq` return a
 sendObserveFnPacket :: CallStack -> ObserverM a -> Parent -> a
 sendObserveFnPacket callStack fn context
   = unsafeWithUniq $ \ node ->
-     do	{ let (r,_) = runMO fn node 0
-	; sendEvent node context (Fun callStack)
-	; return r
-	}
+     do { let (r,_) = runMO fn node 0
+        ; sendEvent node context (Fun callStack)
+        ; return r
+        }
 \end{code}
 
 
 %************************************************************************
-%*									*
+%*                                                                      *
 \subsection{Event stream}
-%*									*
+%*                                                                      *
 %************************************************************************
 
 Trival output functions
 
 \begin{code}
 data Event = Event
-		{ portId     :: !Int
-		, parent     :: !Parent
-		, change     :: !Change
-		}
-	deriving (Show)
+                { portId     :: !Int
+                , parent     :: !Parent
+                , change     :: !Change
+                }
+        deriving (Show)
 
 data ThreadId = ThreadIdUnknown | ThreadId Concurrent.ThreadId
-	deriving (Show,Eq,Ord)
+        deriving (Show,Eq,Ord)
 
 -- MF TODO: Shouldn't we just have the CallStack as part of Observe?
 data Change
-	= Observe 	!String         !ThreadId        !Int      !Identifier
-	| Cons    !Int 	!String
-	| Enter
+        = Observe       !String         !ThreadId        !Int      !Identifier
+        | Cons    !Int  !String
+        | Enter
         | NoEnter
-	| Fun           !CallStack
-	deriving (Show)
+        | Fun           !CallStack
+        deriving (Show)
 
 startEventStream :: IO ()
 startEventStream = writeIORef events []
 
 endEventStream :: IO [Event]
 endEventStream =
-	do { es <- readIORef events
-	   ; writeIORef events badEvents 
-	   ; return es
-	   }
+        do { es <- readIORef events
+           ; writeIORef events badEvents 
+           ; return es
+           }
 
 sendEvent :: Int -> Parent -> Change -> IO ()
 sendEvent nodeId parent change =
-	do { nodeId `seq` parent `seq` return ()
-	   ; change `seq` return ()
-	   ; takeMVar sendSem
-	   ; es <- readIORef events
-	   ; let event = Event nodeId parent change
-	   ; writeIORef events (event `seq` (event : es))
-	   ; putMVar sendSem ()
-	   }
+        do { nodeId `seq` parent `seq` return ()
+           ; change `seq` return ()
+           ; takeMVar sendSem
+           ; es <- readIORef events
+           ; let event = Event nodeId parent change
+           ; writeIORef events (event `seq` (event : es))
+           ; putMVar sendSem ()
+           }
 
 
 -- writeEvent :: FilePath -> Event -> IO ()
@@ -1188,9 +1194,9 @@ sendSem = unsafePerformIO $ newMVar ()
 
 
 %************************************************************************
-%*									*
+%*                                                                      *
 \subsection{unique name supply code}
-%*									*
+%*                                                                      *
 %************************************************************************
 
 Use the single threaded version
@@ -1202,11 +1208,11 @@ initUniq = writeIORef uniq 1
 getUniq :: IO Int
 getUniq
     = do { takeMVar uniqSem
-	 ; n <- readIORef uniq
-	 ; writeIORef uniq $! (n + 1)
-	 ; putMVar uniqSem ()
-	 ; return n
-	 }
+         ; n <- readIORef uniq
+         ; writeIORef uniq $! (n + 1)
+         ; putMVar uniqSem ()
+         ; return n
+         }
 
 peepUniq :: IO Int
 peepUniq = readIORef uniq
@@ -1224,30 +1230,30 @@ uniqSem = unsafePerformIO $ newMVar ()
 
 
 %************************************************************************
-%*									*
+%*                                                                      *
 \subsection{Global, initualizers, etc}
-%*									*
+%*                                                                      *
 %************************************************************************
 
 -- \begin{code}
 -- openObserveGlobal :: IO ()
 -- openObserveGlobal =
 --      do { initUniq
--- 	; startEventStream
--- 	}
+--      ; startEventStream
+--      }
 -- 
 -- closeObserveGlobal :: IO [Event]
 -- closeObserveGlobal =
 --      do { evs <- endEventStream
 --         ; putStrLn ""
--- 	; return evs
--- 	}
+--      ; return evs
+--      }
 -- \end{code}
 
 %************************************************************************
-%*									*
+%*                                                                      *
 \subsection{Simulations}
-%*									*
+%*                                                                      *
 %************************************************************************
 
 Here we provide stubs for the functionally that is not supported
