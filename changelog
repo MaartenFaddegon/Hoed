@@ -1,0 +1,13 @@
+0.2.1 Maarten Faddegon 1 May 2015
+
+  * Small changes to make Hoed work with GHC 7.10
+
+0.2.0 Maarten Faddegon 12 Feb 2015
+
+  * A threepenny-gui algorithmic debugger.
+  * Construction of computation trees with just local annotations. Existing algorithmic debuggers for Haskell require a transformation of all modules in a program, even libraries that the user does not want to debug and which may use language features not supported by the debugger. This is a pity, because a promising approach to debugging is therefore not applicable to many real-world programs. We use the cost centre stack from the Glasgow Haskell Compiler profiling environment together with runtime value observations to collect enough information for algorithmic debugging.
+
+
+0.1.0.1 Maarten Faddegon 24 May 2014
+
+  * A tracer library based on Andy Gills HOOD v0.2. Allows to observe intermediate values. How values are observed can be derived with the Generic Deriving Mechanism, or generated with Template Haskell. 

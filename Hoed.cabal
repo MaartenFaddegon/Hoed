@@ -7,10 +7,11 @@ license:             BSD3
 license-file:        LICENSE
 author:              Maarten Faddegon
 maintainer:          hoed@maartenfaddegon.nl
-copyright:           (c) 2000 Andy Gill, (c) 2010 University of Kansas, (c) 2013-2014 Maarten Faddegon
+copyright:           (c) 2000 Andy Gill, (c) 2010 University of Kansas, (c) 2013-2015 Maarten Faddegon
 category:            Debug, Trace
 build-type:          Simple
 cabal-version:       >=1.10
+Extra-Source-Files:  changelog
 
 flag buildExamples
   description: Build example executables.
@@ -19,7 +20,6 @@ flag buildExamples
 flag validate
   description: Build validation executables.
   default: False
-
 
 library
   exposed-modules:     Debug.Hoed
