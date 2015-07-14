@@ -1,3 +1,7 @@
+0.2.2 Maarten Faddegon 14  2015
+
+  * Use a preprocessor to make the library work with GHC 7.10, but also for older versions of GHC. This is related to the "The Applicative Monad Proposal" and the changes to Template Haskell in GHC 7.10 that are not backward compatibility with earlier versions of GHC.
+
 0.2.1 Maarten Faddegon 1 May 2015
 
   * Small changes to make Hoed work with GHC 7.10
