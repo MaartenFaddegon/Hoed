@@ -465,12 +465,21 @@ gobservableInstance s qt
                 _                  -> return []
        return [InstanceD (updateContext cn c) n m]
 
+#if __GLASGOW_HASKELL__ >= 710
 updateContext :: Name -> [Pred] -> [Pred]
 updateContext cn ps = map f ps
         where f (AppT (ConT n) ts) -- TH<2.10: f (ClassP n ts)
                   | nameBase n == "Observable" = (AppT (ConT cn) ts) -- ClassP cn ts
                   | otherwise                  = (AppT (ConT n)  ts) -- ClassP n  ts
               f p = p
+#else
+updateContext :: Name -> [Pred] -> [Pred]
+updateContext cn ps = map f ps
+        where f (ClassP n ts)
+                | nameBase n == "Observable" = ClassP cn ts
+                | otherwise                  = ClassP n  ts
+              f p = p
+#endif
 
 gobservableBaseInstance :: String -> Q Type -> Q [Dec]
 gobservableBaseInstance s qt
@@ -545,8 +554,15 @@ gfunObserver s
            a  = VarT (mkName "a")
            b  = VarT (mkName "b")
            f  = return $ AppT (AppT ArrowT a) b
+#if __GLASGOW_HASKELL__ >= 710
        p <- return $ AppT (ConT cn) a
        q <- return $ AppT (ConT cn) b
+#else
+       let a' = return a
+           b' = return b
+       p <- return $ ClassP cn a'
+       q <- return $ ClassP cn b'
+#endif
        c <- return [p,q]
        n <- [t| $ct $f |]
        m <- gobserverFun (methodName s)
@@ -593,8 +609,11 @@ isObservableT t@(ConT _) = isInstance (mkName "Observable") [t]
 isObservableT _          = return False 
 
 isObservableP :: Pred -> Q Bool
--- TH<2.10: isObservableP (ClassP n _) = return $ (nameBase n) == "Observable"
+#if __GLASGOW_HASKELL__ >= 710
 isObservableP (AppT (ConT n) _) = return $ (nameBase n) == "Observable"
+#else
+isObservableP (ClassP n _) = return $ (nameBase n) == "Observable"
+#endif
 isObservableP _            = return False
 
 
@@ -662,8 +681,13 @@ getPBindings qt = do t <- qt
 getPBindings' :: [Pred] -> Q [Pred]
 getPBindings' []     = return []
 getPBindings' (p:ps) = do pbs <- getPBindings' ps
+#if __GLASGOW_HASKELL__ >= 710
                           return $ case p of (AppT (ConT n) t) -> p : pbs
                                              _                 -> pbs
+#else
+                          return $ case p of (ClassP n t) -> p : pbs
+                                             _            -> pbs
+#endif
 
 -- Given a parametrized type, get a list with its type variables
 -- e.g. [a,b] in (MyData a b) Int Float
@@ -721,8 +745,13 @@ guniqueVariables n = replicateM n (newName "x")
 observableCxt :: [TyVarBndr] -> Q Cxt
 observableCxt tvs = return [classpObservable $ map (\v -> (tvname v)) tvs]
 
+#if __GLASGOW_HASKELL__ >= 710
 classpObservable :: [Type] -> Type
 classpObservable = foldl AppT (ConT (mkName "Observable"))
+#else
+classpObservable :: [Type] -> Pred
+classpObservable = ClassP (mkName "Observable")
+#endif
 
 qcontObservable :: Q Type
 qcontObservable = return contObservable
