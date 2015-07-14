@@ -7,6 +7,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE CPP #-}
 
 \end{code}
 
@@ -902,9 +903,11 @@ newtype ObserverM a = ObserverM { runMO :: Int -> Int -> (a,Int) }
 instance Functor ObserverM where
     fmap  = liftM
 
+#if __GLASGOW_HASKELL__ >= 710
 instance Applicative ObserverM where
     pure  = return
     (<*>) = ap
+#endif
 
 instance Monad ObserverM where
         return a = ObserverM (\ c i -> (a,i))
