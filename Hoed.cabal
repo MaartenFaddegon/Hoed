@@ -1,4 +1,4 @@
-name:                Hoed-stk
+name:                Hoed
 version:             0.2.2
 synopsis:            Lighweight algorithmic debugging based on observing intermediate values and the cost centre stack.
 -- description:         TODO

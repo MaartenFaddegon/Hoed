@@ -40,3 +40,7 @@ The idea to observe values with local annotations comes from the HOOD project.
 Unlike Hoed, HOOD does not give relations between observed values. HOOD also
 requires the programmer to write a class-instance for the type of the value
 they want to observe. With Hoed these instates can be derived automatically.
+
+## Continues Testing
+
+We use Travis to test if Hoed still builds (TODO: and works) across various versions of GHC. The status of the latest commit is: [![Build Status](https://travis-ci.org/MaartenFaddegon/Hoed.svg?branch=master)](https://travis-ci.org/MaartenFaddegon/Hoed)
