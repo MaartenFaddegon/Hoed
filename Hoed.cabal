@@ -1,5 +1,5 @@
-name:                Hoed
-version:             0.2.1
+name:                Hoed-stk
+version:             0.2.2
 synopsis:            Lighweight algorithmic debugging based on observing intermediate values and the cost centre stack.
 -- description:         TODO
 homepage:            http://maartenfaddegon.nl
@@ -22,17 +22,17 @@ flag validate
   default: False
 
 library
-  exposed-modules:     Debug.Hoed
-  other-modules:       Debug.Hoed.Observe
-                       , Debug.Hoed.Render
-                       , Debug.Hoed.DemoGUI
+  exposed-modules:     Debug.Hoed.Stk
+  other-modules:       Debug.Hoed.Stk.Observe
+                       , Debug.Hoed.Stk.Render
+                       , Debug.Hoed.Stk.DemoGUI
   build-depends:       base >=4.6 && <5
                        , template-haskell
                        , array, containers
                        , process
-                       , threepenny-gui == 0.5.*
+                       , threepenny-gui == 0.6.*
                        , filepath
-                       , libgraph == 1.4
+                       , libgraph == 1.5
                        , RBTree == 0.0.5
                        , regex-posix
                        , mtl

@@ -9,5 +9,4 @@
 #                 --disable-optimization
 
 cabal configure --enable-profiling \
-                --disable-optimization \
-                --flags=buildExamples
+                --disable-optimization

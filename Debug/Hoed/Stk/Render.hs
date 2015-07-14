@@ -2,7 +2,7 @@
 --
 -- Copyright (c) Maarten Faddegon, 2014
 
-module Debug.Hoed.Render
+module Debug.Hoed.Stk.Render
 (CompStmt(..)
 ,renderCompStmts
 ,byStack
@@ -21,7 +21,7 @@ module Debug.Hoed.Render
 where
 
 import Prelude hiding(lookup)
-import Debug.Hoed.Observe
+import Debug.Hoed.Stk.Observe
 import Data.List(sort,sortBy,partition,nub)
 import Data.Graph.Libgraph
 import Data.Array as Array
@@ -267,12 +267,12 @@ callDep t c3 = foldl (\as (c2,c1) -> c1 ==> c2 : c2 ==> c3 : as) []
   where src ==> tgt = Arc src tgt ()
 
 mkGraph :: [CompStmt] -> CompGraph
-mkGraph cs = {-# SCC "mkGraph" #-} (dagify merge) 
-                                   . addRoot 
+mkGraph cs = {-# SCC "mkGraph" #-} -- (dagify merge) 
+                                   addRoot
                                    . toVertices 
-                                   . sameThread 
-                                   . filterDependsJustOn
-                                   . addSequenceDependencies
+                                   -- . sameThread 
+                                   -- . filterDependsJustOn
+                                   -- . addSequenceDependencies
                                    . nubArcs
                                    $ g
   where g :: Graph CompStmt ()

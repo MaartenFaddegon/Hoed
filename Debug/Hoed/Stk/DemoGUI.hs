@@ -1,23 +1,22 @@
 -- This file is part of the Haskell debugger Hoed.
 --
--- Copyright (c) Maarten Faddegon, 2014
+-- Copyright (c) Maarten Faddegon, 2014-2015
 
-module Debug.Hoed.DemoGUI
+module Debug.Hoed.Stk.DemoGUI
 where
 
 import Prelude hiding(Right)
-import Debug.Hoed.Render
+import Debug.Hoed.Stk.Render
 import Data.Graph.Libgraph
 import qualified Graphics.UI.Threepenny as UI
-import Graphics.UI.Threepenny (startGUI,defaultConfig, loadFile
-                              , Window, UI, (#), (#+), (#.), string, on
-                              )
+import Graphics.UI.Threepenny (startGUI,defaultConfig, Window, UI, (#), (#+), (#.), string, on,get,set)
 import System.Process(system)
 import Data.IORef
 import Data.List(intersperse,nub)
 import Text.Regex.Posix
 
 --------------------------------------------------------------------------------
+-- The tabbed layout from which we select the different views
 
 preorder :: CompGraph -> [Vertex]
 preorder = getPreorder . getDfs
@@ -46,10 +45,11 @@ demoGUI sliceDict treeRef window
        filteredVerticesRef <- UI.liftIO $ newIORef ns
        currentVertexRef    <- UI.liftIO $ newIORef (0 :: Int)
        regexRef            <- UI.liftIO $ newIORef ""
+       imgCountRef         <- UI.liftIO $ newIORef (0 :: Int)
 
        -- Draw the computation graph
        img  <- UI.img 
-       redraw img treeRef (Just $ head ns)
+       redraw img imgCountRef treeRef (Just $ head ns)
        img' <- UI.center #+ [UI.element img]
 
        -- Field to show computation statement(s) of current vertex
@@ -59,7 +59,7 @@ demoGUI sliceDict treeRef window
        menu <- UI.select
        showStmt compStmt filteredVerticesRef currentVertexRef
        updateMenu menu treeRef currentVertexRef filteredVerticesRef
-       let selectVertex' = selectVertex compStmt filteredVerticesRef currentVertexRef                                           $ redrawWith img treeRef
+       let selectVertex' = selectVertex compStmt filteredVerticesRef currentVertexRef                                           $ redrawWith img imgCountRef treeRef
        on UI.selectionChange menu selectVertex'
 
        -- Buttons for the various filters
@@ -87,7 +87,7 @@ demoGUI sliceDict treeRef window
        -- Buttons to judge the current statement
        right <- UI.button # UI.set UI.text "right"
        wrong <- UI.button # UI.set UI.text "wrong"
-       let onJudge = onClick status menu img treeRef 
+       let onJudge = onClick status menu img imgCountRef treeRef 
                              currentVertexRef filteredVerticesRef
        onJudge right Right
        onJudge wrong Wrong
@@ -123,13 +123,13 @@ vertexFilter f g cv r = filter (not . isRoot) $ case f of
           matches v    = showCompStmts v =~ r
 
 onClick :: UI.Element -> UI.Element -> UI.Element 
-           -> IORef CompGraph -> IORef Int -> IORef [Vertex]
+           -> IORef Int -> IORef CompGraph -> IORef Int -> IORef [Vertex]
            -> UI.Element -> Judgement-> UI ()
-onClick status menu img treeRef currentVertexRef filteredVerticesRef b j = do
+onClick status menu img imgCountRef treeRef currentVertexRef filteredVerticesRef b j = do
   on UI.click b $ \_ -> do
         (Just v) <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
         replaceFilteredVertex v (v{status=j})
-        updateTree img treeRef (Just v) (\tree -> markNode tree v j)
+        updateTree img imgCountRef treeRef (Just v) (\tree -> markNode tree v j)
         updateMenu menu treeRef currentVertexRef filteredVerticesRef
         updateStatus status treeRef
 
@@ -227,30 +227,35 @@ updateStatus e compGraphRef = do
   UI.element e # UI.set UI.text txt
   return ()
 
-updateTree :: UI.Element -> IORef CompGraph -> (Maybe Vertex) -> (CompGraph -> CompGraph)
+updateTree :: UI.Element -> IORef Int -> IORef CompGraph -> (Maybe Vertex) -> (CompGraph -> CompGraph)
            -> UI ()
-updateTree img treeRef mcv f
+updateTree img imgCountRef treeRef mcv f
   = do tree <- UI.liftIO $ readIORef treeRef
        UI.liftIO $ writeIORef treeRef (f tree)
-       redraw img treeRef mcv
+       redraw img imgCountRef treeRef mcv
 
-redrawWith :: UI.Element -> IORef CompGraph -> IORef [Vertex] -> IORef Int -> UI ()
-redrawWith img treeRef filteredVerticesRef currentVertexRef = do
+redrawWith :: UI.Element -> IORef Int -> IORef CompGraph -> IORef [Vertex] -> IORef Int -> UI ()
+redrawWith img imgCountRef treeRef filteredVerticesRef currentVertexRef = do
   mv <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
-  redraw img treeRef mv
+  redraw img imgCountRef treeRef mv
 
-redraw :: UI.Element -> IORef CompGraph -> (Maybe Vertex) -> UI ()
-redraw img treeRef mcv
+redraw :: UI.Element -> IORef Int -> IORef CompGraph -> (Maybe Vertex) -> UI ()
+redraw img imgCountRef treeRef mcv
   = do tree <- UI.liftIO $ readIORef treeRef
-       UI.liftIO $ writeFile ".Hoed/debugTree.dot" (shw $ summarize tree mcv)
+       -- replace with the following line to "summarize" big trees  by
+       -- dropping some nodes
+       --UI.liftIO $ writeFile ".Hoed/debugTree.dot" (shw $ summarize tree mcv)
+       UI.liftIO $ writeFile ".Hoed/debugTree.dot" (shw tree)
        UI.liftIO $ system $ "dot -Tpng -Gsize=9,5 -Gdpi=100 .Hoed/debugTree.dot "
                           ++ "> .Hoed/wwwroot/debugTree.png"
-       url <- UI.loadFile "image/png" ".Hoed/wwwroot/debugTree.png"
-       UI.element img # UI.set UI.src url
+       i <- UI.liftIO $ readIORef imgCountRef
+       UI.liftIO $ writeIORef imgCountRef (i+1)
+       -- Attach counter to image url to reload image
+       UI.element img # set UI.src ("static/debugTree.png#" ++ show i)
        return ()
 
   where shw g = showWith g (coloVertex $ faultyVertices g) showArc
-        coloVertex fs v = ( summarizeVertex fs v 
+        coloVertex fs v = ( "\"" ++ summarizeVertex fs v ++ "\""
                           , if isCurrentVertex mcv v then "style=filled fillcolor=yellow"
                                                      else ""
                           )

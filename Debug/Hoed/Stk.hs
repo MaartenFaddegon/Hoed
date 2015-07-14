@@ -1,5 +1,5 @@
 {-|
-Module      : Debug.Hoed
+Module      : Debug.Hoed.Stk
 Description : Lighweight algorithmic debugging based on observing intermediate values and the cost centre stack.
 Copyright   : (c) 2000 Andy Gill, (c) 2010 University of Kansas, (c) 2013-2014 Maarten Faddegon
 License     : BSD3
@@ -36,7 +36,7 @@ github issue tracker <https://github.com/MaartenFaddegon/hoed/issues>.
 
 -}
 
-module Debug.Hoed
+module Debug.Hoed.Stk
   ( -- * Basic annotations
     observe
   , runO
@@ -66,9 +66,9 @@ module Debug.Hoed
   ) where
 
 
-import Debug.Hoed.Observe
-import Debug.Hoed.Render
-import Debug.Hoed.DemoGUI
+import Debug.Hoed.Stk.Observe
+import Debug.Hoed.Stk.Render
+import Debug.Hoed.Stk.DemoGUI
 
 import Prelude hiding (Right)
 import qualified Prelude
@@ -86,7 +86,7 @@ import GHC.Generics
 import Data.IORef
 import System.IO.Unsafe
 import Data.Graph.Libgraph
-import Graphics.UI.Threepenny
+import Graphics.UI.Threepenny(startGUI,defaultConfig,Config(..))
 
 import System.Directory(createDirectoryIfMissing)
 
@@ -100,7 +100,7 @@ import System.Directory(createDirectoryIfMissing)
 -- Run the observe ridden code.
 
 -- | run some code and return the CDS structure (for when you want to write your own debugger).
-debugO :: IO a -> IO [CDS]
+debugO :: IO a -> IO [Event]
 debugO program = 
      do { initUniq
         ; startEventStream
@@ -108,7 +108,7 @@ debugO program =
         ; ourCatchAllIO (do { program ; return () }) 
                         (hPutStrLn stderr . errorMsg)
         ; events <- endEventStream
-        ; return (eventsToCDS events)
+        ; return events
         }
 
 -- | Short for @runO . print@.
@@ -143,15 +143,29 @@ runO' program = {- SCC "runO" -} do
   args <- getArgs
   setPushMode (parseArgs args)
   hPutStrLn stderr "=== program output ===\n"
-  cdss <- debugO program
+  events <- debugO program
+  let cdss = eventsToCDS events
   let cdss1 = rmEntrySet cdss
   let cdss2 = simplifyCDSSet cdss1
   let eqs   = ((sortBy byStack) . renderCompStmts) cdss2
-  hPutStrLn stderr "\n=== CDS's before rendering === \n"
-  hPutStrLn stderr (show cdss2)
+  let ct    = mkGraph eqs
+
+  hPutStrLn stderr "\n=== Statistics ===\n"
+  let e  = length events
+      n  = length eqs
+      d  = treeDepth ct
+      b  = fromIntegral (length . arcs $ ct ) / fromIntegral ((length . vertices $ ct) - (length . leafs $ ct))
+  hPutStrLn stderr $ "e = " ++ show e
+  hPutStrLn stderr $ "n = " ++ show n
+  hPutStrLn stderr $ "arc = " ++ show (length . arcs $ ct)
+  hPutStrLn stderr $ "d = " ++ show d
+  hPutStrLn stderr $ "b = " ++ show b
+
   hPutStrLn stderr "\n=== Debug session === \n"
   hPutStrLn stderr (showWithStack eqs)
-  return (mkGraph eqs)
+  return ct
+
+leafs g = filter (\v -> succs g v == []) (vertices g)
 
 logO :: FilePath -> IO a -> IO ()
 logO filePath program = {- SCC "logO" -} do
@@ -168,6 +182,7 @@ logO filePath program = {- SCC "logO" -} do
         showCompStmts' [e] = show e
         showCompStmts' es  = foldl (\acc e-> acc ++ show e ++ ", ") "{" (init es) 
                              ++ show (last es) ++ "}"
+
   
 
 hPutStrList :: (Show a) => Handle -> [a] -> IO()
@@ -208,8 +223,8 @@ debugSession slices tree
        writeFile ".Hoed/wwwroot/debug.css" stylesheet
        treeRef <- newIORef tree
        startGUI defaultConfig
-           { tpPort       = Just 10000
-           , tpStatic     = Just "./.Hoed/wwwroot"
+           { jsPort       = Just 10000
+           , jsStatic     = Just "./.Hoed/wwwroot"
            } (demoGUI slices treeRef)
 
 

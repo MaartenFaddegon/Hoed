@@ -42,7 +42,7 @@ This was ported for the version found on www.haskell.org/hood.
 %************************************************************************
 
 \begin{code}
-module Debug.Hoed.Observe
+module Debug.Hoed.Stk.Observe
   (
    -- * The main Hood API
   
