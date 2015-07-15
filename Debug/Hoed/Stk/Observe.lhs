@@ -119,8 +119,6 @@ import GHC.Ptr
 For the TracedMonad instance of IO:
 \begin{code}
 import GHC.Base hiding (mapM)
--- import Control.Monad.ST(RealWorld)
--- import Control.Monad.State(State)
 \end{code}
 
 \begin{code}
@@ -223,7 +221,7 @@ instance (GObservable a, GObservable b) => GObservable (a :+: b) where
 
 -- Constants: additional parameters and recursion of kind *
 instance (Observable a) => GObservable (K1 i a) where
-        gdmobserver (K1 x) cxt = K1 (observer_ observer x cxt)
+        gdmobserver (K1 x) cxt = K1 (observer x cxt)
 
         gdmObserveChildren = gthunk
 
@@ -1161,6 +1159,8 @@ sendObserveFnPacket callStack fn context
 Trival output functions
 
 \begin{code}
+type Trace = [Event]
+
 data Event = Event
                 { portId     :: !Int
                 , parent     :: !Parent
@@ -1183,7 +1183,7 @@ data Change
 startEventStream :: IO ()
 startEventStream = writeIORef events []
 
-endEventStream :: IO [Event]
+endEventStream :: IO Trace
 endEventStream =
         do { es <- readIORef events
            ; writeIORef events badEvents 
@@ -1201,20 +1201,11 @@ sendEvent nodeId parent change =
            ; putMVar sendSem ()
            }
 
-
--- writeEvent :: FilePath -> Event -> IO ()
--- writeEvent f e = appendFile f (show e)
--- 
--- readEvents :: FilePath -> IO [Event]
--- readEvents f = do
---   s <- readFile f
---   return (read s)
-
 -- local
-events :: IORef [Event]
+events :: IORef Trace
 events = unsafePerformIO $ newIORef badEvents
 
-badEvents :: [Event]
+badEvents :: Trace
 badEvents = error "Bad Event Stream"
 
 -- use as a trivial semiphore
@@ -1234,10 +1225,12 @@ sendSem = unsafePerformIO $ newMVar ()
 Use the single threaded version
 
 \begin{code}
+type UID = Int
+
 initUniq :: IO ()
 initUniq = writeIORef uniq 1
 
-getUniq :: IO Int
+getUniq :: IO UID
 getUniq
     = do { takeMVar uniqSem
          ; n <- readIORef uniq
@@ -1246,12 +1239,12 @@ getUniq
          ; return n
          }
 
-peepUniq :: IO Int
+peepUniq :: IO UID
 peepUniq = readIORef uniq
 
 -- locals
 {-# NOINLINE uniq #-}
-uniq :: IORef Int
+uniq :: IORef UID
 uniq = unsafePerformIO $ newIORef 1
 
 {-# NOINLINE uniqSem #-}
@@ -1274,7 +1267,7 @@ uniqSem = unsafePerformIO $ newMVar ()
 --      ; startEventStream
 --      }
 -- 
--- closeObserveGlobal :: IO [Event]
+-- closeObserveGlobal :: IO Trace
 -- closeObserveGlobal =
 --      do { evs <- endEventStream
 --         ; putStrLn ""
