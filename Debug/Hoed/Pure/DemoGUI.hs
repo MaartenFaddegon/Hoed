@@ -1,6 +1,7 @@
 -- This file is part of the Haskell debugger Hoed.
 --
 -- Copyright (c) Maarten Faddegon, 2014-2015
+{-# LANGUAGE CPP #-}
 
 module Debug.Hoed.Pure.DemoGUI
 where
@@ -16,8 +17,20 @@ import qualified Graphics.UI.Threepenny as UI
 import Graphics.UI.Threepenny (startGUI,defaultConfig, Window, UI, (#), (#+), (#.), string, on,get,set)
 import System.Process(system)
 import Data.IORef
-import Data.List(intersperse,nub,sort,sortOn)
 import Text.Regex.Posix
+import Data.List(intersperse,nub,sort
+#if __GLASGOW_HASKELL__ >= 710
+                , sortOn
+#endif
+                )
+
+#if __GLASGOW_HASKELL__ < 710
+sortOn :: Ord b => (a -> b) -> [a] -> [a]
+sortOn f  = map snd . sortOn' fst .  map (\x -> (f x, x))
+
+sortOn' :: Ord b => (a -> b) -> [a] -> [a]
+sortOn' f = sortBy (\x y -> compare (f x) (f y))
+#endif
 
 --------------------------------------------------------------------------------
 -- The tabbed layout from which we select the different views
