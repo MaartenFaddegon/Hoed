@@ -1,6 +1,7 @@
 -- This file is part of the Haskell debugger Hoed.
 --
 -- Copyright (c) Maarten Faddegon, 2014
+{-# LANGUAGE CPP #-}
 
 module Debug.Hoed.Pure.Render
 (CompStmt(..)
@@ -16,13 +17,25 @@ import Debug.Hoed.Pure.EventForest
 
 import Prelude hiding(lookup)
 import Debug.Hoed.Pure.Observe
-import Data.List(sort,sortBy,sortOn,partition,nub)
+import Data.List(sort,sortBy,partition,nub
+#if __GLASGOW_HASKELL__ >= 710
+                , sortOn
+#endif
+                )
 import Data.Graph.Libgraph
 import Data.Array as Array
 
 head' :: String -> [a] -> a
 head' msg [] = error msg
 head' _   xs = head xs
+
+#if __GLASGOW_HASKELL__ < 710
+sortOn :: Ord b => (a -> b) -> [a] -> [a]
+sortOn f  = map snd . sortOn' fst .  map (\x -> (f x, x))
+
+sortOn' :: Ord b => (a -> b) -> [a] -> [a]
+sortOn' f = sortBy (\x y -> compare (f x) (f y))
+#endif
 
 ------------------------------------------------------------------------
 -- Render equations from CDS set
