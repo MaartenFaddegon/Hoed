@@ -18,7 +18,7 @@ import Graphics.UI.Threepenny (startGUI,defaultConfig, Window, UI, (#), (#+), (#
 import System.Process(system)
 import Data.IORef
 import Text.Regex.Posix
-import Data.List(intersperse,nub,sort
+import Data.List(intersperse,nub,sort,sortBy
 #if __GLASGOW_HASKELL__ >= 710
                 , sortOn
 #endif
