@@ -1,6 +1,6 @@
 name:                Hoed
-version:             0.2.2
-synopsis:            Lighweight algorithmic debugging based on observing intermediate values and the cost centre stack.
+version:             0.3.0
+synopsis:            Lighweight algorithmic debugging.
 -- description:         TODO
 homepage:            http://maartenfaddegon.nl
 license:             BSD3
@@ -23,9 +23,16 @@ flag validate
 
 library
   exposed-modules:     Debug.Hoed.Stk
+                       , Debug.Hoed.Pure
   other-modules:       Debug.Hoed.Stk.Observe
                        , Debug.Hoed.Stk.Render
                        , Debug.Hoed.Stk.DemoGUI
+                       , Debug.Hoed.Pure.Observe
+                       , Debug.Hoed.Pure.EventForest
+                       , Debug.Hoed.Pure.DataDep
+                       , Debug.Hoed.Pure.CompTree
+                       , Debug.Hoed.Pure.Render
+                       , Debug.Hoed.Pure.DemoGUI
   build-depends:       base >=4.6 && <5
                        , template-haskell
                        , array, containers
@@ -39,8 +46,6 @@ library
                        , directory
   default-language:    Haskell2010
   ghc-options:         -O0
-
-
 
 ---------------------------------------------------------------------------
 --
