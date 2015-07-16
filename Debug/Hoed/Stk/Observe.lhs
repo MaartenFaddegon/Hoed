@@ -8,6 +8,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE CPP #-}
+{-# OPTIONS_GHC -O0 #-}
 
 \end{code}
 

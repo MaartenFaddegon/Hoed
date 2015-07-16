@@ -1,6 +1,7 @@
 -- This file is part of the Haskell debugger Hoed.
 --
 -- Copyright (c) Maarten Faddegon, 2014
+{-# OPTIONS_GHC -auto-all #-}
 
 module Debug.Hoed.Stk.Render
 (CompStmt(..)
@@ -78,7 +79,10 @@ renderCallStack s
 data CompStmt = CompStmt {equLabel :: String, equThreadId :: ThreadId
                          , equIdentifier :: Int, equDependsOn :: Identifier
                          , equRes :: String, equStack :: CallStack}
-                deriving (Eq, Ord)
+                deriving (Ord)
+
+instance Eq CompStmt where
+  s1 == s2 = {-# SCC "CompStmt.==" #-} equIdentifier s1 == equIdentifier s2
 
 instance Show CompStmt where
   show e = equRes e -- ++ " with stack " ++ show (equStack e)
@@ -166,7 +170,7 @@ span2 f = s f []
 
 data Bag = Bag {bagStack :: CallStack, bagStmts :: [CompStmt]}
 
-instance Eq  Bag where b1 == b2 = bagStack b1 == bagStack b2
+instance Eq  Bag where b1 == b2 = {-# SCC "Bag.==" #-} bagStack b1 == bagStack b2
 instance Ord Bag where compare b1 b2 = cmpStk (bagStack b1) (bagStack b2)
 
 bag :: (CompStmt -> CallStack) -> CompStmt -> Bag
@@ -241,7 +245,14 @@ split (x:xs) = split' [x] xs []
 -- Computation graphs
 
 data Vertex = Root | Vertex {equations :: [CompStmt], status :: Judgement}
-              deriving (Eq,Show,Ord)
+              deriving (Show,Ord)
+
+instance Eq Vertex where 
+  v1 == v2 = {-# SCC "Vertex.==" #-} v1 === v2
+                where Root === Root = True
+                      Root === _    = False
+                      _    === Root = False 
+                      (Vertex ss1 j1) === (Vertex ss2 j2) =  ss1 == ss2 && j1 == j2
 
 type CompGraph = Graph Vertex ()
 
@@ -267,14 +278,14 @@ callDep t c3 = foldl (\as (c2,c1) -> c1 ==> c2 : c2 ==> c3 : as) []
   where src ==> tgt = Arc src tgt ()
 
 mkGraph :: [CompStmt] -> CompGraph
-mkGraph cs = {-# SCC "mkGraph" #-} -- (dagify merge) 
-                                   addRoot
-                                   . toVertices 
-                                   -- . sameThread 
-                                   -- . filterDependsJustOn
-                                   -- . addSequenceDependencies
-                                   . nubArcs
-                                   $ g
+mkGraph cs =  -- (dagify merge) 
+              addRoot
+              . toVertices 
+              -- . sameThread 
+              -- . filterDependsJustOn
+              -- . addSequenceDependencies
+              . nubArcs
+              $ g
   where g :: Graph CompStmt ()
         g = let ts = mkTrees cs in Graph (head' msg cs) cs (pushDeps ts cs ++ callDeps ts cs)
         msg = "mkGraph: No computation statements to construct graph from!"

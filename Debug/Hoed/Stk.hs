@@ -162,7 +162,7 @@ runO' program = {- SCC "runO" -} do
   hPutStrLn stderr $ "b = " ++ show b
 
   hPutStrLn stderr "\n=== Debug session === \n"
-  hPutStrLn stderr (showWithStack eqs)
+  -- hPutStrLn stderr (showWithStack eqs)
   return ct
 
 leafs g = filter (\v -> succs g v == []) (vertices g)
