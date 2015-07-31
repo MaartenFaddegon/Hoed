@@ -146,11 +146,11 @@ traceOnly program = do
 runO :: IO a -> IO ()
 runO program = do
   let slices = [] -- MF TODO: this whole slices business should probably just go?
-  (compGraph,frt,ddt) <- runO' program
-  debugSession slices compGraph ddt frt
+  (trace,traceInfo,compGraph,frt) <- runO' program
+  debugSession slices trace traceInfo compGraph frt
   return ()
 
-runO' :: IO a -> IO (CompTree,EventForest,ConstantTree)
+runO' :: IO a -> IO (Trace,TraceInfo,CompTree,EventForest)
 runO' program = do
   hPutStrLn stderr "=== program output ===\n"
   events <- debugO program
@@ -161,25 +161,16 @@ runO' program = do
 
   let frt  = mkEventForest events
       rs   = filter isRootEvent events
-      ds   = spans (reverse events)
+      ti   = traceInfo (reverse events)
+      ds   = dependencies ti
       ct   = mkCompTree eqs ds
-      ddt  = undefined
 
   -- hPutStrLn stderr "\n=== Events ===\n"
-  -- hPutStrLn stderr $ unlines (map show events)
-  -- writeFile ".HoedEvents" (unlines . map show . reverse $ events)
+  -- hPutStrLn stderr $ unlines (map show . reverse $ events)
+  writeFile ".Hoed/Events" (unlines . map show . reverse $ events)
 
-  -- hPutStrLn stderr "\n=== Result Dependencies ===\n"
-  -- hPutStrLn stderr $ "found " ++ (show . length $ rs) ++ " root events"
-  -- mapM_ (\r -> hPutStrLn stderr $ " - root event " ++ show (eventUID r) ++ " has " 
-  --              ++ (show . length . dfsChildren frt $ r) ++ " child events and "
-  --              ++ (show . length . topLevelApps frt $ r) ++ " toplevel app events"
-  --              ++ ",\nevents: " ++ (unwords . map summarizeEvent . eventsInTree frt $ r) ) rs
-
-  -- hPutStrLn stderr $ "EventForest has " ++ (show . length . concat . elems $ frt) ++ " children."
-  -- hPutStrLn stderr $ "found " ++ (show . length $ cns) ++ " constants"
-  -- hPutStrLn stderr (unlines . map show $ cns )
-  -- hPutStrLn stderr (unlines . map show . arcs $ rdt)
+  -- hPutStrLn stderr "\n=== Dependencies ===\n"
+  -- hPutStrLn stderr $ unlines (map (\(m,n,msg) -> show m ++ " -> " ++ show n ++ " %" ++ msg) ds)
 
   -- hPutStrLn stderr "\n=== Computation Statements ===\n"
   -- hPutStrLn stderr $ show eqs
@@ -193,11 +184,11 @@ runO' program = do
   hPutStrLn stderr $ "e = " ++ show e
   hPutStrLn stderr $ "n = " ++ show n
   hPutStrLn stderr $ "d' = " ++ (show . length $ ds)
-  hPutStrLn stderr $ "d = " ++ show d
+  -- hPutStrLn stderr $ "d = " ++ show d
   hPutStrLn stderr $ "b = " ++ show b
 
   -- hPutStrLn stderr "\n=== Debug Session ===\n"
-  return (ct, frt, ddt)
+  return (events, ti, ct, frt)
 
   where summarizeEvent e = show (eventUID e) ++ ": " ++ summarizeChange (change e)
         summarizeChange (Observe l _ _ _) = show l
@@ -208,8 +199,8 @@ runO' program = do
 
 logO :: FilePath -> IO a -> IO ()
 logO filePath program = {- SCC "logO" -} do
-  (compGraph,_,_) <- runO' program
-  writeFile filePath (showGraph compGraph)
+  (_,_,compTree,_) <- runO' program
+  writeFile filePath (showGraph compTree)
   return ()
 
   where showGraph g        = showWith g showVertex showArc
@@ -222,7 +213,6 @@ logO filePath program = {- SCC "logO" -} do
 hPutStrList :: (Show a) => Handle -> [a] -> IO()
 hPutStrList h []     = hPutStrLn h ""
 hPutStrList h (c:cs) = do {hPutStrLn h (show c); hPutStrList h cs}
-
 
 ------------------------------------------------------------------------
 -- Push mode option handling
@@ -251,11 +241,11 @@ parseArgs (arg:_) = case arg of
 ------------------------------------------------------------------------
 -- Algorithmic Debugging
 
-debugSession :: [(String,String)] -> CompTree -> ConstantTree -> EventForest -> IO ()
-debugSession slices tree ddt frt
+debugSession :: [(String,String)] -> Trace -> TraceInfo -> CompTree -> EventForest -> IO ()
+debugSession slices trace traceInfo tree frt
   = do createDirectoryIfMissing True ".Hoed/wwwroot/css"
        treeRef <- newIORef tree
        startGUI defaultConfig
            { jsPort       = Just 10000
            , jsStatic     = Just "./.Hoed/wwwroot"
-           } (guiMain slices treeRef ddt frt)
+           } (guiMain slices trace traceInfo treeRef frt)

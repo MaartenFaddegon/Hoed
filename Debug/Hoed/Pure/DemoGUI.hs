@@ -18,6 +18,8 @@ import Graphics.UI.Threepenny (startGUI,defaultConfig, Window, UI, (#), (#+), (#
 import System.Process(system)
 import Data.IORef
 import Text.Regex.Posix
+import Data.IntMap (IntMap)
+import qualified Data.IntMap as IntMap
 import Data.List(intersperse,nub,sort,sortBy
 #if __GLASGOW_HASKELL__ >= 710
                 , sortOn
@@ -35,8 +37,8 @@ sortOn' f = sortBy (\x y -> compare (f x) (f y))
 --------------------------------------------------------------------------------
 -- The tabbed layout from which we select the different views
 
-guiMain :: [(String,String)] -> IORef CompTree -> ConstantTree -> EventForest -> Window -> UI ()
-guiMain sliceDict treeRef ddt frt window
+guiMain :: [(String,String)] -> Trace -> TraceInfo -> IORef CompTree ->  EventForest -> Window -> UI ()
+guiMain sliceDict trace traceInfo treeRef frt window
   = do return window # set UI.title "Hoed debugging session"
 
        -- Get a list of vertices from the computation graph
@@ -53,7 +55,7 @@ guiMain sliceDict treeRef ddt frt window
        tab1 <- UI.button # set UI.text "Help"                  # set UI.style activeTab
        tab2 <- UI.button # set UI.text "Observe"               # set UI.style otherTab
        tab3 <- UI.button # set UI.text "Algorithmic debugging" # set UI.style otherTab
-       tab4 <- UI.button # set UI.text "Dynamic data flow"     # set UI.style otherTab
+       tab4 <- UI.button # set UI.text "Events"                # set UI.style otherTab
        tabs <- UI.div    # set UI.style [("background-color","#D3D3D3")]  #+ (map return [tab1,tab2,tab3,tab4])
 
        let coloActive tab = do mapM_ (\t -> t # set UI.style otherTab) [return tab1,return tab2,return tab3,return tab4]; return tab # set UI.style activeTab
@@ -71,9 +73,9 @@ guiMain sliceDict treeRef ddt frt window
             pane <- guiAlgoDeb treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef # set UI.style [("margin-top","0.5em")]
             UI.getBody window # set UI.children [tabs,pane]
        on UI.click tab4 $ \_ -> do
-            coloActive tab4
-            pane <- guiDDT ddt imgCountRef frt currentVertexRef treeRef # set UI.style [("margin-top","0.5em")]
-            UI.getBody window # set UI.children [tabs,pane]
+         coloActive tab4
+         pane <- guiTrace trace traceInfo # set UI.style [("margin-top","0.5em")]
+         UI.getBody window # set UI.children [tabs,pane]
 
        UI.getBody window # set UI.style [("margin","0")] #+ (map return [tabs,help])
        return ()
@@ -95,6 +97,36 @@ guiHelp = UI.div # set UI.style [("margin-left", "20%"),("margin-right", "20%")]
   , UI.h2 # set UI.text "Algorithmic Debugging"
   , UI.p # set UI.text "The trace is translated into a tree of computation statements for the algorithmic debugging view. You can freely browse this tree to get a better understanding of your program. If your program misbehaves, you can judge the computation statements in the tree as right or wrong according to your intention. When enough statements are judged the debugger tells you the location of the fault in your code."
   ] 
+
+
+--------------------------------------------------------------------------------
+-- The page showing the list of events in the trace
+
+guiTrace :: Trace -> TraceInfo -> UI UI.Element
+guiTrace trace traceInfo = do
+  rows <- mapM (\e -> eventRow e traceInfo) (reverse trace)
+  tbl  <- UI.table #+ map return rows
+  UI.span #+ [return tbl]
+
+eventRow :: Event -> TraceInfo -> UI UI.Element
+eventRow e traceInfo = do
+  sign <- UI.td # set UI.text (let sym = case getLocation e traceInfo of True  -> "* "; False -> "o "
+                               in case change e of
+                                    Observe{} -> " "
+                                    Fun{}     -> " "
+                                    Enter{}   -> sym
+                                    Cons{}    -> sym)
+  evnt <- UI.td # set UI.text (show e)
+  msg <- UI.td # set UI.text (getMessage e traceInfo)
+  UI.tr #+ map return [sign,evnt,msg]
+
+getStk :: Event -> TraceInfo -> String
+getStk e traceInfo = case change e of
+  Enter{}  -> case IntMap.lookup (eventUID e) (storedStack traceInfo) of 
+              (Just stk) -> show stk
+              Nothing    -> ""
+  _        -> ""
+
 
 --------------------------------------------------------------------------------
 -- The observe GUI
@@ -331,7 +363,8 @@ noNewlines :: String -> String
 noNewlines = filter (/= '\n')
 
 summarizeVertex :: [Vertex] -> Vertex -> String
-summarizeVertex fs v = shorten (ShorterThan 27) (noNewlines . show . vertexStmt $ v) ++ s
+-- summarizeVertex fs v = shorten (ShorterThan 27) (noNewlines . show . vertexStmt $ v) ++ s
+summarizeVertex fs v = (noNewlines . show . vertexStmt $ v) ++ s
   where s = if v `elem` fs then " !!" else case vertexJmt v of
               Unassessed     -> " ??"
               Wrong          -> " :("
@@ -379,7 +412,8 @@ redraw img imgCountRef treeRef mcv
        return ()
 
   where shw g = showWith g (coloVertex $ faultyVertices g) showArc
-        coloVertex fs v = ( "\"" ++ summarizeVertex fs v ++ "\""
+        coloVertex fs v = ( "\"" ++ (show . vertexUID) v ++ ": "
+                            ++ summarizeVertex fs v ++ "\""
                           , if isCurrentVertex mcv v then "style=filled fillcolor=yellow"
                                                      else ""
                           )
@@ -414,7 +448,7 @@ faultyVertices = findFaulty_dag getStatus
 
 --------------------------------------------------------------------------------
 -- The data flow GUI
-
+{-
 guiDDT :: ConstantTree -> IORef Int -> EventForest -> IORef Int -> IORef CompTree -> UI UI.Element
 guiDDT ddt imgCountRef frt currentVertexRef treeRef = do
   (Graph _ vs _) <- UI.liftIO $ readIORef treeRef
@@ -484,3 +518,5 @@ render frt r = dfsFold Infix pre post "" Trunk (Just r) frt
           Enter             -> id
           NoEnter           -> id
           Fun               -> (++"}")
+
+-}

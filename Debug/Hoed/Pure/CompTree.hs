@@ -20,6 +20,8 @@ import Data.Graph.Libgraph
 import Data.List(nub)
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
+import Data.IntSet (IntSet)
+import qualified Data.IntSet as IntSet
 
 data Vertex = RootVertex | Vertex {vertexStmt :: CompStmt, vertexJmt :: Judgement} 
   deriving (Eq,Show,Ord)
@@ -45,34 +47,27 @@ leafs g = filter (\v -> succs g v == []) (vertices g)
 -- know. With nub we remove the duplicates.
 
 mkCompTree :: [CompStmt] -> [(UID,UID)] -> CompTree
-mkCompTree cs ds = Graph r (r:vs) as
+mkCompTree cs ds = Graph RootVertex (vs) as
 
-  where r  = RootVertex
-        vs = map (\cs -> Vertex cs Unassessed) cs
-        as = map (\(i,j) -> Arc (findVertex i) (findVertex j) ()) (nub ds)
+  where vs = RootVertex : map (\cs -> Vertex cs Unassessed) cs
 
+        as :: [Arc Vertex ()]
+        as  = IntSet.fold (\i -> (:) (Arc RootVertex (findVertex i) ())) as' roots
+        as' = map (\(i,j) -> Arc (findVertex i) (findVertex j) ()) (nub ds)
+
+        roots :: IntSet
+        roots = foldl (\s (_,j) -> IntSet.delete j s) uids ds
+
+        uids :: IntSet
+        uids = foldl (\s (i,j) -> (IntSet.insert i) . (IntSet.insert j) $ s) IntSet.empty ds
+
+        -- A mapping from stmtUID to Vertex of all CompStmts in cs
         vMap :: IntMap Vertex
         vMap = foldl (\m c -> let v = Vertex c Unassessed in foldl (\m' i -> IntMap.insert i v m') m (stmtUIDs c)) IntMap.empty cs
 
+        -- Given an UID, get corresponding CompStmt (wrapped in a Vertex)
         findVertex :: UID -> Vertex
         findVertex (-1) = RootVertex
         findVertex a = case IntMap.lookup a vMap of
-          Nothing  -> error $ "findCompStmt: cannot find a statement with UID " ++ show a
+          Nothing  -> error $ "mkCompTree: cannot find a statement with UID " ++ show a
           (Just v) -> v
-
-        -- findVertex a = case filter (\c -> a `elem` stmtUIDs c) cs of
-        --         []    -> error $ "findCompStmt: cannot find a statement with UID " ++ show a
-        --         (c:_) -> Vertex c Unassessed
-
-
- --Graph r (nub vs) (nub as)
- -- where Graph r vs as = mapGraph findVertex ddt
-
- --       findVertex :: ConstantValue -> Vertex
- --       findVertex CVRoot = RootVertex
- --       findVertex v      = Vertex (findCompStmt cs v) Unassessed
-
-findCompStmt :: [CompStmt] -> ConstantValue -> CompStmt
-findCompStmt cs v = case filter (\c -> valStmt v `elem` stmtUIDs c) cs of
-  []    -> error $ "findCompStmt: cannot find a statement with value '" ++ show v ++ "'"
-  (c:_) -> c

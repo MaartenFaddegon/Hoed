@@ -216,6 +216,7 @@ instance (GObservable a, GObservable b) => GObservable (a :+: b) where
 -- Constants: additional parameters and recursion of kind *
 instance (Observable a) => GObservable (K1 i a) where
         gdmobserver (K1 x) cxt = K1 (observer x cxt)
+        -- gdmobserver (K1 x) cxt = K1 $ (observer_ observer) x cxt
 
         gdmObserveChildren = gthunk
 
@@ -1063,7 +1064,7 @@ data Event = Event
                 , eventParent  :: !Parent
                 , change       :: !Change
                 }
-        deriving (Show, Eq)
+        deriving (Eq)
 
 data Change
         = Observe       !String         !ThreadId        !Int      !Identifier
@@ -1071,18 +1072,26 @@ data Change
         | Enter
         | NoEnter
         | Fun
-        deriving (Show, Eq)
+        deriving (Eq, Show)
+
+type ParentPosition = Int
+
+data Parent = Parent
+        { parentUID      :: !UID            -- my parents UID
+        , parentPosition :: !ParentPosition -- my branch number (e.g. the field of a data constructor)
+        } deriving (Eq)
+
+instance Show Event where
+  show e = (show . eventUID $ e) ++ ": " ++ (show . change $ e) ++ " (" ++ (show . eventParent $ e) ++ ")"
+
+instance Show Parent where
+  show p = "P " ++ (show . parentUID $ p) ++ " " ++ (show . parentPosition $ p)
+
+root = Parent 0 0
 
 data ThreadId = ThreadIdUnknown | ThreadId Concurrent.ThreadId
         deriving (Show,Eq,Ord)
 
-data Parent = Parent
-        { parentUID      :: !UID            -- my parents UID
-        , parentPosition :: !ParentPosition -- my branch number (e.g. the field
-        } deriving (Show, Read, Eq)         -- of a data constructor)
-root = Parent 0 0
-
-type ParentPosition = Int
 
 isRootEvent :: Event -> Bool
 isRootEvent e = case change e of Observe{} -> True; _ -> False

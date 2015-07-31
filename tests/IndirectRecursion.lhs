@@ -12,7 +12,7 @@ following call graph:
                    \_________________^
 
 > {-# LANGUAGE TemplateHaskell, Rank2Types #-}
-> import Debug.Hoed
+> import Debug.Hoed.Pure
 
 > $(observedTypes "f" [])
 > $(observedTypes "g" [])

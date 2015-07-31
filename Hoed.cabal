@@ -45,7 +45,7 @@ library
                        , mtl
                        , directory
   default-language:    Haskell2010
-  ghc-options:         -O
+  ghc-options:         -O -fprof-auto
 
 ---------------------------------------------------------------------------
 --
@@ -363,6 +363,48 @@ Executable hoed-examples-AskName
 -- resulting computation graph to file. Reference files are included in
 -- this repository. To validate execute 'sh test'.
 --
+---------------------------------------------------------------------------
+
+Executable hoed-tests-Generic-r0
+  if flag(validate)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+  else
+    buildable: False
+  main-is:             r0.hs
+  hs-source-dirs:      tests/Generic
+  default-language:    Haskell2010
+
+Executable hoed-tests-Generic-t0
+  if flag(validate)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+  else
+    buildable: False
+  main-is:             t0.hs
+  hs-source-dirs:      tests/Generic
+  default-language:    Haskell2010
+
+Executable hoed-tests-Generic-r1
+  if flag(validate)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+  else
+    buildable: False
+  main-is:             r1.hs
+  hs-source-dirs:      tests/Generic
+  default-language:    Haskell2010
+
+Executable hoed-tests-Generic-t1
+  if flag(validate)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+  else
+    buildable: False
+  main-is:             t1.hs
+  hs-source-dirs:      tests/Generic
+  default-language:    Haskell2010
+
 ---------------------------------------------------------------------------
 
 Executable hoed-tests-DoublingServer

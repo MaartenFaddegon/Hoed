@@ -1,4 +1,4 @@
-import Debug.Hoed
+import Debug.Hoed.Pure
 
 f :: Int -> Int
 f = observe "f" $ \x -> {-# SCC "f" #-} if x > 0 then g x else 0

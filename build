@@ -1,2 +1,3 @@
-# cabal build
-cabal install -p --enable-profiling --enable-library-profiling
+# cabal install
+# cabal install -p --enable-profiling --enable-library-profiling
+cabal build

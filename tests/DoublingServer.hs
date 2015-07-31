@@ -8,7 +8,7 @@ import Network
 import Text.Printf
 import Control.Monad
 import Control.Concurrent
-import Debug.Hoed(observe,Observable(..),logO,send)
+import Debug.Hoed.Pure(observe,Observable(..),logO,send)
 import System.IO.Unsafe
 import Data.List
 

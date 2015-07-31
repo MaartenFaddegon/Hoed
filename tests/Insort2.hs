@@ -4,7 +4,7 @@
 -- As Insort1, but with observe rather than templated observers.
 
 {-# LANGUAGE StandaloneDeriving #-}
-import Debug.Hoed
+import Debug.Hoed.Pure
 
 -- Insertion sort.
 
