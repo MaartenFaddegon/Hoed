@@ -167,12 +167,14 @@ Observing the children of Data types of kind *.
 
 -- Meta: data types
 instance (GObservable a) => GObservable (M1 D d a) where
+        -- gdmobserver m@(M1 x) cxt = let x' = gdmobserver x cxt in x' `seq` M1 x'
         gdmobserver m@(M1 x) cxt = M1 (gdmobserver x cxt)
         gdmObserveChildren = gthunk
         gdmShallowShow = undefined
 
 -- Meta: Constructors
 instance (GObservable a, Constructor c) => GObservable (M1 C c a) where
+        -- gdmobserver m@(M1 x) cxt = let x' = send (gdmShallowShow m) (gdmObserveChildren x) cxt in x' `seq` M1 x'
         gdmobserver m@(M1 x) cxt = M1 (send (gdmShallowShow m) (gdmObserveChildren x) cxt)
         gdmObserveChildren = gthunk
         gdmShallowShow = conName
@@ -184,6 +186,8 @@ instance (GObservable a, Selector s) => GObservable (M1 S s a) where
         gdmobserver m@(M1 x) cxt
           | selName m == "" = M1 (gdmobserver x cxt)
           | otherwise       = M1 (send (selName m ++ " =") (gdmObserveChildren x) cxt)
+          -- | selName m == "" = let x' = gdmobserver x cxt in x' `seq` M1 x'
+          -- | otherwise       = let x' = send (selName m ++ " =") (gdmObserveChildren x) cxt in x' `seq` M1 x'
         gdmObserveChildren = gthunk
         gdmShallowShow = undefined
 
@@ -205,8 +209,11 @@ instance (GObservable a, GObservable b) => GObservable (a :*: b) where
 
 -- Sums: encode choice between constructors
 instance (GObservable a, GObservable b) => GObservable (a :+: b) where
-        gdmobserver (L1 x) cxt = L1 (gdmobserver x cxt)
-        gdmobserver (R1 x) cxt = R1 (gdmobserver x cxt)
+        gdmobserver (L1 x) cxt = let x' = gdmobserver x cxt in x' `seq` L1 x'
+        gdmobserver (R1 x) cxt = let x' = gdmobserver x cxt in x' `seq` R1 x'
+
+        -- gdmobserver (L1 x) cxt = L1 (gdmobserver x cxt)
+        -- gdmobserver (R1 x) cxt = R1 (gdmobserver x cxt)
 
         gdmObserveChildren (R1 x) = do {x' <- gdmObserveChildren x; return (R1 x')}
         gdmObserveChildren (L1 x) = do {x' <- gdmObserveChildren x; return (L1 x')}
@@ -215,8 +222,8 @@ instance (GObservable a, GObservable b) => GObservable (a :+: b) where
 
 -- Constants: additional parameters and recursion of kind *
 instance (Observable a) => GObservable (K1 i a) where
-        gdmobserver (K1 x) cxt = K1 (observer x cxt)
-        -- gdmobserver (K1 x) cxt = K1 $ (observer_ observer) x cxt
+        gdmobserver (K1 x) cxt = K1 $ observer x cxt
+        -- gdmobserver (K1 x) cxt = let x' = observer x cxt in x' `seq` K1 x'
 
         gdmObserveChildren = gthunk
 
@@ -1036,7 +1043,6 @@ sendNoEnterPacket r context = unsafeWithUniq $ \ node ->
 
 evaluate :: a -> IO a
 evaluate a = a `seq` return a
-
 
 sendObserveFnPacket :: ObserverM a -> Parent -> a
 sendObserveFnPacket fn context

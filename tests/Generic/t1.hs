@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 import Debug.Hoed.Pure
 
 data D = D D | C Int 
@@ -5,8 +6,9 @@ data D = D D | C Int
 
 instance Observable D
 
+f :: D -> Int
 f = observe "f" f'
 f' (C x) = x
-f' (D d) = d
+f' (D d) = f d
 
 main = logO "r0" $ print (f (D (C 3)))
