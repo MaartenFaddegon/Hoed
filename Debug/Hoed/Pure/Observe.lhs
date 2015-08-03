@@ -180,8 +180,6 @@ instance (GObservable a, Constructor c) => GObservable (M1 C c a) where
         gdmShallowShow = conName
 
 -- Meta: Selectors
---      | selName m == "" = M1 y
---      | otherwise       = M1 (send (selName m) (return y) cxt)
 instance (GObservable a, Selector s) => GObservable (M1 S s a) where
         gdmobserver m@(M1 x) cxt
           | selName m == "" = M1 (gdmobserver x cxt)
@@ -209,11 +207,11 @@ instance (GObservable a, GObservable b) => GObservable (a :*: b) where
 
 -- Sums: encode choice between constructors
 instance (GObservable a, GObservable b) => GObservable (a :+: b) where
-        gdmobserver (L1 x) cxt = let x' = gdmobserver x cxt in x' `seq` L1 x'
-        gdmobserver (R1 x) cxt = let x' = gdmobserver x cxt in x' `seq` R1 x'
+        -- gdmobserver (L1 x) cxt = let x' = gdmobserver x cxt in x' `seq` L1 x'
+        -- gdmobserver (R1 x) cxt = let x' = gdmobserver x cxt in x' `seq` R1 x'
 
-        -- gdmobserver (L1 x) cxt = L1 (gdmobserver x cxt)
-        -- gdmobserver (R1 x) cxt = R1 (gdmobserver x cxt)
+        gdmobserver (L1 x) cxt = L1 (gdmobserver x cxt)
+        gdmobserver (R1 x) cxt = R1 (gdmobserver x cxt)
 
         gdmObserveChildren (R1 x) = do {x' <- gdmObserveChildren x; return (R1 x')}
         gdmObserveChildren (L1 x) = do {x' <- gdmObserveChildren x; return (L1 x')}
