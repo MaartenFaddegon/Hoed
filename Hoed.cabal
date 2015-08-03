@@ -21,6 +21,10 @@ flag validate
   description: Build validation executables.
   default: False
 
+flag validateGeneric
+  description: Build validation executables to test deriving Observable for Generic types.
+  default: False
+
 library
   exposed-modules:     Debug.Hoed.Stk
                        , Debug.Hoed.Pure
@@ -366,7 +370,7 @@ Executable hoed-examples-AskName
 ---------------------------------------------------------------------------
 
 Executable hoed-tests-Generic-r0
-  if flag(validate)
+  if flag(validateGeneric)
     build-depends:       base >= 4 && < 5
                          , Hoed
   else
@@ -376,7 +380,7 @@ Executable hoed-tests-Generic-r0
   default-language:    Haskell2010
 
 Executable hoed-tests-Generic-t0
-  if flag(validate)
+  if flag(validateGeneric)
     build-depends:       base >= 4 && < 5
                          , Hoed
   else
@@ -386,7 +390,7 @@ Executable hoed-tests-Generic-t0
   default-language:    Haskell2010
 
 Executable hoed-tests-Generic-r1
-  if flag(validate)
+  if flag(validateGeneric)
     build-depends:       base >= 4 && < 5
                          , Hoed
   else
@@ -396,7 +400,7 @@ Executable hoed-tests-Generic-r1
   default-language:    Haskell2010
 
 Executable hoed-tests-Generic-t1
-  if flag(validate)
+  if flag(validateGeneric)
     build-depends:       base >= 4 && < 5
                          , Hoed
   else
@@ -406,7 +410,7 @@ Executable hoed-tests-Generic-t1
   default-language:    Haskell2010
 
 Executable hoed-tests-Generic-r2
-  if flag(validate)
+  if flag(validateGeneric)
     build-depends:       base >= 4 && < 5
                          , Hoed
   else
@@ -416,7 +420,7 @@ Executable hoed-tests-Generic-r2
   default-language:    Haskell2010
 
 Executable hoed-tests-Generic-t2
-  if flag(validate)
+  if flag(validateGeneric)
     build-depends:       base >= 4 && < 5
                          , Hoed
   else

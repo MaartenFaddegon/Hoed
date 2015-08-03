@@ -175,7 +175,9 @@ instance (GObservable a) => GObservable (M1 D d a) where
 -- Meta: Constructors
 instance (GObservable a, Constructor c) => GObservable (M1 C c a) where
         -- gdmobserver m@(M1 x) cxt = let x' = send (gdmShallowShow m) (gdmObserveChildren x) cxt in x' `seq` M1 x'
-        gdmobserver m@(M1 x) cxt = M1 (send (gdmShallowShow m) (gdmObserveChildren x) cxt)
+        -- gdmobserver m@(M1 x) cxt = M1 (send (gdmShallowShow m) (gdmObserveChildren x) cxt)
+        gdmobserver m@(M1 x) cxt = let fn = \c -> send (gdmShallowShow m) c cxt in fn `seq` M1 (fn (gdmObserveChildren x))
+
         gdmObserveChildren = gthunk
         gdmShallowShow = conName
 
@@ -1016,7 +1018,6 @@ send consLabel fn context = unsafeWithUniq $ \ node ->
         ; sendEvent node context (Cons portCount consLabel)
         ; return r
         }
-
 
 sendEnterPacket :: (a -> Parent -> a) -> a -> Parent -> a
 sendEnterPacket f r context = unsafeWithUniq $ \ node ->

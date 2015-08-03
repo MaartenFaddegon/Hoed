@@ -12,4 +12,4 @@
 
 # cabal configure --enable-profiling
 
-cabal configure --flags="validate"
+cabal configure --flags="validateGeneric"
