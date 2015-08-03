@@ -1,0 +1,27 @@
+#!/bin/bash
+
+TESTS="0 1 2"
+
+# Ensure there is a directory to execute in.
+if [ ! -d tests/exe ]; then
+        mkdir tests/exe
+fi
+
+rm -f tests/exe/*
+cd tests/exe
+for n in $TESTS; do
+  for x in r t; do
+    t=${x}${n}
+    eval ../../dist/build/hoed-tests-Generic-${t}/hoed-tests-Generic-${t} &> $t.out
+    mv .Hoed/Events ${t}.Events
+  done
+  diff r${n}.Events t${n}.Events &> ${t}.diff
+  if [ $? -eq 0 ]; then
+    echo -n "[OK"
+  else
+    echo -n "["
+    echo -en '\E[37;31m'"\033[1m!!\033[0m" # red "!!" on white background
+    tput sgr0                              # reset colour
+  fi
+  echo "] Generic.t$n"
+done
