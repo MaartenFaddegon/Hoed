@@ -205,7 +205,7 @@ logO filePath program = {- SCC "logO" -} do
 
   where showGraph g        = showWith g showVertex showArc
         showVertex RootVertex = ("root","")
-        showVertex v       = (showCompStmt v, "")
+        showVertex v       = ("\"" ++ showCompStmt v ++ "\"", "")
         showArc _          = ""
         showCompStmt       = show . vertexStmt
   
