@@ -37,4 +37,4 @@ install:
 script:
  - cabal configure --flags="validateGeneric"
  - cabal build
- - test.Generic
+ - sh test.Generic
