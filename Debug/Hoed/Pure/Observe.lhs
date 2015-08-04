@@ -172,14 +172,6 @@ instance (GObservable a) => GObservable (M1 D d a) where
         gdmObserveChildren = gthunk
         gdmShallowShow = undefined
 
--- Meta: Constructors
-instance (GObservable a, Constructor c) => GObservable (M1 C c a) where
-        -- gdmobserver m@(M1 x) cxt = let x' = send (gdmShallowShow m) (gdmObserveChildren x) cxt in x' `seq` M1 x'
-        -- gdmobserver m@(M1 x) cxt = M1 (send (gdmShallowShow m) (gdmObserveChildren x) cxt)
-        gdmobserver m@(M1 x) cxt = let fn = \c -> send (gdmShallowShow m) c cxt in fn `seq` M1 (fn (gdmObserveChildren x))
-
-        gdmObserveChildren = gthunk
-        gdmShallowShow = conName
 
 -- Meta: Selectors
 instance (GObservable a, Selector s) => GObservable (M1 S s a) where
@@ -191,10 +183,27 @@ instance (GObservable a, Selector s) => GObservable (M1 S s a) where
         gdmObserveChildren = gthunk
         gdmShallowShow = undefined
 
+-- Meta: Constructors
+instance (GObservable a, Constructor c) => GObservable (M1 C c a) where
+        -- gdmobserver m@(M1 x) cxt = let x' = send (gdmShallowShow m) (gdmObserveChildren x) cxt in x' `seq` M1 x'
+        gdmobserver m@(M1 x) cxt = M1 (send (gdmShallowShow m) (gdmObserveChildren x) cxt)
+        -- gdmobserver m@(M1 x) cxt = let fn = \c -> send (gdmShallowShow m) c cxt in fn `seq` M1 (fn (gdmObserveChildren x))
+
+        gdmObserveChildren = gthunk
+        gdmShallowShow = conName
+
 -- Unit: used for constructors without arguments
 instance GObservable U1 where
         gdmobserver x _ = x
         gdmObserveChildren = return
+        gdmShallowShow = undefined
+
+-- Sums: encode choice between constructors
+instance (GObservable a, GObservable b) => GObservable (a :+: b) where
+        gdmobserver (L1 x) = send (gdmShallowShow x) (gdmObserveChildren $ L1 x)
+        gdmobserver (R1 x) = send (gdmShallowShow x) (gdmObserveChildren $ R1 x)
+        gdmObserveChildren (L1 x) = do {x' <- gdmObserveChildren x; return (L1 x')}
+        gdmObserveChildren (R1 x) = do {x' <- gdmObserveChildren x; return (R1 x')}
         gdmShallowShow = undefined
 
 -- Products: encode multiple arguments to constructors
@@ -205,19 +214,6 @@ instance (GObservable a, GObservable b) => GObservable (a :*: b) where
                                           b'  <- gdmObserveChildren b
                                           return (a' :*: b')
                                        
-        gdmShallowShow = undefined
-
--- Sums: encode choice between constructors
-instance (GObservable a, GObservable b) => GObservable (a :+: b) where
-        -- gdmobserver (L1 x) cxt = let x' = gdmobserver x cxt in x' `seq` L1 x'
-        -- gdmobserver (R1 x) cxt = let x' = gdmobserver x cxt in x' `seq` R1 x'
-
-        gdmobserver (L1 x) cxt = L1 (gdmobserver x cxt)
-        gdmobserver (R1 x) cxt = R1 (gdmobserver x cxt)
-
-        gdmObserveChildren (R1 x) = do {x' <- gdmObserveChildren x; return (R1 x')}
-        gdmObserveChildren (L1 x) = do {x' <- gdmObserveChildren x; return (L1 x')}
-
         gdmShallowShow = undefined
 
 -- Constants: additional parameters and recursion of kind *
