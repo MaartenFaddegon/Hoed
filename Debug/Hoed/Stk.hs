@@ -175,13 +175,16 @@ logO filePath program = {- SCC "logO" -} do
 
   where showGraph g        = showWith g showVertex showArc
         showVertex Root    = ("root","")
-        showVertex v       = (showCompStmts v ++ "\nwith stack "
-                              ++ (show . equStack . head . equations $ v), "")
+        showVertex v       = ("\"" ++ showCompStmts v ++ "\nwith stack "
+                              ++ (showStk . equStack . head . equations $ v) ++ "\"", "")
         showArc _          = ""
         showCompStmts      = showCompStmts' . equations
         showCompStmts' [e] = show e
         showCompStmts' es  = foldl (\acc e-> acc ++ show e ++ ", ") "{" (init es) 
                              ++ show (last es) ++ "}"
+        showStk []         = "[]"
+        showStk stk        = showStk' $ map (\lbl -> "\\\"" ++ lbl ++ "\\\"") stk
+        showStk' (h:lbls)  = foldl (\lbl acc -> ',' : lbl ++ acc) ('[' : h) lbls ++ "]"
 
   
 

@@ -1,5 +1,5 @@
 > {-# LANGUAGE TemplateHaskell, Rank2Types #-}
-> import Debug.Hoed.Pure
+> import Debug.Hoed.Stk
 
 > $(observedTypes "k" [])
 > $(observedTypes "l" [])
@@ -7,7 +7,7 @@
 > $(observedTypes "n" [])
 
 
-> main = logO "hoed-tests-Example3.graph" $ print (k 1)
+> main = logO "hoed-tests-Stk-Example3.graph" $ print (k 1)
 
 > k :: Int -> Int
 > k  x = $(observeTempl "k") k' x

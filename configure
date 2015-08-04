@@ -10,6 +10,6 @@
 
 #cabal configure --enable-profiling --disable-optimization
 
-# cabal configure --enable-profiling
+cabal configure --enable-profiling --flags="validateGeneric validate"
 
-cabal configure --flags="validateGeneric"
+# cabal configure --flags="validateGeneric validate"

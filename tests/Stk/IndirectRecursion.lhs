@@ -12,7 +12,7 @@ following call graph:
                    \_________________^
 
 > {-# LANGUAGE TemplateHaskell, Rank2Types #-}
-> import Debug.Hoed.Pure
+> import Debug.Hoed.Stk
 
 > $(observedTypes "f" [])
 > $(observedTypes "g" [])
@@ -34,4 +34,4 @@ following call graph:
 > h'  x = {-# SCC "h" #-} h'' x
 > h'' x = (x+1)
 
-> main = logO "hoed-tests-IndirectRecursion.graph" $ print (f 1)
+> main = logO "hoed-tests-Stk-IndirectRecursion.graph" $ print (f 1)

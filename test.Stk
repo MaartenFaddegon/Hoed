@@ -1,6 +1,7 @@
 #!/bin/bash
 
-TESTS=`ls dist/build | grep hoed-tests`
+TESTS=`ls dist/build | grep hoed-tests-Stk`
+FAIL=0
 
 # Ensure there is a directory to execute in.
 if [ ! -d tests/exe ]; then
@@ -15,9 +16,12 @@ for t in $TESTS; do
   if [ $? -eq 0 ]; then
     echo "[OK] $t"
   else
+    FAIL=1
     echo -n "["
     echo -en '\E[37;31m'"\033[1m!!\033[0m" # red "!!" on white background
     tput sgr0                              # reset colour
     echo "] $t"
   fi
 done
+
+exit $FAIL

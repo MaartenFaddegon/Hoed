@@ -1,14 +1,12 @@
 -- Based on the TrivialServer-example from Marlow, Parallel and Concurrent
 -- Programming in Haskell
 
-{-# LANGUAGE StandaloneDeriving #-}
-
 import System.IO
 import Network
 import Text.Printf
 import Control.Monad
 import Control.Concurrent
-import Debug.Hoed.Pure(observe,Observable(..),logO,send)
+import Debug.Hoed.Stk(observe,Observable(..),logO,send)
 import System.IO.Unsafe
 import Data.List
 
@@ -62,7 +60,7 @@ client x = do
   s <- hGetLine h; pr s -- Get and print response from server
 
 main :: IO ()
-main = logO "hoed-tests-DoublingServer.graph" $ withSocketsDo $ do
+main = logO "hoed-tests-Stk-DoublingServer.graph" $ withSocketsDo $ do
   sock <- listenOn (PortNumber (fromIntegral port))
   printf "server: Listening on port %d.\n" port
   forkIO (server 2 sock) -- Start server in own thread.

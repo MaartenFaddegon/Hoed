@@ -4,7 +4,7 @@
 -- As Insort1, but with observe rather than templated observers.
 
 {-# LANGUAGE StandaloneDeriving #-}
-import Debug.Hoed.Pure
+import Debug.Hoed.Stk
 
 -- Insertion sort.
 
@@ -23,7 +23,7 @@ insert' n (m:ms)
       | n <= m    = n : ms -- bug: `m' is missing in this case
       | otherwise = m : (insert n ms)
 
-main = logO "hoed-tests-Insort2.graph" . print $
+main = logO "hoed-tests-Stk-Insort2.graph" . print $
          (observe "result") ({-# SCC "result" #-} isort [1,2])
 
 -- Slices, these should be generated automatically from the original code.
