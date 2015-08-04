@@ -1,6 +1,7 @@
 #!/bin/bash
 
 TESTS="0 1 2"
+FAIL=0
 
 # Ensure there is a directory to execute in.
 if [ ! -d tests/exe ]; then
@@ -19,9 +20,12 @@ for n in $TESTS; do
   if [ $? -eq 0 ]; then
     echo -n "[OK"
   else
+    FAIL=1
     echo -n "["
     echo -en '\E[37;31m'"\033[1m!!\033[0m" # red "!!" on white background
     tput sgr0                              # reset colour
   fi
   echo "] Generic.t$n"
 done
+
+exit $FAIL
