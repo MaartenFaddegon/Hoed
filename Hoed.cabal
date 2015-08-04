@@ -17,12 +17,12 @@ flag buildExamples
   description: Build example executables.
   default: False
 
-flag validate
-  description: Build validation executables.
+flag validateStk
+  description: Build test cases to validate Hoed-pure.
   default: False
 
 flag validateGeneric
-  description: Build validation executables to test deriving Observable for Generic types.
+  description: Build test cases to validate deriving Observable for Generic types.
   default: False
 
 library
@@ -432,7 +432,7 @@ Executable hoed-tests-Generic-t2
 ---------------------------------------------------------------------------
 
 Executable hoed-tests-Stk-DoublingServer
-  if flag(validate)
+  if flag(validateStk)
     build-depends:       base >= 4 && < 5
                          , Hoed
                          , threepenny-gui
@@ -446,7 +446,7 @@ Executable hoed-tests-Stk-DoublingServer
   ghc-options:         -O0
 
 Executable hoed-tests-Stk-Insort2
-  if flag(validate)
+  if flag(validateStk)
     build-depends:       base >= 4 && < 5
                          , Hoed
                          , threepenny-gui
@@ -459,7 +459,7 @@ Executable hoed-tests-Stk-Insort2
   ghc-options:         -O0
 
 Executable hoed-tests-Stk-Example1
-  if flag(validate)
+  if flag(validateStk)
     build-depends:       base >= 4 && < 5
                          , Hoed
                          , threepenny-gui
@@ -472,7 +472,7 @@ Executable hoed-tests-Stk-Example1
   ghc-options:         -O0
 
 Executable hoed-tests-Stk-Example3
-  if flag(validate)
+  if flag(validateStk)
     build-depends:       base >= 4 && < 5
                          , Hoed
                          , threepenny-gui
@@ -485,7 +485,7 @@ Executable hoed-tests-Stk-Example3
   ghc-options:         -O0
 
 Executable hoed-tests-Stk-Example4
-  if flag(validate)
+  if flag(validateStk)
     build-depends:       base >= 4 && < 5
                          , Hoed
                          , threepenny-gui
@@ -498,7 +498,7 @@ Executable hoed-tests-Stk-Example4
   ghc-options:         -O0
 
 Executable hoed-tests-Stk-IndirectRecursion
-  if flag(validate)
+  if flag(validateStk)
     build-depends:       base >= 4 && < 5
                          , Hoed
                          , threepenny-gui
