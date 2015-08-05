@@ -278,8 +278,8 @@ callDep t c3 = foldl (\as (c2,c1) -> c1 ==> c2 : c2 ==> c3 : as) []
   where src ==> tgt = Arc src tgt ()
 
 mkGraph :: [CompStmt] -> CompGraph
-mkGraph cs =  -- (dagify merge) 
-              addRoot
+mkGraph cs =  (dagify merge)
+              . addRoot
               . toVertices 
               -- . sameThread 
               -- . filterDependsJustOn

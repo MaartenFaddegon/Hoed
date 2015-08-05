@@ -184,9 +184,7 @@ logO filePath program = {- SCC "logO" -} do
                              ++ show (last es) ++ "}"
         showStk []         = "[]"
         showStk stk        = showStk' $ map (\lbl -> "\\\"" ++ lbl ++ "\\\"") stk
-        showStk' (h:lbls)  = foldl (\lbl acc -> ',' : lbl ++ acc) ('[' : h) lbls ++ "]"
-
-  
+        showStk' (h:lbls)  = foldl (\lbl acc -> lbl ++ (',' : acc)) ('[' : h) lbls ++ "]"
 
 hPutStrList :: (Show a) => Handle -> [a] -> IO()
 hPutStrList h []     = hPutStrLn h ""

@@ -3,6 +3,9 @@
 TESTS="0 1 2"
 FAIL=0
 
+echo "Testing events produced for Observable derived for Generic types"
+echo
+
 # Ensure there is a directory to execute in.
 if [ ! -d tests/exe ]; then
         mkdir tests/exe

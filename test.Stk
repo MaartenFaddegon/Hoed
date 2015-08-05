@@ -3,6 +3,9 @@
 TESTS=`ls dist/build | grep hoed-tests-Stk`
 FAIL=0
 
+echo "Testing Hoed-stk"
+echo
+
 # Ensure there is a directory to execute in.
 if [ ! -d tests/exe ]; then
         mkdir tests/exe
