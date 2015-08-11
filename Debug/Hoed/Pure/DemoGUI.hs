@@ -36,8 +36,8 @@ sortOn' f = sortBy (\x y -> compare (f x) (f y))
 --------------------------------------------------------------------------------
 -- The tabbed layout from which we select the different views
 
-guiMain :: [(String,String)] -> Trace -> TraceInfo -> IORef CompTree ->  EventForest -> Window -> UI ()
-guiMain sliceDict trace traceInfo treeRef frt window
+guiMain :: Trace -> TraceInfo -> IORef CompTree ->  EventForest -> Window -> UI ()
+guiMain trace traceInfo treeRef frt window
   = do return window # set UI.title "Hoed debugging session"
 
        -- Get a list of vertices from the computation graph

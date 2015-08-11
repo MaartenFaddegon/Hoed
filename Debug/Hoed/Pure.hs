@@ -75,11 +75,11 @@ import qualified Prelude
 import System.IO
 import Data.Maybe
 import Control.Monad
--- import Data.Array as Array
 import Data.List
 import Data.Ord
 import Data.Char
 import System.Environment
+import System.Directory(createDirectoryIfMissing)
 
 import Language.Haskell.TH
 import GHC.Generics
@@ -144,9 +144,9 @@ traceOnly program = do
 
 runO :: IO a -> IO ()
 runO program = do
-  let slices = [] -- MF TODO: this whole slices business should probably just go?
+  createDirectoryIfMissing True ".Hoed/"
   (trace,traceInfo,compGraph,frt) <- runO' program
-  debugSession slices trace traceInfo compGraph frt
+  debugSession trace traceInfo compGraph frt
   return ()
 
 runO' :: IO a -> IO (Trace,TraceInfo,CompTree,EventForest)
@@ -240,11 +240,11 @@ parseArgs (arg:_) = case arg of
 ------------------------------------------------------------------------
 -- Algorithmic Debugging
 
-debugSession :: [(String,String)] -> Trace -> TraceInfo -> CompTree -> EventForest -> IO ()
-debugSession slices trace traceInfo tree frt
+debugSession :: Trace -> TraceInfo -> CompTree -> EventForest -> IO ()
+debugSession trace traceInfo tree frt
   = do createDirectoryIfMissing True ".Hoed/wwwroot/css"
        treeRef <- newIORef tree
        startGUI defaultConfig
            { jsPort       = Just 10000
            , jsStatic     = Just "./.Hoed/wwwroot"
-           } (guiMain slices trace traceInfo treeRef frt)
+           } (guiMain trace traceInfo treeRef frt)
