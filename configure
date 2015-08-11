@@ -1,7 +1,0 @@
-# cabal configure --flags="validateGeneric"
-
-# cabal configure --enable-profiling --disable-optimization  --flags="validateStk"
-
-cabal configure --flags="validatePure"
-
-# cabal configure --enable-profiling --disable-optimization  --flags="validateStk validateGeneric validatePure"

@@ -1,0 +1,1 @@
+cabal configure --flags="validateGeneric"

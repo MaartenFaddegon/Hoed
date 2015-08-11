@@ -1,0 +1,9 @@
+CABAL_VER=`cabal --numeric-version | sed 's/\./ /g'`
+MAJOR=`echo $CABAL_VER | awk '{print $1}'`
+MINOR=`echo $CABAL_VER | awk '{print $2}'`
+
+if (("$MAJOR" <= "1")) && (("$MINOR" < "22")); then
+  cabal configure --enable-executable-profiling --disable-optimization  --flags="validateStk"
+else
+  cabal configure --enable-profiling --disable-optimization  --flags="validateStk"
+fi

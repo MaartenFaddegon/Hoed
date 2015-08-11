@@ -26,21 +26,16 @@ install:
 # command which exits with a non-zero exit code causes the build to fail.
 script:
  # Test deriving Observable for Generic types
- - cabal configure --flags="validateGeneric"
+ - sh configure.Generic
  - cabal build
  - sh test.Generic
  # Test deriving a Computation Tree using the Cost Centre Stack
  - cabal clean
- - |
-   if [ "$CABAL_VER" = "1.22" ]
-     cabal configure --enable-profiling --disable-optimization  --flags="validateStk"
-   else
-     cabal configure --enable-executable-profiling --disable-optimization  --flags="validateStk"
-   fi
+ - sh configure.Stk
  - cabal build
  - sh test.Stk
  # Test deriving a Computation Tree using the order of the list of Event
  - cabal clean
- - cabal configure --flags="validatePure"
+ - sh configure.Pure
  - cabal build
  - sh test.Pure
