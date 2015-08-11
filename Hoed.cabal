@@ -37,7 +37,6 @@ library
                        , Debug.Hoed.Stk.DemoGUI
                        , Debug.Hoed.Pure.Observe
                        , Debug.Hoed.Pure.EventForest
-                       , Debug.Hoed.Pure.DataDep
                        , Debug.Hoed.Pure.CompTree
                        , Debug.Hoed.Pure.Render
                        , Debug.Hoed.Pure.DemoGUI

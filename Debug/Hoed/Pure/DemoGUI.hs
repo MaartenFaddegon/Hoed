@@ -9,7 +9,6 @@ where
 import Prelude hiding(Right)
 import Debug.Hoed.Pure.Render
 import Debug.Hoed.Pure.CompTree
-import Debug.Hoed.Pure.DataDep
 import Debug.Hoed.Pure.EventForest
 import Debug.Hoed.Pure.Observe
 import Data.Graph.Libgraph
