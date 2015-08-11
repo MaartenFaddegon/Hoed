@@ -52,14 +52,15 @@ mkCompTree cs ds = Graph RootVertex (vs) as
   where vs = RootVertex : map (\cs -> Vertex cs Unassessed) cs
 
         as :: [Arc Vertex ()]
-        as  = IntSet.fold (\i -> (:) (Arc RootVertex (findVertex i) ())) as' roots
-        as' = map (\(i,j) -> Arc (findVertex i) (findVertex j) ()) (nub ds)
+        -- as  = IntSet.fold (\i -> (:) (Arc RootVertex (findVertex i) ())) as' roots
+        -- as' = map (\(i,j) -> Arc (findVertex i) (findVertex j) ()) (nub ds)
+        as = map (\(i,j) -> Arc (findVertex i) (findVertex j) ()) (nub ds)
 
-        roots :: IntSet
-        roots = foldl (\s (_,j) -> IntSet.delete j s) uids ds
+        -- roots :: IntSet
+        -- roots = foldl (\s (_,j) -> IntSet.delete j s) uids ds
 
-        uids :: IntSet
-        uids = foldl (\s (i,j) -> (IntSet.insert i) . (IntSet.insert j) $ s) IntSet.empty ds
+        -- uids :: IntSet
+        -- uids = foldl (\s (i,j) -> (IntSet.insert i) . (IntSet.insert j) $ s) IntSet.empty ds
 
         -- A mapping from stmtUID to Vertex of all CompStmts in cs
         vMap :: IntMap Vertex

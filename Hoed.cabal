@@ -17,8 +17,12 @@ flag buildExamples
   description: Build example executables.
   default: False
 
-flag validateStk
+flag validatePure
   description: Build test cases to validate Hoed-pure.
+  default: False
+
+flag validateStk
+  description: Build test cases to validate Hoed-stk.
   default: False
 
 flag validateGeneric
@@ -427,6 +431,17 @@ Executable hoed-tests-Generic-t2
     buildable: False
   main-is:             t2.hs
   hs-source-dirs:      tests/Generic
+  default-language:    Haskell2010
+
+---------------------------------------------------------------------------
+
+Executable hoed-tests-Pure-t1
+  if flag(validatePure)
+    build-depends:       base >= 4 && < 5, Hoed
+  else
+    buildable: False
+  main-is:             t1.hs
+  hs-source-dirs:      tests/Pure
   default-language:    Haskell2010
 
 ---------------------------------------------------------------------------

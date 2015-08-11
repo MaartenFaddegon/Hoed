@@ -188,7 +188,7 @@ addDependency e s = m s{dependencies = case d of (Just d') -> d':dependencies s;
 
   where d = case activeComputations s of
               []       -> Nothing
-              [n]      -> Nothing
+              [n]      -> Just (-1,n)  -- top-level function detected (may later add dependency from Root)
               (n:m:_)  -> Just (m,n)
 
         m = case d of
