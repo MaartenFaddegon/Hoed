@@ -31,16 +31,16 @@ install:
 # command which exits with a non-zero exit code causes the build to fail.
 script:
  # Test deriving Observable for Generic types
- - bash configure.Generic
+ - bash -x configure.Generic
  - cabal build
  - bash test.Generic
  # Test deriving a Computation Tree using the Cost Centre Stack
  - cabal clean
- - bash configure.Stk
+ - bash -x configure.Stk
  - cabal build
  - bash test.Stk
  # Test deriving a Computation Tree using the order of the list of Event
  - cabal clean
- - bash configure.Pure
+ - bash -x configure.Pure
  - cabal build
  - bash test.Pure
