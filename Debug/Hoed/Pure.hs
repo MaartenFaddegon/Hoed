@@ -144,13 +144,13 @@ traceOnly program = do
 
 runO :: IO a -> IO ()
 runO program = do
-  createDirectoryIfMissing True ".Hoed/"
   (trace,traceInfo,compGraph,frt) <- runO' program
   debugSession trace traceInfo compGraph frt
   return ()
 
 runO' :: IO a -> IO (Trace,TraceInfo,CompTree,EventForest)
 runO' program = do
+  createDirectoryIfMissing True ".Hoed/"
   hPutStrLn stderr "=== program output ===\n"
   events <- debugO program
   let cdss = eventsToCDS events
