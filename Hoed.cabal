@@ -443,6 +443,15 @@ Executable hoed-tests-Pure-t1
   hs-source-dirs:      tests/Pure
   default-language:    Haskell2010
 
+Executable hoed-tests-Pure-t2
+  if flag(validatePure)
+    build-depends:       base >= 4 && < 5, Hoed
+  else
+    buildable: False
+  main-is:             t2.hs
+  hs-source-dirs:      tests/Pure
+  default-language:    Haskell2010
+
 ---------------------------------------------------------------------------
 
 Executable hoed-tests-Stk-DoublingServer
