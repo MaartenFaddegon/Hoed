@@ -1,0 +1,14 @@
+diGraph G {
+v0[shape=none label="."]
+v5 [label="insert 2 []  = 2 : []"]
+v4 [label="insert 1 (2 : [])  = 1 : []"]
+v3 [label="isort []  = []"]
+v2 [label="isort (2 : [])  = 2 : []"]
+v1 [label="isort (1 : 2 : [])  = 1 : []"]
+v0[shape=none label="."]
+v0 -> v1 [label=""]
+v1 -> v4 [label=""]
+v1 -> v2 [label=""]
+v2 -> v5 [label=""]
+v2 -> v3 [label=""]
+}
