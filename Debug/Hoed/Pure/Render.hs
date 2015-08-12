@@ -46,11 +46,8 @@ sortOn' f = sortBy (\x y -> compare (f x) (f y))
 -- UIDs of all events that form the statement.
 
 data CompStmt = CompStmt { stmtLabel      :: String
-                         , stmtThreadId   :: ThreadId
                          , stmtIdentifier :: UID
-                         , stmtDependsOn  :: Identifier
                          , stmtRes        :: String
-                         -- , stmtUIDs       :: [UID]
                          }
                 deriving (Eq, Ord)
 
@@ -67,16 +64,17 @@ renderCompStmts = foldl (\acc set -> acc ++ renderCompStmt set) []
 
 -- renderCompStmt: an observed function can be applied multiple times, each application
 -- is rendered to a computation statement
---
--- MF TODO: the uids is not quite right here when the set renders to multiple statements
+
 renderCompStmt :: CDS -> [CompStmt]
-renderCompStmt (CDSNamed name threadId identifier dependsOn set uids')
+renderCompStmt (CDSNamed name threadId dependsOn set uids')
   = map mkStmt statements
   where statements :: [(String,UID)]
         statements   = map (\(d,i) -> (pretty 120 d,i)) doc
         doc          = foldl (\a b -> a ++ renderNamedTop name b) [] output
         output       = cdssToOutput set
-        mkStmt (s,i) = CompStmt name threadId i dependsOn s
+
+        mkStmt :: (String,UID) -> CompStmt
+        mkStmt (s,i) = CompStmt name i s
 
 renderNamedTop :: String -> Output -> [(DOC,UID)]
 renderNamedTop name (OutData cds)
@@ -98,7 +96,7 @@ renderNamedTop name (OutData cds)
 -- %************************************************************************
 
 
-data CDS = CDSNamed      String ThreadId UID Identifier CDSSet [UID]
+data CDS = CDSNamed      String ThreadId UID CDSSet [UID]
          | CDSCons       UID    String   [CDSSet]
          | CDSFun        UID             CDSSet CDSSet
          | CDSEntered    UID
@@ -131,8 +129,8 @@ eventsToCDS pairs = getChild 0 0
      getNode'' ::  Int -> Event -> Change -> CDS
      getNode'' node e change =
        case change of
-        (Observe str t i d) -> let chd = getChild node 0
-                               in CDSNamed str t (getId chd i) d chd (treeUIDs frt e)
+        (Observe str t i) -> let chd = getChild node 0
+                               in CDSNamed str t (getId chd i) chd (treeUIDs frt e)
         (Enter)             -> CDSEntered node
         (NoEnter)           -> CDSTerminated node
         Fun                 -> CDSFun node (getChild node 0) (getChild node 1)
@@ -237,7 +235,7 @@ renderTop (OutLabel str set extras) =
                 <> renderTops extras) <> line
 
 rmEntry :: CDS -> CDS
-rmEntry (CDSNamed str t i d set us)= CDSNamed str t i d (rmEntrySet set) us
+rmEntry (CDSNamed str t i set us)= CDSNamed str t i (rmEntrySet set) us
 rmEntry (CDSCons i str sets)       = CDSCons i str (map rmEntrySet sets)
 rmEntry (CDSFun i a b)             = CDSFun i (rmEntrySet a) (rmEntrySet b)
 rmEntry (CDSTerminated i)          = CDSTerminated i
@@ -249,7 +247,7 @@ rmEntrySet = map rmEntry . filter noEntered
         noEntered _              = True
 
 simplifyCDS :: CDS -> CDS
-simplifyCDS (CDSNamed str t i d set us) = CDSNamed str t i d (simplifyCDSSet set) us
+simplifyCDS (CDSNamed str t i set us) = CDSNamed str t i (simplifyCDSSet set) us
 simplifyCDS (CDSCons _ "throw" 
                   [[CDSCons _ "ErrorCall" set]]
             ) = simplifyCDS (CDSCons 0 "error" set)
@@ -299,7 +297,7 @@ commonOutput = sortBy byLabel
 cdssToOutput :: CDSSet -> [Output]
 cdssToOutput =  map cdsToOutput
 
-cdsToOutput (CDSNamed name _ _ _ cdsset _)
+cdsToOutput (CDSNamed name _ _ cdsset _)
             = OutLabel name res1 res2
   where
       res1 = [ cdss | (OutData cdss) <- res ]

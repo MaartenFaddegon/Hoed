@@ -44,9 +44,6 @@ module Debug.Hoed.Pure
   , observeTempl
   , observedTypes
   , observeCC
-  , observe'
-  , Identifier(..)
-  ,(*>>=),(>>==),(>>=*)
   , logO
 
    -- * The Observable class
@@ -190,9 +187,9 @@ runO' program = do
   return (events, ti, ct, frt)
 
   where summarizeEvent e = show (eventUID e) ++ ": " ++ summarizeChange (change e)
-        summarizeChange (Observe l _ _ _) = show l
-        summarizeChange (Cons _ c)        = show c
-        summarizeChange c                 = show c
+        summarizeChange (Observe l _ _) = show l
+        summarizeChange (Cons _ c)      = show c
+        summarizeChange c               = show c
         showJ (Just s) = show s
         showJ Nothing  = "??"
 

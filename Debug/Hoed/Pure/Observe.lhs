@@ -49,7 +49,6 @@ module Debug.Hoed.Pure.Observe
   
     observeTempl
   , observe
-  , observe'
   , observeCC
   , Observer(..)   -- contains a 'forall' typed observe (if supported).
   -- , Observing      -- a -> a
@@ -57,7 +56,6 @@ module Debug.Hoed.Pure.Observe
 
    -- * For advanced users, that want to render their own datatypes.
   , (<<)           -- (Observable a) => ObserverM (a -> b) -> a -> ObserverM b
-  ,(*>>=),(>>==),(>>=*)
   , thunk          -- (Observable a) => a -> ObserverM a        
   , nothunk
   , send
@@ -72,7 +70,6 @@ module Debug.Hoed.Pure.Observe
   , UID
   , ParentPosition
   , ThreadId(..)
-  , Identifier(..)
   , isRootEvent
   , initUniq
   , startEventStream
@@ -251,7 +248,7 @@ observeTempl :: String -> Q Exp
 observeTempl s = do n  <- methodName s
                     let f  = return $ VarE n
                         s' = stringE s
-                    [| (\x-> fst (gobserve $f DoNotTraceThreadId UnknownId $s' x)) |]
+                    [| (\x-> fst (gobserve $f DoNotTraceThreadId $s' x)) |]
 \end{code}
 
 Generate class definition and class instances for list of types.
@@ -905,8 +902,8 @@ Our principle function and class
 -- 'observe' can also observe functions as well a structural values.
 -- 
 {-# NOINLINE gobserve #-}
-gobserve :: (a->Parent->a) -> TraceThreadId -> Identifier -> String -> a -> (a,Int)
-gobserve f tti d name a = generateContext f tti d name a
+gobserve :: (a->Parent->a) -> TraceThreadId -> String -> a -> (a,Int)
+gobserve f tti name a = generateContext f tti name a
 
 {- | 
 Functions which you suspect of misbehaving are annotated with observe and
@@ -939,19 +936,11 @@ an Observable instance can be derived as follows:
 -}
 {-# NOINLINE observe #-}
 observe ::  (Observable a) => String -> a -> a
-observe lbl = fst . (gobserve observer DoNotTraceThreadId UnknownId lbl)
+observe lbl = fst . (gobserve observer DoNotTraceThreadId lbl)
 
 {-# NOINLINE observeCC #-}
 observeCC ::  (Observable a) => String -> a -> a
-observeCC lbl = fst . (gobserve observer TraceThreadId UnknownId lbl)
-
-data Identifier = UnknownId | DependsJustOn Int | InSequenceAfter Int
-     deriving (Show, Eq, Ord)
-
-{-# NOINLINE observe' #-}
-observe' :: (Observable a) => String -> Identifier -> a -> (a,Int)
-observe' lbl d x = let (y,i) = (gobserve observer DoNotTraceThreadId d lbl) x
-                      in  (y, i)
+observeCC lbl = fst . (gobserve observer TraceThreadId lbl)
 
 {- This gets called before observer, allowing us to mark
  - we are entering a, before we do case analysis on
@@ -984,10 +973,10 @@ unsafeWithUniq fn
 \begin{code}
 data TraceThreadId = TraceThreadId | DoNotTraceThreadId
 
-generateContext :: (a->Parent->a) -> TraceThreadId -> Identifier -> String -> a -> (a,Int)
-generateContext f tti d label orig = unsafeWithUniq $ \ node ->
+generateContext :: (a->Parent->a) -> TraceThreadId -> String -> a -> (a,Int)
+generateContext f tti label orig = unsafeWithUniq $ \node ->
      do { t <- myThreadId
-        ; sendEvent node (Parent 0 0) (Observe label t node d)
+        ; sendEvent node (Parent 0 0) (Observe label t node)
         ; return (observer_ f orig (Parent
                         { parentUID      = node
                         , parentPosition = 0
@@ -1059,7 +1048,7 @@ data Event = Event
         deriving (Eq)
 
 data Change
-        = Observe       !String         !ThreadId        !Int      !Identifier
+        = Observe       !String         !ThreadId        !Int
         | Cons    !Int  !String
         | Enter
         | NoEnter
@@ -1201,14 +1190,3 @@ handleExc context exc = return (send "throw" (return throw << exc) context)
 \end{code}
 
 %************************************************************************
-
-\begin{code}
-(*>>=) :: Monad m => m a -> (Identifier -> (a -> m b, Int)) -> (m b, Identifier)
-x *>>= f = let (g,i) = f UnknownId in (x >>= g,InSequenceAfter i)
-
-(>>==) :: Monad m => (m a, Identifier) -> (Identifier -> (a -> m b, Int)) -> (m b, Identifier)
-(x,d) >>== f = let (g,i) = f d in (x >>= g,InSequenceAfter i)
-
-(>>=*) :: Monad m => (m a, Identifier) -> (Identifier -> (a -> m b, Int)) -> m b
-(x,d) >>=* f = let (g,i) = f d in x >>= g
-\end{code}
