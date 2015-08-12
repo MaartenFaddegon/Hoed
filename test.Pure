@@ -15,6 +15,7 @@ rm -f tests/exe/*
 cd tests/exe
 for t in $TESTS; do
   eval ../../dist/build/$t/$t &> $t.out
+  mv .Hoed/Events ${t}.Events
   diff $t.graph ../ref/$t.graph &> $t.diff
   if [ $? -eq 0 ]; then
     echo "[OK] $t"

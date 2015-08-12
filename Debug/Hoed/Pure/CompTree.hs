@@ -33,7 +33,7 @@ data Vertex = RootVertex | Vertex {vertexStmt :: CompStmt, vertexJmt :: Judgemen
 
 vertexUID :: Vertex -> UID
 vertexUID RootVertex   = -1
-vertexUID (Vertex s _) = equIdentifier s
+vertexUID (Vertex s _) = stmtIdentifier s
 
 type CompTree = Graph Vertex ()
 
@@ -59,13 +59,16 @@ mkCompTree cs ds = Graph RootVertex (vs) as
 
         -- A mapping from stmtUID to Vertex of all CompStmts in cs
         vMap :: IntMap Vertex
-        vMap = foldl (\m c -> let v = Vertex c Unassessed in foldl (\m' i -> IntMap.insert i v m') m (stmtUIDs c)) IntMap.empty cs
+        -- vMap = foldl (\m c -> let v = Vertex c Unassessed in foldl (\m' i -> IntMap.insert i v m') m (stmtUIDs c)) IntMap.empty cs
+        vMap = foldl (\m c -> IntMap.insert (stmtIdentifier c) (Vertex c Unassessed) m) IntMap.empty cs
 
         -- Given an UID, get corresponding CompStmt (wrapped in a Vertex)
         findVertex :: UID -> Vertex
         findVertex (-1) = RootVertex
         findVertex a = case IntMap.lookup a vMap of
-          Nothing  -> error $ "mkCompTree: cannot find a statement with UID " ++ show a
+          Nothing  -> error $ "mkCompTree: Error, cannot find a statement with UID " ++ show a ++ "!\n"
+                              ++ "We recorded statements with the following UIDs: " ++ (show . IntMap.keys) vMap ++ "\n"
+                              ++ unlines (map (\c -> (show . stmtIdentifier) c ++ ": " ++ show c) cs)
           (Just v) -> v
 
 ------------------------------------------------------------------------------------------------------------------------

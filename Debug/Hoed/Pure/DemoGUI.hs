@@ -136,7 +136,7 @@ guiObserve treeRef currentVertexRef = do
 
        -- Alphabetical sorted list of slices, and for each slice how many computation statements
        -- there are for that slice
-       let slices' = sort $ map (equLabel . vertexStmt) . filter (not . isRootVertex) $ vs
+       let slices' = sort $ map (stmtLabel . vertexStmt) . filter (not . isRootVertex) $ vs
            slices  = nub slices'
            count slice = length (filter (==slice) slices')
            span s = UI.span # set UI.text s # set UI.style [("margin-right","1em")]
@@ -144,7 +144,7 @@ guiObserve treeRef currentVertexRef = do
        div1 <- UI.div #+ spans
 
        -- Alphabetical sorted list of computation statements
-       let vs_sorted = sortOn (equRes . vertexStmt) . filter (not . isRootVertex) $ vs
+       let vs_sorted = sortOn (stmtRes . vertexStmt) . filter (not . isRootVertex) $ vs
        div3 <- UI.form # set UI.style [("margin-left","2em")]
        updateRegEx currentVertexRef vs_sorted div3 "" -- with empty regex to fill div3 1st time
 
@@ -161,14 +161,14 @@ updateRegEx currentVertexRef vs stmtDiv r = draw
 
   where draw = do (return stmtDiv) # set UI.children [] #+ csDivs; return ()
 
-        vs_filtered = if r == "" then vs else filter (\v -> (equRes . vertexStmt) v =~ r) vs
-        ss = map (equRes . vertexStmt) vs_filtered
+        vs_filtered = if r == "" then vs else filter (\v -> (stmtRes . vertexStmt) v =~ r) vs
+        ss = map (stmtRes . vertexStmt) vs_filtered
 
         csDivs = map stmtToDiv vs_filtered
 
         stmtToDiv v = do
           i <- UI.liftIO $ readIORef currentVertexRef
-          s <- UI.span # set UI.text (equRes . vertexStmt $ v)
+          s <- UI.span # set UI.text (stmtRes . vertexStmt $ v)
           r <- UI.input # set UI.type_ "radio" # set UI.checked (i == vertexUID v)
           on UI.checkedChange r $ \_ -> checked v
           UI.div #+ [return r, return s]
@@ -372,7 +372,7 @@ summarizeVertex fs v = (noNewlines . show . vertexStmt $ v) ++ s
 updateStatus :: UI.Element -> IORef CompTree -> UI ()
 updateStatus e compGraphRef = do
   g <- UI.liftIO $ readIORef compGraphRef
-  let getLabel   = equLabel . vertexStmt
+  let getLabel   = stmtLabel . vertexStmt
       isJudged v = vertexJmt v /= Unassessed
       slen       = show . length
       ns = filter (not . isRootVertex) (preorder g)

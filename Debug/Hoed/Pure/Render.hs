@@ -10,9 +10,7 @@ module Debug.Hoed.Pure.Render
 ,eventsToCDS
 ,rmEntrySet
 ,simplifyCDSSet
--- ,isRoot
-)
-where
+) where
 import Debug.Hoed.Pure.EventForest
 
 import Prelude hiding(lookup)
@@ -38,6 +36,30 @@ sortOn' f = sortBy (\x y -> compare (f x) (f y))
 #endif
 
 ------------------------------------------------------------------------
+-- The CompStmt type
+
+-- MF TODO: naming here is a bit of a mess. Needs refactoring.
+-- Indentifier refers to an identifier users can explicitely give
+-- to observe'. But UID is the unique number assigned to each event.
+-- The field equIdentifier is not an Identifier, but the UID of the
+-- event that starts the observation. And stmtUIDs is the list of
+-- UIDs of all events that form the statement.
+
+data CompStmt = CompStmt { stmtLabel      :: String
+                         , stmtThreadId   :: ThreadId
+                         , stmtIdentifier :: UID
+                         , stmtDependsOn  :: Identifier
+                         , stmtRes        :: String
+                         -- , stmtUIDs       :: [UID]
+                         }
+                deriving (Eq, Ord)
+
+instance Show CompStmt where
+  show = stmtRes
+  showList eqs eq = unlines (map show eqs) ++ eq
+
+
+------------------------------------------------------------------------
 -- Render equations from CDS set
 
 renderCompStmts :: CDSSet -> [CompStmt]
@@ -50,49 +72,24 @@ renderCompStmts = foldl (\acc set -> acc ++ renderCompStmt set) []
 renderCompStmt :: CDS -> [CompStmt]
 renderCompStmt (CDSNamed name threadId identifier dependsOn set uids')
   = map mkStmt statements
-  where statements :: [(String,[UID])]
-        statements  = map (\(d,i) -> (pretty 120 d,i)) doc
-        doc         = foldl (\a b -> a ++ renderNamedTop name b) [] output
-        output      = cdssToOutput set
+  where statements :: [(String,UID)]
+        statements   = map (\(d,i) -> (pretty 120 d,i)) doc
+        doc          = foldl (\a b -> a ++ renderNamedTop name b) [] output
+        output       = cdssToOutput set
+        mkStmt (s,i) = CompStmt name threadId i dependsOn s
 
-        -- uids is empty list [] for observed constants
-        mkStmt (s,[]  ) = CompStmt name threadId identifier dependsOn s uids'
-        mkStmt (s,uids) = CompStmt name threadId (head uids) dependsOn s uids
-
-renderNamedTop :: String -> Output -> [(DOC,[UID])]
+renderNamedTop :: String -> Output -> [(DOC,UID)]
 renderNamedTop name (OutData cds)
-  =  map (\(args,res,uids) -> (renderNamedFn name (args,res), uids)) pairs
-  -- = ( nest 2 $ foldl1 (\a b -> a <> line <> text ", " <> b) 
-  --            $ map (\(args,res,uids) -> (renderNamedFn name (args,res), uids)) pairs
-  --   )
+  =  map (\(args,res,Just i) -> (renderNamedFn name (args,res), i)) pairs
+
   where pairs' = findFn [cds]
-        pairs  = (nub . (sortOn argAndRes)) pairs'
+        pairs  = (nub . sortOn argAndRes) pairs'
         -- local nub for sorted lists
         nub []                  = []
         nub (a:a':as) | a == a' = nub (a' : as)
         nub (a:as)              = a : nub as
 
         argAndRes (arg,res,_) = (arg,res)
-
-------------------------------------------------------------------------
--- The CompStmt type
-
--- MF TODO: naming here is a bit of a mess. Needs refactoring.
--- Indentifier refers to an identifier users can explicitely give
--- to observe'. But UID is the unique number assigned to each event.
--- The field equIdentifier is not an Identifier, but the UID of the
--- event that starts the observation. And stmtUIDs is the list of
--- UIDs of all events that form the statement.
-
-data CompStmt = CompStmt {equLabel :: String, equThreadId :: ThreadId
-                         , equIdentifier :: UID, equDependsOn :: Identifier
-                         , equRes :: String, stmtUIDs :: [UID]}
-                deriving (Eq, Ord)
-
-instance Show CompStmt where
-  show e = equRes e
-  -- show e = "Stmt-" ++ (show . head . stmtUIDs $ e ) ++ " = " ++equRes e
-  showList eqs eq = unlines (map show eqs) ++ eq
 
 -- %************************************************************************
 -- %*                                                                   *
@@ -103,7 +100,7 @@ instance Show CompStmt where
 
 data CDS = CDSNamed      String ThreadId UID Identifier CDSSet [UID]
          | CDSCons       UID    String   [CDSSet]
-         | CDSFun        UID             CDSSet CDSSet [UID]
+         | CDSFun        UID             CDSSet CDSSet
          | CDSEntered    UID
          | CDSTerminated UID
         deriving (Show,Eq,Ord)
@@ -134,13 +131,18 @@ eventsToCDS pairs = getChild 0 0
      getNode'' ::  Int -> Event -> Change -> CDS
      getNode'' node e change =
        case change of
-        (Observe str t i d) -> CDSNamed str t i d (getChild node 0) (treeUIDs frt e)
+        (Observe str t i d) -> let chd = getChild node 0
+                               in CDSNamed str t (getId chd i) d chd (treeUIDs frt e)
         (Enter)             -> CDSEntered node
         (NoEnter)           -> CDSTerminated node
-        Fun                 -> CDSFun node (getChild node 0) (getChild node 1) (treeUIDs frt e)
+        Fun                 -> CDSFun node (getChild node 0) (getChild node 1)
         (Cons portc cons)
                             -> CDSCons node cons 
                                   [ getChild node n | n <- [0..(portc-1)]]
+
+     getId []                  i = i
+     getId ((CDSFun i _ _ ):_) _ = i
+     getId (_:cs)              i = getId cs i
 
      getChild :: Int -> Int -> CDSSet
      getChild pnode pport =
@@ -216,14 +218,14 @@ renderNamedFn name (args,res)
             )
         )
 
-findFn :: CDSSet -> [([CDSSet],CDSSet,[UID])]
+findFn :: CDSSet -> [([CDSSet],CDSSet, Maybe UID)]
 findFn = foldr findFn' []
 
-findFn' (CDSFun _ arg res uids) rest =
+findFn' (CDSFun i arg res) rest =
     case findFn res of
-       [(args',res',_)] -> (arg : args', res', uids) : rest
-       _                -> ([arg], res, uids) : rest
-findFn' other rest = ([],[other],[]) : rest
+       [(args',res',_)] -> (arg : args', res', Just i) : rest
+       _                -> ([arg], res, Just i) : rest
+findFn' other rest = ([],[other], Nothing) : rest
 
 renderTops []   = nil
 renderTops tops = line <> foldr (<>) nil (map renderTop tops)
@@ -237,7 +239,7 @@ renderTop (OutLabel str set extras) =
 rmEntry :: CDS -> CDS
 rmEntry (CDSNamed str t i d set us)= CDSNamed str t i d (rmEntrySet set) us
 rmEntry (CDSCons i str sets)       = CDSCons i str (map rmEntrySet sets)
-rmEntry (CDSFun i a b us)          = CDSFun i (rmEntrySet a) (rmEntrySet b) us
+rmEntry (CDSFun i a b)             = CDSFun i (rmEntrySet a) (rmEntrySet b)
 rmEntry (CDSTerminated i)          = CDSTerminated i
 rmEntry (CDSEntered i)             = error "found bad CDSEntered"
 
@@ -256,9 +258,9 @@ simplifyCDS cons@(CDSCons i str sets) =
           Just str | not (null str) -> CDSCons 0 (show str) []
           _ -> CDSCons 0 str (map simplifyCDSSet sets)
 
-simplifyCDS (CDSFun i a b us) = CDSFun 0 (simplifyCDSSet a) (simplifyCDSSet b) us
+simplifyCDS (CDSFun i a b) = CDSFun i (simplifyCDSSet a) (simplifyCDSSet b)
 
-simplifyCDS (CDSTerminated i) = (CDSCons 0 "<?>" [])
+simplifyCDS (CDSTerminated i) = (CDSCons i "<?>" [])
 
 simplifyCDSSet = map simplifyCDS 
 
