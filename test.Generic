@@ -1,6 +1,6 @@
 #!/bin/bash
 
-TESTS="0 1 2"
+TESTS="0 1 2 3"
 FAIL=0
 
 echo "Testing events produced for Observable derived for Generic types"

@@ -166,7 +166,7 @@ Observing the children of Data types of kind *.
 instance (GObservable a) => GObservable (M1 D d a) where
         gdmobserver m@(M1 x) cxt = M1 (gdmobserver x cxt)
         gdmObserveChildren = gthunk
-        gdmShallowShow = undefined
+        gdmShallowShow = error "gdmShallowShow not defined on <<Meta: data types>>"
 
 -- Meta: Selectors
 instance (GObservable a, Selector s) => GObservable (M1 S s a) where
@@ -174,7 +174,7 @@ instance (GObservable a, Selector s) => GObservable (M1 S s a) where
           | selName m == "" = M1 (gdmobserver x cxt)
           | otherwise       = M1 (send (selName m ++ " =") (gdmObserveChildren x) cxt)
         gdmObserveChildren = gthunk
-        gdmShallowShow = undefined
+        gdmShallowShow = error "gdmShallowShow not defined on <<Meta: selectors>>"
 
 -- Meta: Constructors
 instance (GObservable a, Constructor c) => GObservable (M1 C c a) where
@@ -187,13 +187,13 @@ instance (GObservable a, Constructor c) => GObservable (M1 C c a) where
 instance GObservable U1 where
         gdmobserver x _ = x
         gdmObserveChildren = return
-        gdmShallowShow = undefined
+        gdmShallowShow = error "gdmShallowShow not defined on <<the unit type>>"
 
 -- Sums: encode choice between constructors
 instance (GObservable a, GObservable b) => GObservable (a :+: b) where
         gdmobserver (L1 x) = send (gdmShallowShow x) (gdmObserveChildren $ L1 x)
         gdmobserver (R1 x) = send (gdmShallowShow x) (gdmObserveChildren $ R1 x)
-        gdmShallowShow         = undefined
+        gdmShallowShow = error "gdmShallowShow not defined on <<the sum type>>"
         gdmObserveChildren (L1 x) = do {x' <- gdmObserveChildren x; return (L1 x')}
         gdmObserveChildren (R1 x) = do {x' <- gdmObserveChildren x; return (R1 x')}
 
@@ -205,13 +205,13 @@ instance (GObservable a, GObservable b) => GObservable (a :*: b) where
                                           b'  <- gdmObserveChildren b
                                           return (a' :*: b')
                                        
-        gdmShallowShow = undefined
+        gdmShallowShow = error "gdmShallowShow not defined on <<the product type>>"
 
 -- Constants: additional parameters and recursion of kind *
 instance (Observable a) => GObservable (K1 i a) where
         gdmobserver (K1 x) cxt = K1 $ observer x cxt
         gdmObserveChildren = gthunk
-        gdmShallowShow = undefined
+        gdmShallowShow = error "gdmShallowShow not defined on <<constant types>>"
 \end{code}
 
 Observing functions is done via the ad-hoc mechanism, because
