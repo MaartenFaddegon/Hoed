@@ -173,38 +173,36 @@ instance (GObservable a, Selector s) => GObservable (M1 S s a) where
         gdmobserver m@(M1 x) cxt
           | selName m == "" = M1 (gdmobserver x cxt)
           | otherwise       = M1 (send (selName m ++ " =") (gdmObserveChildren x) cxt)
-        gdmObserveChildren = gthunk
-        gdmShallowShow = error "gdmShallowShow not defined on <<Meta: selectors>>"
+        gdmObserveChildren  = gthunk
+        gdmShallowShow      = error "gdmShallowShow not defined on <<Meta: selectors>>"
 
 -- Meta: Constructors
 instance (GObservable a, Constructor c) => GObservable (M1 C c a) where
-        -- gdmobserver (M1 x) cxt = M1 (gdmobserver x cxt)
-        gdmobserver m1 = send (gdmShallowShow m1) (gdmObserveChildren m1)
-        gdmObserveChildren (M1 x) = do {x' <- gthunk x; return (M1 x')}
-        gdmShallowShow = conName
+        gdmobserver m1            = send (gdmShallowShow m1) (gdmObserveChildren m1)
+        gdmObserveChildren (M1 x) = do {x' <- gdmObserveChildren x; return (M1 x')}
+        gdmShallowShow            = conName
 
 -- Unit: used for constructors without arguments
 instance GObservable U1 where
-        gdmobserver x _ = x
+        gdmobserver x _    = x
         gdmObserveChildren = return
-        gdmShallowShow = error "gdmShallowShow not defined on <<the unit type>>"
+        gdmShallowShow     = error "gdmShallowShow not defined on <<the unit type>>"
 
 -- Sums: encode choice between constructors
 instance (GObservable a, GObservable b) => GObservable (a :+: b) where
         gdmobserver (L1 x) = send (gdmShallowShow x) (gdmObserveChildren $ L1 x)
         gdmobserver (R1 x) = send (gdmShallowShow x) (gdmObserveChildren $ R1 x)
-        gdmShallowShow = error "gdmShallowShow not defined on <<the sum type>>"
+        gdmShallowShow (L1 x) = gdmShallowShow x
+        gdmShallowShow (R1 x) = gdmShallowShow x
         gdmObserveChildren (L1 x) = do {x' <- gdmObserveChildren x; return (L1 x')}
         gdmObserveChildren (R1 x) = do {x' <- gdmObserveChildren x; return (R1 x')}
 
 -- Products: encode multiple arguments to constructors
 instance (GObservable a, GObservable b) => GObservable (a :*: b) where
-        gdmobserver (a :*: b) cxt = error "gdmobserver product"
-
+        gdmobserver (a :*: b) cxt = (gdmobserver a cxt) :*: (gdmobserver b cxt)
         gdmObserveChildren (a :*: b) = do a'  <- gdmObserveChildren a
                                           b'  <- gdmObserveChildren b
                                           return (a' :*: b')
-                                       
         gdmShallowShow = error "gdmShallowShow not defined on <<the product type>>"
 
 -- Constants: additional parameters and recursion of kind *
