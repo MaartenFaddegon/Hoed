@@ -37,6 +37,7 @@ module Debug.Hoed.Pure
   ( -- * Basic annotations
     observe
   , traceOnly
+  , doit
   , runO
   , printO
 
@@ -66,6 +67,7 @@ import Debug.Hoed.Pure.Render
 import Debug.Hoed.Pure.EventForest
 import Debug.Hoed.Pure.CompTree
 import Debug.Hoed.Pure.DemoGUI
+import Debug.Hoed.Pure.Prop
 
 import Prelude hiding (Right)
 import qualified Prelude
@@ -138,6 +140,15 @@ traceOnly :: IO a -> IO ()
 traceOnly program = do
   debugO program
   return ()
+
+doit :: IO a -> IO ()
+doit program = do
+  (trace,traceInfo,compGraph,frt) <- runO' program
+  case filter (/= RootVertex) (vertices compGraph) of
+    []    -> return ()
+    (v:_) -> do putStrLn "\n=== DoIt ===\n"
+                v' <- judge trace p1 v
+                print v'
 
 runO :: IO a -> IO ()
 runO program = do

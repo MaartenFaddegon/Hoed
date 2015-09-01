@@ -2,14 +2,15 @@
 --
 -- Copyright (c) Maarten Faddegon, 2015
 
-module Debug.Hoed.Pure.Prop
-( judge
-, Property(..)
-) where
+module Debug.Hoed.Pure.Prop where
+-- ( judge
+-- , Property(..)
+-- ) where
 
-import Debug.Hoed.Pure.Observe(Trace(..),UID)
+import Debug.Hoed.Pure.Observe(Trace(..),UID,Event(..),Change(..))
 import Debug.Hoed.Pure.Render(CompStmt(..))
 import Debug.Hoed.Pure.CompTree(Vertex(..))
+import Debug.Hoed.Pure.EventForest(EventForest,mkEventForest,dfsChildren)
 
 import Prelude hiding (Right)
 import Data.Graph.Libgraph(Judgement(..))
@@ -28,6 +29,7 @@ judge :: Trace -> Property -> Vertex -> IO Vertex
 judge trc prop v = do
   createDirectoryIfMissing True ".Hoed/exe"
   let i = (stmtIdentifier . vertexStmt) v
+  putStrLn $ "Picked statement identifier = " ++ show i
   writeFile sourceFile (generate prop trc i)
   -- MF TODO: compile, execute, judge
   return v
@@ -44,10 +46,30 @@ generateHeading prop =
 
 generateMain :: Property -> Trace -> UID -> String
 generateMain prop trc i = 
-  "main = " ++ propertyName prop ++ " " ++ generateArgs trc i
+  "main = " ++ propertyName prop ++ " " ++ generateArgs trc i ++ "\n"
 
 generateArgs :: Trace -> UID -> String
-generateArgs trc i = "(error \"not yet supported\")" -- MF TODO
+generateArgs trc i = case dfsChildren frt e of
+  [_,ma,_,_]  -> generateExpr frt ma
+  xs          -> error ("generateArgs: dfsChildren (" ++ show e ++ ") = " ++ show xs)
+
+  where frt = (mkEventForest trc)
+        e   = (reverse trc) !! (i-1)
+
+generateExpr :: EventForest -> Maybe Event -> String
+generateExpr _ Nothing    = __
+generateExpr frt (Just e) = -- enable to add events as comments to generated code: "{- " ++ show e ++ " -}" ++ 
+                            case change e of
+  (Cons _ s) -> foldl (\acc c -> acc ++ " " ++ c) ("(" ++ s) cs ++ ") "
+  Enter      -> ""
+  _          -> "error \"cannot represent\""
+
+  where cs = map (generateExpr frt) (dfsChildren frt e)
+
+  
+
+__ :: String
+__ = "(error \"Request of value that was unevaluated in orignal program.\")"
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Some test data
