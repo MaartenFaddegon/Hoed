@@ -1,0 +1,12 @@
+diGraph G {
+v0[shape=none label="."]
+v4 [label="plusOne 3  = 4"]
+v3 [label="mod2 4  = 2"]
+v2 [label="isEven 4  = False"]
+v1 [label="isOdd 3  = False"]
+v0[shape=none label="."]
+v0 -> v1 [label=""]
+v1 -> v2 [label=""]
+v2 -> v3 [label=""]
+v1 -> v4 [label=""]
+}
