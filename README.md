@@ -8,50 +8,50 @@ To locate a defect with Hoed you annotate suspected functions and compile as usu
 
 Let us consider the following program, a defective implementation of a parity function with a test property.
 
-   isOdd :: Int -> Bool
-   isOdd = observe "isOdd" isOdd’
-   isOdd’ n = isEven (plusOne n)
-   
-   isEven :: Int -> Bool
-   isEven = observe "isEven" isEven’
-   isEven’ n = mod2 n == 0
-   
-   plusOne :: Int -> Int -> Int
-   plusOne = observe "plusOne" plusOne’
-   plusOne’ n = n + 1
-   
-   mod2 :: Int -> Int -> Int
-   mod2 = observe "mod2" mod2’
-   mod2’ n = div n 2
-   
-   prop_isOdd :: Int -> Bool
-   prop_isOdd x = isOdd (2*x+1)
+    isOdd :: Int -> Bool
+    isOdd = observe "isOdd" isOdd’
+    isOdd’ n = isEven (plusOne n)
+    
+    isEven :: Int -> Bool
+    isEven = observe "isEven" isEven’
+    isEven’ n = mod2 n == 0
+    
+    plusOne :: Int -> Int -> Int
+    plusOne = observe "plusOne" plusOne’
+    plusOne’ n = n + 1
+    
+    mod2 :: Int -> Int -> Int
+    mod2 = observe "mod2" mod2’
+    mod2’ n = div n 2
+    
+    prop_isOdd :: Int -> Bool
+    prop_isOdd x = isOdd (2*x+1)
 
 Using the property-based test tool QuickCheck we find the counter example `1` for our property. Hoed can help us determine which function is defective. We annotate the functions `isOdd`, `isEven`, `plusOne` and `mod2` as follows:
 
-   import Debug.Hoed.Pure
-   
-   isOdd :: Int -> Bool
-   isOdd = observe "isOdd" isOdd’
-   isOdd’ n = isEven (plusOne n)
-   
-   isEven :: Int -> Bool
-   isEven = observe "isEven" isEven’
-   isEven’ n = mod2 n == 0
-   
-   plusOne :: Int -> Int -> Int
-   plusOne = observe "plusOne" plusOne’
-   plusOne’ n = n + 1
-   
-   mod2 :: Int -> Int -> Int
-   mod2 = observe "mod2" mod2’
-   mod2’ n = div n 2
-   
-   prop_isOdd :: Int -> Bool
-   prop_isOdd x = isOdd (2*x+1)
-   
-   main :: IO ()
-   main = logO "hoed-tests-Pure-t4.graph" $ print (prop_isOdd 1)
+    import Debug.Hoed.Pure
+    
+    isOdd :: Int -> Bool
+    isOdd = observe "isOdd" isOdd’
+    isOdd’ n = isEven (plusOne n)
+    
+    isEven :: Int -> Bool
+    isEven = observe "isEven" isEven’
+    isEven’ n = mod2 n == 0
+    
+    plusOne :: Int -> Int -> Int
+    plusOne = observe "plusOne" plusOne’
+    plusOne’ n = n + 1
+    
+    mod2 :: Int -> Int -> Int
+    mod2 = observe "mod2" mod2’
+    mod2’ n = div n 2
+    
+    prop_isOdd :: Int -> Bool
+    prop_isOdd x = isOdd (2*x+1)
+    
+    main :: IO ()
+    main = logO "hoed-tests-Pure-t4.graph" $ print (prop_isOdd 1)
 
 After running the program a computation tree is constructed and displayed in a
 web browser. You can freely browse this tree to get a better understanding of
