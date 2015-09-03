@@ -17,6 +17,7 @@ import Data.Graph.Libgraph(Judgement(..))
 import System.Directory(createDirectoryIfMissing)
 import System.Process(system)
 import System.Exit(ExitCode(..))
+import System.IO(hPutStrLn,stderr)
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -38,20 +39,20 @@ judge' ExitSuccess     out j
 judge :: Trace -> Property -> Vertex -> IO Vertex
 judge trc prop v = do
   createDirectoryIfMissing True ".Hoed/exe"
-  putStrLn $ "Picked statement identifier = " ++ show i
+  hPutStrLn stderr $ "Picked statement identifier = " ++ show i
   generateCode
   compile
   exit' <- compile
-  putStrLn $ "Exitted with " ++ show exit'
+  hPutStrLn stderr $ "Exitted with " ++ show exit'
   exit  <- case exit' of (ExitFailure n) -> return (ExitFailure n)
                          ExitSuccess     -> evaluate
   out  <- readFile outFile
-  putStrLn $ "Exitted with " ++ show exit
-  putStrLn $ "Output is " ++ show out
+  hPutStrLn stderr $ "Exitted with " ++ show exit
+  hPutStrLn stderr $ "Output is " ++ show out
   return v{vertexJmt=judge' exit out (vertexJmt v)}
 
   where generateCode = writeFile sourceFile (generate prop trc i)
-        compile      = system $ "ghc -o " ++ exeFile ++ " " ++ sourceFile
+        compile      = system $ "ghc  -i" ++ (searchPath prop) ++ " -o " ++ exeFile ++ " " ++ sourceFile
         evaluate     = system $ exeFile ++ " &> " ++ outFile
         i            = (stmtIdentifier . vertexStmt) v
 
@@ -94,7 +95,7 @@ __ = "(error \"Request of value that was unevaluated in orignal program.\")"
 -- Some test data
 
 p1 :: Property
-p1 = Property "MyModule" "prop_never" "../Prop"
+p1 = Property "MyModule" "prop_never" "../Prop/t0/"
 -- p1 = Property "MyModule" "prop_idemSimplify" "../Prop"
 
 v1 :: Vertex

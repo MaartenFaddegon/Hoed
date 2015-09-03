@@ -1,7 +1,10 @@
 .cabal-sandbox/
+codex.tags
 cabal.sandbox.config
 dist/
 record/
 tmp/debugTree.dot
 tmp/wwwroot/debugTree.png
 tests/exe/
+tests/Prop/t0/MyModule.o
+tests/Prop/t0/MyModule.hi

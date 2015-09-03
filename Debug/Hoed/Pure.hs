@@ -98,13 +98,15 @@ module Debug.Hoed.Pure
   , runO
   , printO
 
+    -- * Annotations for testing
+  , logO
+  , logOwp
+
     -- * Experimental annotations
   , traceOnly
-  , doit
   , observeTempl
   , observedTypes
   , observeCC
-  , logO
 
    -- * The Observable class
   , Observer(..)
@@ -207,19 +209,11 @@ traceOnly program = do
   debugO program
   return ()
 
-doit :: IO a -> IO ()
-doit program = do
-  (trace,traceInfo,compGraph,frt) <- runO' program
-  case filter (/= RootVertex) (vertices compGraph) of
-    []    -> return ()
-    (v:_) -> do putStrLn "\n=== DoIt ===\n"
-                v' <- judge trace p1 v
-                print v'
 
 runO' :: IO a -> IO (Trace,TraceInfo,CompTree,EventForest)
 runO' program = do
   createDirectoryIfMissing True ".Hoed/"
-  hPutStrLn stderr "=== program output ===\n"
+  putStrLn "=== program output ===\n"
   events <- debugO program
   let cdss = eventsToCDS events
   let cdss1 = rmEntrySet cdss
@@ -264,6 +258,7 @@ runO' program = do
         showJ (Just s) = show s
         showJ Nothing  = "??"
 
+-- | Trace and write computation tree to file. Useful for regression testing.
 logO :: FilePath -> IO a -> IO ()
 logO filePath program = {- SCC "logO" -} do
   (_,_,compTree,_) <- runO' program
@@ -275,6 +270,26 @@ logO filePath program = {- SCC "logO" -} do
         showVertex v       = ("\"" ++ (escape . showCompStmt) v ++ "\"", "")
         showArc _          = ""
         showCompStmt       = show . vertexStmt
+
+-- | As logO, but with property-based judging.
+logOwp :: FilePath -> IO a -> IO ()
+logOwp filePath program = do
+  (trace,traceInfo,compTree,frt) <- runO' program
+  compTree' <- case filter (/= RootVertex) (vertices compTree) of
+    []    -> return compTree
+    (v:_) -> do hPutStrLn stderr "\n=== DoIt ===\n"
+                v' <- judge trace p1 v
+                print v'
+                return $ mapGraph (\w -> if v == w then v' else w) compTree
+  writeFile filePath (showGraph compTree')
+  return ()
+
+  where showGraph g        = showWith g showVertex showArc
+        showVertex RootVertex = ("root","")
+        showVertex v       = ("\"" ++ (escape . showCompStmt) v ++ "\"", "")
+        showArc _          = ""
+        showCompStmt s     = (show . vertexJmt) s ++ ": " ++ (show . vertexStmt) s
+
 
 
 hPutStrList :: (Show a) => Handle -> [a] -> IO()

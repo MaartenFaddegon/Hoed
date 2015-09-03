@@ -30,6 +30,8 @@ install:
 # Here starts the actual work to be performed for the package under test; any
 # command which exits with a non-zero exit code causes the build to fail.
 script:
+ # Make sure our cabal specification is sound
+ - cabal check
  # Test deriving Observable for Generic types
  - bash -x configure.Generic
  - cabal build
@@ -44,3 +46,8 @@ script:
  - bash -x configure.Pure
  - cabal build
  - bash test.Pure
+ # Test property-based judging
+ - cabal clean
+ - bash -x configure.Prop
+ - cabal build
+ - bash test.Prop
