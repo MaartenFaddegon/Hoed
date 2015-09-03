@@ -135,7 +135,7 @@ eventsToCDS pairs = getChild 0 0
         (NoEnter)           -> CDSTerminated node
         Fun                 -> CDSFun node (getChild node 0) (getChild node 1)
         (Cons portc cons)
-                            -> CDSCons node cons 
+                            -> CDSCons node cons
                                   [ getChild node n | n <- [0..(portc-1)]]
 
      getId []                  i = i
@@ -151,7 +151,7 @@ eventsToCDS pairs = getChild 0 0
 
 render  :: Int -> Bool -> CDS -> DOC
 render prec par (CDSCons _ ":" [cds1,cds2]) =
-        if (par && not needParen)  
+        if (par && not needParen)
         then doc -- dont use paren (..) because we dont want a grp here!
         else paren needParen doc
    where
@@ -167,7 +167,7 @@ render prec par (CDSCons _ name cdss) =
               (nest 2
                  (text name <> foldr (<>) nil
                                 [ sep <> renderSet' 10 False cds
-                                | cds <- cdss 
+                                | cds <- cdss
                                 ]
                  )
               )
@@ -181,7 +181,7 @@ renderSet = renderSet' 0 False
 renderSet' :: Int -> Bool -> CDSSet -> DOC
 renderSet' _ _      [] = text "_"
 renderSet' prec par [cons@(CDSCons {})]    = render prec par cons
-renderSet' prec par cdss                   = 
+renderSet' prec par cdss                   =
         nest 0 (text "{ " <> foldl1 (\ a b -> a <> line <>
                                     text ", " <> b)
                                     (map renderFn pairs) <>
@@ -198,7 +198,7 @@ renderSet' prec par cdss                   =
 
 renderFn :: ([CDSSet],CDSSet) -> DOC
 renderFn (args, res)
-        = grp  (nest 3 
+        = grp  (nest 3
                 (text "\\ " <>
                  foldr (\ a b -> nest 0 (renderSet' 10 False a) <> sp <> b)
                        nil
@@ -209,9 +209,9 @@ renderFn (args, res)
 
 renderNamedFn :: String -> ([CDSSet],CDSSet) -> DOC
 renderNamedFn name (args,res)
-  = grp (nest 3 
+  = grp (nest 3
             (  text name <> sep
-            <> foldr (\ a b -> nest 0 (renderSet' 10 False a) <> sp <> b) nil args 
+            <> foldr (\ a b -> nest 0 (renderSet' 10 False a) <> sp <> b) nil args
             <> sep <> text "= " <> renderSet' 0 False res
             )
         )
@@ -248,10 +248,10 @@ rmEntrySet = map rmEntry . filter noEntered
 
 simplifyCDS :: CDS -> CDS
 simplifyCDS (CDSNamed str t i set us) = CDSNamed str t i (simplifyCDSSet set) us
-simplifyCDS (CDSCons _ "throw" 
+simplifyCDS (CDSCons _ "throw"
                   [[CDSCons _ "ErrorCall" set]]
             ) = simplifyCDS (CDSCons 0 "error" set)
-simplifyCDS cons@(CDSCons i str sets) = 
+simplifyCDS cons@(CDSCons i str sets) =
         case spotString [cons] of
           Just str | not (null str) -> CDSCons 0 (show str) []
           _ -> CDSCons 0 str (map simplifyCDSSet sets)
@@ -260,14 +260,14 @@ simplifyCDS (CDSFun i a b) = CDSFun i (simplifyCDSSet a) (simplifyCDSSet b)
 
 simplifyCDS (CDSTerminated i) = (CDSCons i "<?>" [])
 
-simplifyCDSSet = map simplifyCDS 
+simplifyCDSSet = map simplifyCDS
 
 spotString :: CDSSet -> Maybe String
 spotString [CDSCons _ ":"
                 [[CDSCons _ str []]
                 ,rest
                 ]
-           ] 
+           ]
         = do { ch <- case reads str of
                        [(ch,"")] -> return ch
                        _ -> Nothing
@@ -314,8 +314,8 @@ cdsToOutput    fn@(CDSFun {}) = OutData fn
 
 -- This pretty printer is based on Wadler's pretty printer.
 
-data DOC                = NIL                   -- nil    
-                        | DOC :<> DOC           -- beside 
+data DOC                = NIL                   -- nil
+                        | DOC :<> DOC           -- beside
                         | NEST Int DOC
                         | TEXT String
                         | LINE                  -- always "\n"
@@ -351,18 +351,18 @@ brk                     = BREAK
 fold x                  = grp (brk <> x)
 
 grp                     :: DOC -> DOC
-grp x                   = 
+grp x                   =
         case flatten x of
           Just x' -> x' :<|> x
           Nothing -> x
 
 flatten                 :: DOC -> Maybe DOC
 flatten NIL             = return NIL
-flatten (x :<> y)       = 
+flatten (x :<> y)       =
         do x' <- flatten x
            y' <- flatten y
            return (x' :<> y')
-flatten (NEST i x)      = 
+flatten (NEST i x)      =
         do x' <- flatten x
            return (NEST i x')
 flatten (TEXT s)        = return (TEXT s)
@@ -387,7 +387,7 @@ be w k ((i,TEXT s):z)   = s `mkText` be w (k+length s) z
 be w k ((i,LINE):z)     = i `mkLine` be w i z
 be w k ((i,SEP):z)      = i `mkLine` be w i z
 be w k ((i,BREAK):z)    = i `mkLine` be w i z
-be w k ((i,x :<|> y):z) = better w k 
+be w k ((i,x :<|> y):z) = better w k
                                 (be w k ((i,x):z))
                                 (be w k ((i,y):z))
 

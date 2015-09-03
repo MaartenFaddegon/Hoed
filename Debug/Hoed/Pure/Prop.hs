@@ -9,11 +9,11 @@ module Debug.Hoed.Pure.Prop where
 
 import Debug.Hoed.Pure.Observe(Trace(..),UID,Event(..),Change(..))
 import Debug.Hoed.Pure.Render(CompStmt(..))
-import Debug.Hoed.Pure.CompTree(Vertex(..))
+import Debug.Hoed.Pure.CompTree(CompTree,Vertex(..),Graph(..),vertexUID)
 import Debug.Hoed.Pure.EventForest(EventForest,mkEventForest,dfsChildren)
 
 import Prelude hiding (Right)
-import Data.Graph.Libgraph(Judgement(..))
+import Data.Graph.Libgraph(Judgement(..),mapGraph)
 import System.Directory(createDirectoryIfMissing)
 import System.Process(system)
 import System.Exit(ExitCode(..))
@@ -21,23 +21,52 @@ import System.IO(hPutStrLn,stderr)
 
 ------------------------------------------------------------------------------------------------------------------------
 
-data Property = Property {moduleName :: String, propertyName :: String, searchPath :: String}
+data Property =
+  -- | Property which can be used to judge computation statements.
+  Property { -- | Name of the (observed) function to which the property can be applied.
+             funName :: String
+             -- | Name of the module containing the property.
+           , moduleName :: String
+             -- | Name of the property.
+           , propertyName :: String
+             -- | Path to the source of the module containing the property. Can be a colon seperated list of directories.
+           , searchPath :: String
+           }
 
 sourceFile = ".Hoed/exe/Main.hs"
 exeFile    = ".Hoed/exe/Main"
 outFile    = ".Hoed/exe/Main.out"
 
+
 ------------------------------------------------------------------------------------------------------------------------
 
-judge' :: ExitCode -> String -> Judgement -> Judgement
-judge' (ExitFailure _) _   j = j
-judge' ExitSuccess     out j
-  | out == "False\n" = Wrong
-  | out == "True\n"  = j
-  | otherwise     = j
+lookupProperty :: [Property] -> Vertex -> Maybe Property
+lookupProperty _ RootVertex = Nothing
+lookupProperty properties v = lookupWith funName lbl properties
+  where lbl = (stmtLabel . vertexStmt) v
 
-judge :: Trace -> Property -> Vertex -> IO Vertex
-judge trc prop v = do
+lookupWith :: Eq a => (b->a) -> a -> [b] -> Maybe b
+lookupWith f x ys = case filter (\y -> f y == x) ys of
+  []    -> Nothing
+  (y:_) -> Just y
+
+------------------------------------------------------------------------------------------------------------------------
+
+judge :: Trace -> [Property] -> CompTree -> IO CompTree
+judge trc properties compTree = do
+  ws <- mapM j vs
+  return $ foldl updateTree compTree ws
+
+  where vs = vertices compTree
+        j v = case lookupProperty properties v of Nothing  -> return v
+                                                  (Just p) -> judge1 trc p v
+        updateTree compTree w = mapGraph (\v -> if (vertexUID v) == (vertexUID w) then w else v) compTree
+
+
+-- Judge a vertex given a specific property
+judge1 :: Trace -> Property -> Vertex -> IO Vertex
+judge1 _ _ RootVertex = return RootVertex
+judge1 trc prop v = do
   createDirectoryIfMissing True ".Hoed/exe"
   hPutStrLn stderr $ "Picked statement identifier = " ++ show i
   generateCode
@@ -49,12 +78,20 @@ judge trc prop v = do
   out  <- readFile outFile
   hPutStrLn stderr $ "Exitted with " ++ show exit
   hPutStrLn stderr $ "Output is " ++ show out
-  return v{vertexJmt=judge' exit out (vertexJmt v)}
+  return v{vertexJmt=judge1' exit out (vertexJmt v)}
 
   where generateCode = writeFile sourceFile (generate prop trc i)
         compile      = system $ "ghc  -i" ++ (searchPath prop) ++ " -o " ++ exeFile ++ " " ++ sourceFile
         evaluate     = system $ exeFile ++ " &> " ++ outFile
         i            = (stmtIdentifier . vertexStmt) v
+
+-- The actual logic that changes the judgement of a vertex.
+judge1' :: ExitCode -> String -> Judgement -> Judgement
+judge1' (ExitFailure _) _   j = j
+judge1' ExitSuccess     out j
+  | out == "False\n" = Wrong
+  | out == "True\n"  = j
+  | otherwise     = j
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -90,17 +127,3 @@ generateExpr frt (Just e) = -- enable to add events as comments to generated cod
 
 __ :: String
 __ = "(error \"Request of value that was unevaluated in orignal program.\")"
-
-------------------------------------------------------------------------------------------------------------------------
--- Some test data
-
-p1 :: Property
-p1 = Property "MyModule" "prop_never" "../Prop/t0/"
--- p1 = Property "MyModule" "prop_idemSimplify" "../Prop"
-
-v1 :: Vertex
-v1 = Vertex (CompStmt "bla" 1 "bla 3 = 4") Unassessed
-
-t1, t2 :: IO ()
-t1 = print $ generate p1 [] 1
-t2 = do {judge [] p1 v1; return ()}

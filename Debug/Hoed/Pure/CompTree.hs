@@ -14,6 +14,7 @@ module Debug.Hoed.Pure.CompTree
 , getMessage
 , TraceInfo(..)
 , traceInfo
+, Graph(..) -- re-export from LibGraph
 )where
 
 import Debug.Hoed.Pure.Render
@@ -28,7 +29,7 @@ import qualified Data.IntMap as IntMap
 import Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
 
-data Vertex = RootVertex | Vertex {vertexStmt :: CompStmt, vertexJmt :: Judgement} 
+data Vertex = RootVertex | Vertex {vertexStmt :: CompStmt, vertexJmt :: Judgement}
   deriving (Eq,Show,Ord)
 
 vertexUID :: Vertex -> UID
@@ -81,9 +82,9 @@ data ConstantValue = ConstantValue { valStmt :: UID, valLoc :: Location
 instance Show ConstantValue where
   show CVRoot = "Root"
   show v = "Stmt-" ++ (show . valStmt $ v)
-         ++ "-"    ++ (show . valLoc  $ v) 
-         ++ ": "   ++ (show . valMin  $ v) 
-         ++ "-"    ++ (show . valMax  $ v) 
+         ++ "-"    ++ (show . valLoc  $ v)
+         ++ ": "   ++ (show . valMin  $ v)
+         ++ "-"    ++ (show . valMax  $ v)
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -200,8 +201,8 @@ stop e s = m s{computations = cs}
   where i  = getTopLvlFun e s
         cs = deleteFirst (computations s)
         m  = addMessage e $ "Stop computation " ++ show i ++ ": " ++ showCs cs
-        deleteFirst [] = [] 
-        deleteFirst (s:ss) | isSpan i s = ss 
+        deleteFirst [] = []
+        deleteFirst (s:ss) | isSpan i s = ss
                            | otherwise  = s : deleteFirst ss
 
 
@@ -276,7 +277,7 @@ traceInfo :: Trace -> TraceInfo
 traceInfo trc = foldl loop s0 trc
 
   where s0 :: TraceInfo
-        s0 = TraceInfo IntMap.empty IntMap.empty [] IntMap.empty IntMap.empty [] 
+        s0 = TraceInfo IntMap.empty IntMap.empty [] IntMap.empty IntMap.empty []
 
         cs :: ConsMap
         cs = mkConsMap trc
@@ -292,20 +293,20 @@ traceInfo trc = foldl loop s0 trc
                    in case change e of
                         Observe{} -> setLocation e (\_->True) s
 
-                        Fun{}     -> setLocation e (\q->case q of 0 -> not loc; 1 -> loc) 
+                        Fun{}     -> setLocation e (\q->case q of 0 -> not loc; 1 -> loc)
                                      . seeFun e $ s
 
                         -- Span start
                         Enter{}   -> if not . corToCons cs $ e then s else
-                                     cpyTopLvlFun e 
+                                     cpyTopLvlFun e
                                      $ case loc of
-                                          True  -> (if parentIsConstant e then id else addDependency e) 
+                                          True  -> (if parentIsConstant e then id else addDependency e)
                                                    $ start e s
                                           False -> pause e s
 
                         -- Span end
-                        Cons{} ->  cpyTopLvlFun e 
+                        Cons{} ->  cpyTopLvlFun e
                                    . setLocation e (\_->loc)
-                                   $ case loc of 
+                                   $ case loc of
                                        True  -> stop e s
                                        False -> resume e s

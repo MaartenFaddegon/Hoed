@@ -97,16 +97,17 @@ module Debug.Hoed.Pure
     observe
   , runO
   , printO
-
-    -- * Annotations for testing
   , logO
-  , logOwp
 
     -- * Experimental annotations
   , traceOnly
   , observeTempl
   , observedTypes
   , observeCC
+
+  -- * Property-based judging
+  , Property(..)
+  , logOwp
 
    -- * The Observable class
   , Observer(..)
@@ -272,15 +273,11 @@ logO filePath program = {- SCC "logO" -} do
         showCompStmt       = show . vertexStmt
 
 -- | As logO, but with property-based judging.
-logOwp :: FilePath -> IO a -> IO ()
-logOwp filePath program = do
+logOwp :: FilePath -> [Property] -> IO a -> IO ()
+logOwp filePath properties program = do
   (trace,traceInfo,compTree,frt) <- runO' program
-  compTree' <- case filter (/= RootVertex) (vertices compTree) of
-    []    -> return compTree
-    (v:_) -> do hPutStrLn stderr "\n=== DoIt ===\n"
-                v' <- judge trace p1 v
-                print v'
-                return $ mapGraph (\w -> if v == w then v' else w) compTree
+  hPutStrLn stderr "\n=== Evaluating assigned properties ===\n"
+  compTree' <- judge trace properties compTree
   writeFile filePath (showGraph compTree')
   return ()
 
@@ -289,8 +286,6 @@ logOwp filePath program = do
         showVertex v       = ("\"" ++ (escape . showCompStmt) v ++ "\"", "")
         showArc _          = ""
         showCompStmt s     = (show . vertexJmt) s ++ ": " ++ (show . vertexStmt) s
-
-
 
 hPutStrList :: (Show a) => Handle -> [a] -> IO()
 hPutStrList h []     = hPutStrLn h ""
