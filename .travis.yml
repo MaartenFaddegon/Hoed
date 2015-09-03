@@ -32,7 +32,11 @@ install:
 script:
  # Make sure our cabal specification is sound
  - cabal check
+ # Install base library
+ - cabal configure
+ - cabal install
  # Test deriving Observable for Generic types
+ - cabal clean
  - bash -x configure.Generic
  - cabal build
  - bash test.Generic
