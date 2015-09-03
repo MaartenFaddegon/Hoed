@@ -84,7 +84,7 @@ judge1 trc prop v = do
 
   where generateCode = writeFile sourceFile (generate prop trc i)
         compile      = system $ "ghc  -i" ++ (searchPath prop) ++ " -o " ++ exeFile ++ " " ++ sourceFile
-        evaluate     = system $ exeFile ++ " &> " ++ outFile
+        evaluate     = system $ exeFile ++ " > " ++ outFile ++ " 2>&1"
         i            = (stmtIdentifier . vertexStmt) v
 
 -- The actual logic that changes the judgement of a vertex.
