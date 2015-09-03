@@ -68,7 +68,7 @@ judge1 :: Trace -> Property -> Vertex -> IO Vertex
 judge1 _ _ RootVertex = return RootVertex
 judge1 trc prop v = do
   createDirectoryIfMissing True ".Hoed/exe"
-  hPutStrLn stderr $ "Picked statement identifier = " ++ show i
+  hPutStrLn stderr $ "Using property " ++ propertyName prop ++ " to judge statement " ++ (stmtRes . vertexStmt) v
   generateCode
   compile
   exit' <- compile
@@ -78,7 +78,9 @@ judge1 trc prop v = do
   out  <- readFile outFile
   hPutStrLn stderr $ "Exitted with " ++ show exit
   hPutStrLn stderr $ "Output is " ++ show out
-  return v{vertexJmt=judge1' exit out (vertexJmt v)}
+  let jmt = judge1' exit out (vertexJmt v)
+  hPutStrLn stderr $ "Judgement was " ++ (show . vertexJmt) v ++ ", and is now " ++ show jmt
+  return v{vertexJmt= jmt}
 
   where generateCode = writeFile sourceFile (generate prop trc i)
         compile      = system $ "ghc  -i" ++ (searchPath prop) ++ " -o " ++ exeFile ++ " " ++ sourceFile
