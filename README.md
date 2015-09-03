@@ -68,6 +68,8 @@ After running the program a computation tree is constructed and displayed in a w
 
 You can freely browse this tree to get a better understanding of your program. If your program misbehaves, you can judge the computation statements in the tree as 'right' or 'wrong' according to your intention. When enough statements are judged the debugger tells you the location of the fault in your code.
 
+![Screenshot of Hoed][1]
+
 ## Installation
 
 Hoed is available from Hackage and can be installed with Cabal.
@@ -79,3 +81,5 @@ Hoed is available from Hackage and can be installed with Cabal.
 Many of the ideas for Hoed come from the Hat project. Hoed is the Dutch word for a hat. Compared to Hoed, Hat can give more detailed traces. However, Hat requires all modules to be transformed and is therefore not practical for many real-world Haskell programs.
 
 The idea to observe values with local annotations comes from the HOOD project. Unlike Hoed, HOOD does not give relations between observed values. HOOD also requires the programmer to write a class-instance for the type of the value they want to observe. With Hoed these instates can be derived automatically.
+
+  [1]: http://www.cs.kent.ac.uk/people/rpg/mf357/hoedv2.0.0.png

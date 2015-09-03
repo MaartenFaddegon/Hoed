@@ -7,9 +7,11 @@ Maintainer  : hoed@maartenfaddegon.nl
 Stability   : experimental
 Portability : POSIX
 
-Hoed is a tracer and debugger for the programming language Haskell. You can
+Hoed.Stk is a tracer and debugger for the programming language Haskell. You can
 trace a program by annotating functions in suspected modules and linking your
-program against standard profiling libraries. 
+program against standard profiling libraries.
+
+Hoed.Pure is recommended over Hoed.Stk because to debug your program with Hoed.Pure you can optimize your program and do not need to enable profiling.
 
 After running the program a computation tree is constructed and displayed in a
 web browser. You can freely browse this tree to get a better understanding of
@@ -101,11 +103,11 @@ import System.Directory(createDirectoryIfMissing)
 
 -- | run some code and return the CDS structure (for when you want to write your own debugger).
 debugO :: IO a -> IO [Event]
-debugO program = 
+debugO program =
      do { initUniq
         ; startEventStream
         ; let errorMsg e = "[Escaping Exception in Code : " ++ show e ++ "]"
-        ; ourCatchAllIO (do { program ; return () }) 
+        ; ourCatchAllIO (do { program ; return () })
                         (hPutStrLn stderr . errorMsg)
         ; events <- endEventStream
         ; return events
@@ -115,21 +117,21 @@ debugO program =
 printO :: (Show a) => a -> IO ()
 printO expr = runO (print expr)
 
--- | print a string, with debugging 
+-- | print a string, with debugging
 putStrO :: String -> IO ()
 putStrO expr = runO (putStr expr)
 
 -- | The main entry point; run some IO code, and debug inside it.
 --   After the IO action is completed, an algorithmic debugging session is started at
 --   @http://localhost:10000/@ to which you can connect with your webbrowser.
--- 
+--
 -- For example:
 --
--- @ 
+-- @
 --   main = runO $ do print (triple 3)
 --                    print (triple 2)
 -- @
--- 
+--
 
 runO :: IO a -> IO ()
 runO program = {- SCC "runO" -} do
@@ -180,7 +182,7 @@ logO filePath program = {- SCC "logO" -} do
         showArc _          = ""
         showCompStmts      = showCompStmts' . equations
         showCompStmts' [e] = show e
-        showCompStmts' es  = foldl (\acc e-> acc ++ show e ++ ", ") "{" (init es) 
+        showCompStmts' es  = foldl (\acc e-> acc ++ show e ++ ", ") "{" (init es)
                              ++ show (last es) ++ "}"
         showStk []         = "[]"
         showStk stk        = showStk' $ map (\lbl -> "\\\"" ++ lbl ++ "\\\"") stk

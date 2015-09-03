@@ -1,7 +1,7 @@
 {-|
 Module      : Debug.Hoed.Pure
 Description : Lighweight algorithmic debugging based on observing intermediate values and the cost centre stack.
-Copyright   : (c) 2000 Andy Gill, (c) 2010 University of Kansas, (c) 2013-2014 Maarten Faddegon
+Copyright   : (c) 2000 Andy Gill, (c) 2010 University of Kansas, (c) 2013-2015 Maarten Faddegon
 License     : BSD3
 Maintainer  : hoed@maartenfaddegon.nl
 Stability   : experimental
@@ -9,7 +9,71 @@ Portability : POSIX
 
 Hoed is a tracer and debugger for the programming language Haskell. You can
 trace a program by annotating functions in suspected modules and linking your
-program against standard profiling libraries. 
+program against standard profiling libraries.
+
+To locate a defect with Hoed you annotate suspected functions and compile as usual. Then you run your program, information about the annotated functions is collected. Finally you connect to a debugging session using a webbrowser.
+
+Let us consider the following program, a defective implementation of a parity function with a test property.
+
+> import Test.QuickCheck
+>
+> isOdd :: Int -> Bool
+> isOdd n = isEven (plusOne n)
+>
+> isEven :: Int -> Bool
+> isEven n = mod2 n == 0
+>
+> plusOne :: Int -> Int
+> plusOne n = n + 1
+>
+> mod2 :: Int -> Int
+> mod2 n = div n 2
+>
+> prop_isOdd :: Int -> Bool
+> prop_isOdd x = isOdd (2*x+1)
+>
+> main :: IO ()
+> main = printO (prop_isOdd 1)
+>
+> main :: IO ()
+> main = quickcheck prop_isOdd
+
+Using the property-based test tool QuickCheck we find the counter example `1` for our property.
+
+> ./MyProgram
+> *** Failed! Falsifiable (after 1 test): 1
+
+Hoed can help us determine which function is defective. We annotate the functions `isOdd`, `isEven`, `plusOne` and `mod2` as follows:
+
+> import Debug.Hoed.Pure
+>
+> isOdd :: Int -> Bool
+> isOdd = observe "isOdd" isOdd'
+> isOdd' n = isEven (plusOne n)
+>
+> isEven :: Int -> Bool
+> isEven = observe "isEven" isEven'
+> isEven' n = mod2 n == 0
+>
+> plusOne :: Int -> Int
+> plusOne = observe "plusOne" plusOne'
+> plusOne' n = n + 1
+>
+> mod2 :: Int -> Int
+> mod2 = observe "mod2" mod2'
+> mod2' n = div n 2
+>
+> prop_isOdd :: Int -> Bool
+> prop_isOdd x = isOdd (2*x+1)
+>
+> main :: IO ()
+> main = printO (prop_isOdd 1)
+
+After running the program a computation tree is constructed and displayed in a web browser.
+
+> ./MyProgram
+> False
+> Listening on http://127.0.0.1:10000/
 
 After running the program a computation tree is constructed and displayed in a
 web browser. You can freely browse this tree to get a better understanding of
@@ -23,25 +87,20 @@ in your code.
 I work on this debugger in the context of my Ph.D. research.
 Read more about the theory behind Hoed at <http://maartenfaddegon.nl/#pub>.
 
-Unlike Hoed.Stk, to debug your program with Hoed.Pure you can optimize your
-program and do not need to enable profiling.
+Hoed.Pure is recommended over Hoed.Stk because to debug your program with Hoed.Pure you can optimize your program and do not need to enable profiling.
 
-I am keen to hear about your experience with Hoed:
-where did you find it useful and where would you like to see improvement?
-You can send me an e-mail at hoed@maartenfaddegon.nl, or use the
-github issue tracker <https://github.com/MaartenFaddegon/hoed/issues>.
-
+I am keen to hear about your experience with Hoed: where did you find it useful and where would you like to see improvement? You can send me an e-mail at hoed@maartenfaddegon.nl, or use the github issue tracker <https://github.com/MaartenFaddegon/hoed/issues>.
 -}
 
 module Debug.Hoed.Pure
   ( -- * Basic annotations
     observe
-  , traceOnly
-  , doit
   , runO
   , printO
 
     -- * Experimental annotations
+  , traceOnly
+  , doit
   , observeTempl
   , observedTypes
   , observeCC
@@ -101,11 +160,11 @@ import System.Directory(createDirectoryIfMissing)
 
 -- | run some code and return the Trace
 debugO :: IO a -> IO Trace
-debugO program = 
+debugO program =
      do { initUniq
         ; startEventStream
         ; let errorMsg e = "[Escaping Exception in Code : " ++ show e ++ "]"
-        ; ourCatchAllIO (do { program ; return () }) 
+        ; ourCatchAllIO (do { program ; return () })
                         (hPutStrLn stderr . errorMsg)
         ; endEventStream
         }
@@ -116,26 +175,33 @@ debugO' program = do
   events <- debugO program
   return (eventsToCDS events)
 
--- | Short for @runO . print@.
-printO :: (Show a) => a -> IO ()
-printO expr = runO (print expr)
 
--- | print a string, with debugging 
+-- | print a string, with debugging
 putStrO :: String -> IO ()
 putStrO expr = runO (putStr expr)
 
 -- | The main entry point; run some IO code, and debug inside it.
 --   After the IO action is completed, an algorithmic debugging session is started at
 --   @http://localhost:10000/@ to which you can connect with your webbrowser.
--- 
+--
 -- For example:
 --
--- @ 
+-- @
 --   main = runO $ do print (triple 3)
 --                    print (triple 2)
 -- @
--- 
 
+runO :: IO a -> IO ()
+runO program = do
+  (trace,traceInfo,compGraph,frt) <- runO' program
+  debugSession trace traceInfo compGraph frt
+  return ()
+
+-- | Short for @runO . print@.
+printO :: (Show a) => a -> IO ()
+printO expr = runO (print expr)
+
+-- | Only produces a trace. Useful for performance measurements.
 traceOnly :: IO a -> IO ()
 traceOnly program = do
   debugO program
@@ -149,12 +215,6 @@ doit program = do
     (v:_) -> do putStrLn "\n=== DoIt ===\n"
                 v' <- judge trace p1 v
                 print v'
-
-runO :: IO a -> IO ()
-runO program = do
-  (trace,traceInfo,compGraph,frt) <- runO' program
-  debugSession trace traceInfo compGraph frt
-  return ()
 
 runO' :: IO a -> IO (Trace,TraceInfo,CompTree,EventForest)
 runO' program = do
@@ -215,7 +275,7 @@ logO filePath program = {- SCC "logO" -} do
         showVertex v       = ("\"" ++ (escape . showCompStmt) v ++ "\"", "")
         showArc _          = ""
         showCompStmt       = show . vertexStmt
-  
+
 
 hPutStrList :: (Show a) => Handle -> [a] -> IO()
 hPutStrList h []     = hPutStrLn h ""
