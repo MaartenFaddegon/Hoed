@@ -33,7 +33,9 @@ data Property =
            , searchPath :: String
            }
 
+
 sourceFile = ".Hoed/exe/Main.hs"
+buildFiles = ".Hoed/exe/Main.o .Hoed/exe/Main.hi"
 exeFile    = ".Hoed/exe/Main"
 outFile    = ".Hoed/exe/Main.out"
 
@@ -83,7 +85,7 @@ judge1 trc prop v = do
   hPutStrLn stderr $ "Judgement was " ++ (show . vertexJmt) v ++ ", and is now " ++ show jmt
   return v{vertexJmt= jmt}
 
-  where clean        = system $ "rm -f " ++ sourceFile ++ " " ++ exeFile
+  where clean        = system $ "rm -f " ++ sourceFile ++ " " ++ exeFile ++ " " ++ buildFiles
         generateCode = writeFile sourceFile (generate prop trc i)
         compile      = system $ "ghc  -i" ++ (searchPath prop) ++ " -o " ++ exeFile ++ " " ++ sourceFile
         evaluate     = system $ exeFile ++ " > " ++ outFile ++ " 2>&1"
