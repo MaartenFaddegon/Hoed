@@ -300,7 +300,7 @@ traceInfo trc = foldl loop s0 trc
                         Enter{}   -> if not . corToCons cs $ e then s else
                                      cpyTopLvlFun e
                                      $ case loc of
-                                          True  -> (if parentIsConstant e then id else addDependency e)
+                                          True  -> addDependency e
                                                    $ start e s
                                           False -> pause e s
 
