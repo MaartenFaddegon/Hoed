@@ -64,10 +64,10 @@ prop_negin_complete p  =  not (anywhere negout (negin p))
 prop_negin_sound :: Prop -> Bool
 prop_negin_sound p  =  equiv (negin p) p
 
+prop_negin_correct :: Prop -> Bool
+prop_negin_correct p = prop_negin_sound p && prop_negin_complete p
+
 eg :: Prop
 eg  =  N (O (A (V 'p') (N (V 'q'))) (V 'r'))
 
-eg' :: Prop
-eg' = V 'p'
 
-prop_negin_correct p = prop_negin_sound p && prop_negin_complete p

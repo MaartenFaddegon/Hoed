@@ -6,7 +6,8 @@ import Debug.Hoed.Pure
 -- main = quickcheck prop_idemSimplify
 main = logOwp "hoed-tests-Prop-t0.graph" properties $ print $ prop_idemSimplify (Mul (Const 1) (Const 2))
   where
-  properties = [ Property "one"      PropertyOf "MyModule" "prop_idemOne"      "../Prop/t0/"
-               , Property "zero"     PropertyOf "MyModule" "prop_idemZero"     "../Prop/t0/"
-               , Property "simplify" PropertyOf "MyModule" "prop_idemSimplify" "../Prop/t0/"
+  properties = [ Propositions [("prop_idemOne",myModule)]      PropertiesOf "one"
+               , Propositions [("prop_idemZero",myModule)]     PropertiesOf "zero"
+               , Propositions [("prop_idemSimplify",myModule)] PropertiesOf "simplify"
                ]
+  myModule = Module "MyModule" "../Prop/t0/"

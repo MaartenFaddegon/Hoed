@@ -106,8 +106,10 @@ module Debug.Hoed.Pure
   , observeCC
 
   -- * Property-based judging
-  , Property(..)
-  , Spec(..)
+  , Propositions(..)
+  , PropType(..)
+  , Proposition(..)
+  , Module(..)
   , logOwp
 
    -- * The Observable class
@@ -274,7 +276,7 @@ logO filePath program = {- SCC "logO" -} do
         showCompStmt       = show . vertexStmt
 
 -- | As logO, but with property-based judging.
-logOwp :: FilePath -> [Property] -> IO a -> IO ()
+logOwp :: FilePath -> [Propositions] -> IO a -> IO ()
 logOwp filePath properties program = do
   (trace,traceInfo,compTree,frt) <- runO' program
   hPutStrLn stderr "\n=== Evaluating assigned properties ===\n"

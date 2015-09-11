@@ -4,7 +4,7 @@
 
 module Debug.Hoed.Pure.Prop where
 -- ( judge
--- , Property(..)
+-- , Propositions(..)
 -- ) where
 
 import Debug.Hoed.Pure.Observe(Trace(..),UID,Event(..),Change(..))
@@ -19,36 +19,37 @@ import System.Process(system)
 import System.Exit(ExitCode(..))
 import System.IO(hPutStrLn,stderr)
 import Data.Char(isAlpha)
+import Data.Maybe(isNothing)
+import Data.List(intersperse)
 
 ------------------------------------------------------------------------------------------------------------------------
 
-data Spec = Specifies | PropertyOf
+data Propositions = Propositions {propositions :: [Proposition], propType :: PropType, funName :: String} 
 
-data Property =
-  -- | Property which can be used to judge computation statements.
-  Property { -- | Name of the (observed) function to which the property can be applied.
-             funName :: String
-             -- | Specification
-           , specifies :: Spec
-             -- | Name of the module containing the property.
-           , moduleName :: String
-             -- | Name of the property.
-           , propertyName :: String
-             -- | Path to the source of the module containing the property. Can be a colon seperated list of directories.
-           , searchPath :: String
-           }
+data PropType     = Specify | PropertiesOf
+
+type Proposition  = (String,Module)
+
+data Module       = Module {moduleName :: String, searchPath :: String}
+
+propName :: Proposition -> String
+propName = fst
+
+propModule :: Proposition -> Module
+propModule = snd
+
+------------------------------------------------------------------------------------------------------------------------
 
 sourceFile = ".Hoed/exe/Main.hs"
 buildFiles = ".Hoed/exe/Main.o .Hoed/exe/Main.hi"
 exeFile    = ".Hoed/exe/Main"
 outFile    = ".Hoed/exe/Main.out"
 
-
 ------------------------------------------------------------------------------------------------------------------------
 
-lookupProperty :: [Property] -> Vertex -> Maybe Property
-lookupProperty _ RootVertex = Nothing
-lookupProperty properties v = lookupWith funName lbl properties
+lookupPropositions :: [Propositions] -> Vertex -> Maybe Propositions
+lookupPropositions _ RootVertex = Nothing
+lookupPropositions ps v = lookupWith funName lbl ps
   where lbl = (stmtLabel . vertexStmt) v
 
 lookupWith :: Eq a => (b->a) -> a -> [b] -> Maybe b
@@ -58,23 +59,46 @@ lookupWith f x ys = case filter (\y -> f y == x) ys of
 
 ------------------------------------------------------------------------------------------------------------------------
 
-judge :: Trace -> [Property] -> CompTree -> IO CompTree
-judge trc properties compTree = do
+judge :: Trace -> [Propositions] -> CompTree -> IO CompTree
+judge trc ps compTree = do
   ws <- mapM j vs
   return $ foldl updateTree compTree ws
+  where 
+  vs  = vertices compTree
+  j v = case lookupPropositions ps v of 
+    Nothing  -> return v
+    (Just p) -> judgeWithPropositions trc p v
+  updateTree compTree w = mapGraph (\v -> if (vertexUID v) == (vertexUID w) then w else v) compTree
 
-  where vs = vertices compTree
-        j v = case lookupProperty properties v of Nothing  -> return v
-                                                  (Just p) -> judge1 trc p v
-        updateTree compTree w = mapGraph (\v -> if (vertexUID v) == (vertexUID w) then w else v) compTree
+
+-- Use a property to judge a vertex
+judgeWithPropositions :: Trace -> Propositions -> Vertex -> IO Vertex
+judgeWithPropositions _ _ RootVertex = return RootVertex
+judgeWithPropositions trc p v = do
+  mbs <- mapM (evalProposition trc v) (propositions p)
+  let j = case (propType p, any isNothing mbs) of
+            (Specify,False) -> if any isJustFalse mbs then Wrong else Right
+            _               -> if any isJustFalse mbs then Wrong else Unassessed
+      j' = case (j, (map snd) . (filter (isJustTrue . fst)) $ zip mbs (propositions p)) of
+             (Unassessed, []) -> Unassessed
+             (Unassessed, ps) -> Assisted $ "With failing properties: " ++ commas (map propName ps)
+             _                -> j
+  hPutStrLn stderr $ "Judgement was " ++ (show . vertexJmt) v ++ ", and is now " ++ show j'
+  return v{vertexJmt=j'}
+  where
+  isJustFalse (Just False) = True
+  isJustFalse _            = False
+  isJustTrue (Just True)   = True
+  isJustTrue _             = False
+
+  commas :: [String] -> String
+  commas = concat . (intersperse ", ")
 
 
--- Judge a vertex given a specific property
-judge1 :: Trace -> Property -> Vertex -> IO Vertex
-judge1 _ _ RootVertex = return RootVertex
-judge1 trc prop v = do
+evalProposition :: Trace -> Vertex -> Proposition -> IO (Maybe Bool)
+evalProposition trc v prop = do
   createDirectoryIfMissing True ".Hoed/exe"
-  hPutStrLn stderr $ "Using property " ++ propertyName prop ++ " to judge statement " ++ (stmtRes . vertexStmt) v
+  hPutStrLn stderr $ "Evaluating proposition " ++ propName prop ++ " with statement " ++ (stmtRes . vertexStmt) v
   clean
   generateCode
   compile
@@ -85,16 +109,18 @@ judge1 trc prop v = do
   out  <- readFile outFile
   hPutStrLn stderr $ "Exitted with " ++ show exit
   hPutStrLn stderr $ "Output is " ++ show out
-  let jmt = (case specifies prop of Specifies -> judge1_spec exit out (vertexJmt v)
-                                    _ -> judge1'     exit out (vertexJmt v))
-  hPutStrLn stderr $ "Judgement was " ++ (show . vertexJmt) v ++ ", and is now " ++ show jmt
-  return v{vertexJmt= jmt}
+  return $ case (exit, out) of
+    (ExitFailure _, _)         -> Nothing
+    (ExitSuccess  , "True\n")  -> Just True
+    (ExitSuccess  , "False\n") -> Just False
+    (ExitSuccess  , _)         -> Nothing
 
-  where clean        = system $ "rm -f " ++ sourceFile ++ " " ++ exeFile ++ " " ++ buildFiles
-        generateCode = writeFile sourceFile (generate prop trc i)
-        compile      = system $ "ghc  -i" ++ (searchPath prop) ++ " -o " ++ exeFile ++ " " ++ sourceFile
-        evaluate     = system $ exeFile ++ " > " ++ outFile ++ " 2>&1"
-        i            = (stmtIdentifier . vertexStmt) v
+    where
+    clean        = system $ "rm -f " ++ sourceFile ++ " " ++ exeFile ++ " " ++ buildFiles
+    generateCode = writeFile sourceFile (generate prop trc i)
+    compile      = system $ "ghc  -i" ++ (searchPath . propModule) prop ++ " -o " ++ exeFile ++ " " ++ sourceFile
+    evaluate     = system $ exeFile ++ " > " ++ outFile ++ " 2>&1"
+    i            = (stmtIdentifier . vertexStmt) v
 
 -- The actual logic that changes the judgement of a vertex.
 judge1' :: ExitCode -> String -> Judgement -> Judgement
@@ -113,17 +139,17 @@ judge1_spec ExitSuccess     out j
 
 ------------------------------------------------------------------------------------------------------------------------
 
-generate :: Property -> Trace -> UID -> String
+generate :: Proposition -> Trace -> UID -> String
 generate prop trc i = generateHeading prop ++ generateMain prop trc i
 
-generateHeading :: Property -> String
+generateHeading :: Proposition -> String
 generateHeading prop =
   "-- This file is generated by the Haskell debugger Hoed\n"
-  ++ "import " ++ moduleName prop ++ "\n"
+  ++ "import " ++ (moduleName . propModule) prop ++ "\n"
 
-generateMain :: Property -> Trace -> UID -> String
+generateMain :: Proposition -> Trace -> UID -> String
 generateMain prop trc i =
-  "main = print $ " ++ propertyName prop ++ " " ++ generateArgs trc i ++ "\n"
+  "main = print $ " ++ propName prop ++ " " ++ generateArgs trc i ++ "\n"
 
 generateArgs :: Trace -> UID -> String
 generateArgs trc i = case dfsChildren frt e of
