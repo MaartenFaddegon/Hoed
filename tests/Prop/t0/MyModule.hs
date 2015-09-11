@@ -44,26 +44,3 @@ prop_idemOne = idem one
 
 prop_idemZero :: Expr -> Bool
 prop_idemZero = idem zero
-
-prop_never :: Expr -> Bool
-prop_never _ = False
-
-
---------------------------------------------------------------------------------
--- "generated" propositions
-{-
- -
-p1,p2,p3,p4,p5,p6,p7,p8,p9 :: Bool
-
-p1 = prop_idemSimplify (Mul (Const 1) (Const 2))  -- False
-p2 = prop_idemSimplify (Const 1)                  -- True
-p3 = prop_idemSimplify (Const 2)                  -- True
-
-p4 = prop_idemZero (Mul (Const 1) (Const 2))      -- True
-p5 = prop_idemZero (Const 1)                      -- True
-p6 = prop_idemZero (Const 2)                      -- True
-
-p7 = prop_idemOne (Mul (Const 1) (Const 2))       -- False
-p8 = prop_idemOne (Const 1)                       -- True
-p9 = prop_idemOne (Const 2)                       -- True
--}

@@ -394,6 +394,25 @@ Executable hoed-tests-Prop-t0
   hs-source-dirs:      tests/Prop/t0
   default-language:    Haskell2010
 
+
+Executable hoed-tests-Prop-t1
+  if flag(validateProp)
+    build-depends:     base >= 4 && < 5, Hoed
+  else
+    buildable: False
+  main-is:             Main.hs
+  hs-source-dirs:      tests/Prop/t1
+  default-language:    Haskell2010
+
+Executable hoed-tests-Prop-t2
+  if flag(validateProp)
+    build-depends:     base >= 4 && < 5, Hoed, lazysmallcheck
+  else
+    buildable: False
+  main-is:             Main.hs
+  hs-source-dirs:      tests/Prop/t2
+  default-language:    Haskell2010
+
 ---------------------------------------------------------------------------
 
 Executable hoed-tests-Generic-r0

@@ -18,13 +18,18 @@ import System.Directory(createDirectoryIfMissing)
 import System.Process(system)
 import System.Exit(ExitCode(..))
 import System.IO(hPutStrLn,stderr)
+import Data.Char(isAlpha)
 
 ------------------------------------------------------------------------------------------------------------------------
+
+data Spec = Specifies | PropertyOf
 
 data Property =
   -- | Property which can be used to judge computation statements.
   Property { -- | Name of the (observed) function to which the property can be applied.
              funName :: String
+             -- | Specification
+           , specifies :: Spec
              -- | Name of the module containing the property.
            , moduleName :: String
              -- | Name of the property.
@@ -32,7 +37,6 @@ data Property =
              -- | Path to the source of the module containing the property. Can be a colon seperated list of directories.
            , searchPath :: String
            }
-
 
 sourceFile = ".Hoed/exe/Main.hs"
 buildFiles = ".Hoed/exe/Main.o .Hoed/exe/Main.hi"
@@ -81,7 +85,8 @@ judge1 trc prop v = do
   out  <- readFile outFile
   hPutStrLn stderr $ "Exitted with " ++ show exit
   hPutStrLn stderr $ "Output is " ++ show out
-  let jmt = judge1' exit out (vertexJmt v)
+  let jmt = (case specifies prop of Specifies -> judge1_spec exit out (vertexJmt v)
+                                    _ -> judge1'     exit out (vertexJmt v))
   hPutStrLn stderr $ "Judgement was " ++ (show . vertexJmt) v ++ ", and is now " ++ show jmt
   return v{vertexJmt= jmt}
 
@@ -97,6 +102,13 @@ judge1' (ExitFailure _) _   j = j
 judge1' ExitSuccess     out j
   | out == "False\n" = Wrong
   | out == "True\n"  = j
+  | otherwise     = j
+
+judge1_spec :: ExitCode -> String -> Judgement -> Judgement
+judge1_spec (ExitFailure _) _   j = j
+judge1_spec ExitSuccess     out j
+  | out == "False\n" = Wrong
+  | out == "True\n"  = Right
   | otherwise     = j
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -125,11 +137,12 @@ generateExpr :: EventForest -> Maybe Event -> String
 generateExpr _ Nothing    = __
 generateExpr frt (Just e) = -- enable to add events as comments to generated code: "{- " ++ show e ++ " -}" ++
                             case change e of
-  (Cons _ s) -> foldl (\acc c -> acc ++ " " ++ c) ("(" ++ s) cs ++ ") "
+  (Cons _ s) -> let s' = if isAlpha (head s) then s else "(" ++ s ++ ")"
+                in foldl (\acc c -> acc ++ " " ++ c) ("(" ++ s') cs ++ ") "
   Enter      -> ""
   _          -> "error \"cannot represent\""
 
   where cs = map (generateExpr frt) (dfsChildren frt e)
 
 __ :: String
-__ = "(error \"Request of value that was unevaluated in orignal program.\")"
+__ = "(error \"Request of value that was unevaluated in original program.\")"

@@ -107,6 +107,7 @@ module Debug.Hoed.Pure
 
   -- * Property-based judging
   , Property(..)
+  , Spec(..)
   , logOwp
 
    -- * The Observable class
