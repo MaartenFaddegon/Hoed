@@ -413,6 +413,19 @@ Executable hoed-tests-Prop-t2
   hs-source-dirs:      tests/Prop/t2
   default-language:    Haskell2010
 
+Executable hoed-tests-Prop-t3
+  if flag(validateProp)
+    build-depends:     base >= 4 && < 5, Hoed, 
+                       X11>=1.5 && < 1.7, mtl, unix,
+                       utf8-string >= 0.3 && < 0.4,
+                       extensible-exceptions, random,
+                       containers, filepath, process, directory
+  else
+    buildable: False
+  main-is:             Properties.hs
+  hs-source-dirs:      tests/Prop/t3
+  default-language:    Haskell2010
+
 ---------------------------------------------------------------------------
 
 Executable hoed-tests-Generic-r0
