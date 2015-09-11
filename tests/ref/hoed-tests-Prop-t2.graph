@@ -1,0 +1,16 @@
+diGraph G {
+v0[shape=none label="."]
+v5 [label="Right: mergeAndSortTargets (('v', \"v\") : [])  = ('v', \"v\") : []"]
+v4 [label="Wrong: mergeAndSortTargets (('s', \"tvtv\") : ('v', \"v\") : [])  = ('s', \"ttvv\") : ('v', \"v\") : []"]
+v3 [label="Wrong: mergeAndSortTargets (('s', \"t\") : ('s', \"vtv\") : ('v', \"v\") : [])  = ('s', \"ttvv\") : ('v', \"v\") : []"]
+v2 [label="Right: addMissingSources (('s', \"ttvv\") : ('v', \"v\") : [])  = ('s', 't' : 't' : _) : ('t', _) : ('t', _) : ('v', _) : []"]
+v1 [label="Wrong: assoc1toNdigraph
+   (('v', \"v\") : ('s', \"t\") : ('s', \"vtv\") : []) 
+   = ('s', 't' : 't' : _) : ('t', _) : ('t', _) : ('v', _) : []"]
+v0[shape=none label="."]
+v1 -> v3 [label=""]
+v3 -> v4 [label=""]
+v4 -> v5 [label=""]
+v0 -> v1 [label=""]
+v1 -> v2 [label=""]
+}

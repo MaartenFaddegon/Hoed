@@ -81,7 +81,7 @@ judgeWithPropositions trc p v = do
             _               -> if any isJustFalse mbs then Wrong else Unassessed
       j' = case (j, (map snd) . (filter (isJustTrue . fst)) $ zip mbs (propositions p)) of
              (Unassessed, []) -> Unassessed
-             (Unassessed, ps) -> Assisted $ "With failing properties: " ++ commas (map propName ps)
+             (Unassessed, ps) -> Assisted $ "With passing properties: " ++ commas (map propName ps)
              _                -> j
   hPutStrLn stderr $ "Judgement was " ++ (show . vertexJmt) v ++ ", and is now " ++ show j'
   return v{vertexJmt=j'}
