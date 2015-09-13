@@ -232,17 +232,17 @@ view = observe "view" view'
 view' i s
     | i == currentTag s = s  -- current
 
-{- BUG: missing clause
-
     | Just x <- L.find ((i==).tag.workspace) (visible s)
     -- if it is visible, it is just raised
     = s { current = x, visible = current s : L.deleteBy (equating screen) x (visible s) }
--}
 
     | Just x <- L.find ((i==).tag)           (hidden  s) -- must be hidden then
     -- if it was hidden, it is raised on the xine screen currently used
     = s { current = (current s) { workspace = x }
-        , hidden = workspace (current s) : L.deleteBy (equating tag) x (hidden s) }
+        {- BUG: we make it current, but we forget to delete it from the hidden list
+        , hidden = workspace (current s) : L.deleteBy (equating tag) x (hidden s) 
+        -}
+        }
 
     | otherwise = s -- not a member of the stackset
 

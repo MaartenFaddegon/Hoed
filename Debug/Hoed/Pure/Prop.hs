@@ -109,12 +109,9 @@ judgeWithPropositions trc p v = do
 evalProposition :: Trace -> Vertex -> [Module] -> Proposition -> IO (Maybe Bool)
 evalProposition trc v ms prop = do
   createDirectoryIfMissing True ".Hoed/exe"
-  hPutStrLn stderr $ "Evaluating proposition " ++ propName prop ++ " with statement " ++ (stmtRes . vertexStmt) v
+  hPutStrLn stderr $ "Evaluating proposition " ++ propName prop ++ " with statement " ++ (shorten . stmtRes . vertexStmt) v
 
   let args = map (\(n,s) -> "Argument " ++ show n ++ ": " ++ (shorten s)) $ zip [0..] (generateArgs trc getEvent i)
-      shorten s
-        | length s < 120 = s
-        | otherwise    = (take 117 s) ++ "..."
   hPutStrLn stderr $ "Statement UID = " ++ show i
   mapM (hPutStrLn stderr) args
 
@@ -136,13 +133,18 @@ evalProposition trc v ms prop = do
 
     where
     clean        = system $ "rm -f " ++ sourceFile ++ " " ++ exeFile ++ " " ++ buildFiles
-    generateCode = do hPutStrLn stderr $ "Generated the following program ***\n" ++ prgm ++ "\n***" 
+    generateCode = do -- Uncomment the next line to dump generated program on screen
+                      -- hPutStrLn stderr $ "Generated the following program ***\n" ++ prgm ++ "\n***" 
                       writeFile sourceFile prgm
                       where prgm :: String
                             prgm = (generate prop ms trc getEvent i)
     compile      = system $ "ghc  -i" ++ (searchPath . propModule) prop ++ " -o " ++ exeFile ++ " " ++ sourceFile
     evaluate     = system $ exeFile ++ " > " ++ outFile ++ " 2>&1"
     i            = (stmtIdentifier . vertexStmt) v
+
+    shorten s
+      | length s < 120 = s
+      | otherwise    = (take 117 s) ++ "..."
 
     getEvent :: UID -> Event
     getEvent j = fromJust $ M.lookup j m

@@ -3,19 +3,36 @@ import Debug.Hoed.Pure
 import System.Environment
 import Text.Printf
 import Control.Monad
+import System.Random
+import Test.QuickCheck
+import Data.Maybe
+import XMonad.StackSet
+import qualified Data.Map as M
 
 main :: IO ()
 main = logOwp "hoed-tests-Prop-t3.graph" propositions $ do
+{-
     args <- fmap (drop 1) getArgs
     let n = if null args then 100 else read (head args)
     (results, passed) <- liftM unzip $ mapM (\(s,a) -> printf "%-40s: " s >> a n) tests
     printf "Passed %d tests!\n" (sum passed)
     when (not . and $ results) $ fail "Not all tests passed!"
- where
+-}
+ 
+    g <- newStdGen; print . fromJust . ok . (generate 1 g) . evaluate $  prop_greedyView_reversible (NonNegative 1) (StackSet {current = Screen {workspace = Workspace {tag = NonNegative 4, layout = 2, stack = Nothing}, screen = 0, screenDetail = 2}, visible = [Screen {workspace = Workspace {tag = NonNegative 1, layout = 2, stack = Just (Stack {focus = 'f', up = "", down = "oda"})}, screen = 1, screenDetail = 0},Screen {workspace = Workspace {tag = NonNegative 2, layout = 2, stack = Just (Stack {focus = 'w', up = "", down = "n"})}, screen = 2, screenDetail = 1},Screen {workspace = Workspace {tag = NonNegative 3, layout = 2, stack = Just (Stack {focus = 't', up = "", down = "e"})}, screen = 3, screenDetail = -1}], hidden = [Workspace {tag = NonNegative 4, layout = 2, stack = Nothing},Workspace {tag = NonNegative 5, layout = 2, stack = Nothing},Workspace {tag = NonNegative 6, layout = 2, stack = Nothing},Workspace {tag = NonNegative 7, layout = 2, stack = Nothing},Workspace {tag = NonNegative 8, layout = 2, stack = Nothing}], floating = M.fromList []})
 
+
+ where
     propositions =
-        [ Propositions [(QuickCheckProposition,module_Properties,"prop_view_current",[0,1])] PropertiesOf "view" 
-            [module_StackSet, module_QuickCheck, module_Map, module_Random, module_Maybe]
+        [ Propositions [ (QuickCheckProposition,module_Properties,"prop_view_reversible",[1,0])
+                       -- Note how the arguments are swapped for prop_view_current
+                       -- , (QuickCheckProposition,module_Properties,"prop_view_current",[0,1])
+                       ] 
+                       PropertiesOf "view" [module_StackSet, module_QuickCheck, module_Map, module_Random, module_Maybe]
+        , Propositions [ (QuickCheckProposition,module_Properties,"prop_greedyView_reversible",[1,0])
+                       ] 
+                       PropertiesOf "greedyView" [module_StackSet, module_QuickCheck, module_Map, module_Random, module_Maybe]
+
         ]
 
     module_Properties = Module "Properties"              "../Prop/t3/"
@@ -26,7 +43,8 @@ main = logOwp "hoed-tests-Prop-t3.graph" propositions $ do
     module_Maybe      = Module "Data.Maybe"              ""
 
     tests =
-        [ ("view sets current"   , mytest prop_view_current)
+        [ -- ("view reversible"    , mytest prop_view_reversible),
+          ("greedyView reversible"     , mytest prop_greedyView_reversible)
         ]
 
 {-
