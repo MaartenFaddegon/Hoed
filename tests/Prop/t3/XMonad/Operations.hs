@@ -17,6 +17,8 @@
 
 module XMonad.Operations where
 
+import Debug.Hoed.Pure
+
 import XMonad.Core
 import XMonad.Layout (Full(..))
 import qualified XMonad.StackSet as W
@@ -38,6 +40,13 @@ import System.Posix.Process (executeFile)
 import Graphics.X11.Xlib
 import Graphics.X11.Xinerama (getScreenInfo)
 import Graphics.X11.Xlib.Extras
+
+instance Observable Window where observer w = send "(Window ??)" (return w)
+instance Observable ScreenId where observer w = send "(Window ??)" (return w)
+instance Observable ScreenDetail where observer w = send "(Window ??)" (return w)
+
+
+
 
 -- ---------------------------------------------------------------------
 -- |

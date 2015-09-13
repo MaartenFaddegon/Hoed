@@ -109,6 +109,7 @@ module Debug.Hoed.Pure
   , Propositions(..)
   , PropType(..)
   , Proposition(..)
+  , PropositionType(..)
   , Module(..)
   , logOwp
 

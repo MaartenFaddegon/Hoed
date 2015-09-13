@@ -1,5 +1,5 @@
 {-# OPTIONS -fglasgow-exts -w #-}
--- module Properties where
+module Properties where
 
 import XMonad.StackSet hiding (filter)
 import XMonad.Layout
@@ -7,6 +7,7 @@ import XMonad.Core hiding (workspaces,trace)
 import XMonad.Operations  ( applyResizeIncHint, applyMaxSizeHint )
 import qualified XMonad.StackSet as S (filter)
 
+import Debug.Hoed.Pure
 import Debug.Trace
 import Data.Word
 import Graphics.X11.Xlib.Types (Rectangle(..),Position,Dimension)
@@ -39,7 +40,7 @@ import qualified Data.Map as M
 --
 -- The all important Arbitrary instance for StackSet.
 --
-instance (Integral i, Integral s, Eq a, Arbitrary a, Arbitrary l, Arbitrary sd)
+instance (Integral i, Integral s, Eq a, Arbitrary a, Arbitrary l, Arbitrary sd, Show a, Observable a, Observable i, Observable l, Observable s, Observable sd)
         => Arbitrary (StackSet i l a s sd) where
     arbitrary = do
         sz <- choose (1,10)     -- number of workspaces
@@ -67,7 +68,7 @@ instance (Integral i, Integral s, Eq a, Arbitrary a, Arbitrary l, Arbitrary sd)
 -- 'fs' random focused window on each workspace
 -- 'xs' list of list of windows
 --
-fromList :: (Integral i, Integral s, Eq a) => (i, [sd], [Maybe Int], [[a]], l) -> StackSet i l a s sd
+fromList :: (Integral i, Integral s, Eq a, Show a, Observable a, Observable i, Observable l, Observable s, Observable sd) => (i, [sd], [Maybe Int], [[a]], l) -> StackSet i l a s sd
 fromList (_,_,_,[],_) = error "Cannot build a StackSet from an empty list"
 
 fromList (o,m,fs,xs,l) =
@@ -849,165 +850,6 @@ prop_resize_max_extra ((NonNegative inc_w))  b@(w,h) =
          a = (-inc_w,0::Dimension)-- inc_h)
 
 ------------------------------------------------------------------------
-
-main :: IO ()
-main = do
-    args <- fmap (drop 1) getArgs
-    let n = if null args then 100 else read (head args)
-    (results, passed) <- liftM unzip $ mapM (\(s,a) -> printf "%-40s: " s >> a n) tests
-    printf "Passed %d tests!\n" (sum passed)
-    when (not . and $ results) $ fail "Not all tests passed!"
- where
-
-    tests =
-        [("StackSet invariants" , mytest prop_invariant)
-
-        ,("empty: invariant"    , mytest prop_empty_I)
-        ,("empty is empty"      , mytest prop_empty)
-        ,("empty / current"     , mytest prop_empty_current)
-        ,("empty / member"      , mytest prop_member_empty)
-
-        ,("view : invariant"    , mytest prop_view_I)
-        ,("view sets current"   , mytest prop_view_current)
-        ,("view idempotent"     , mytest prop_view_idem)
-        ,("view reversible"    , mytest prop_view_reversible)
---      ,("view / xinerama"     , mytest prop_view_xinerama)
-        ,("view is local"       , mytest prop_view_local)
-
-        ,("greedyView : invariant"    , mytest prop_greedyView_I)
-        ,("greedyView sets current"   , mytest prop_greedyView_current)
-        ,("greedyView is safe "   ,   mytest prop_greedyView_current_id)
-        ,("greedyView idempotent"     , mytest prop_greedyView_idem)
-        ,("greedyView reversible"     , mytest prop_greedyView_reversible)
-        ,("greedyView is local"       , mytest prop_greedyView_local)
---
---      ,("valid workspace xinerama", mytest prop_lookupWorkspace)
-
-        ,("peek/member "        , mytest prop_member_peek)
-
-        ,("index/length"        , mytest prop_index_length)
-
-        ,("focus left : invariant", mytest prop_focusUp_I)
-        ,("focus master : invariant", mytest prop_focusMaster_I)
-        ,("focus right: invariant", mytest prop_focusDown_I)
-        ,("focusWindow: invariant", mytest prop_focus_I)
-        ,("focus left/master"   , mytest prop_focus_left_master)
-        ,("focus right/master"  , mytest prop_focus_right_master)
-        ,("focus master/master"  , mytest prop_focus_master_master)
-        ,("focusWindow master"  , mytest prop_focusWindow_master)
-        ,("focus left/right"    , mytest prop_focus_left)
-        ,("focus right/left"    , mytest prop_focus_right)
-        ,("focus all left  "    , mytest prop_focus_all_l)
-        ,("focus all right "    , mytest prop_focus_all_r)
-        ,("focus down is local"      , mytest prop_focus_down_local)
-        ,("focus up is local"      , mytest prop_focus_up_local)
-        ,("focus master is local"      , mytest prop_focus_master_local)
-        ,("focus master idemp"  , mytest prop_focusMaster_idem)
-
-        ,("focusWindow is local", mytest prop_focusWindow_local)
-        ,("focusWindow works"   , mytest prop_focusWindow_works)
-        ,("focusWindow identity", mytest prop_focusWindow_identity)
-
-        ,("findTag"           , mytest prop_findIndex)
-        ,("allWindows/member"   , mytest prop_allWindowsMember)
-        ,("currentTag"          , mytest prop_currentTag)
-
-        ,("insert: invariant"   , mytest prop_insertUp_I)
-        ,("insert/new"          , mytest prop_insert_empty)
-        ,("insert is idempotent", mytest prop_insert_idem)
-        ,("insert is reversible", mytest prop_insert_delete)
-        ,("insert is local"     , mytest prop_insert_local)
-        ,("insert duplicates"   , mytest prop_insert_duplicate)
-        ,("insert/peek "        , mytest prop_insert_peek)
-        ,("insert/size"         , mytest prop_size_insert)
-
-        ,("delete: invariant"   , mytest prop_delete_I)
-        ,("delete/empty"        , mytest prop_empty)
-        ,("delete/member"       , mytest prop_delete)
-        ,("delete is reversible", mytest prop_delete_insert)
-        ,("delete is local"     , mytest prop_delete_local)
-        ,("delete/focus"        , mytest prop_delete_focus)
-        ,("delete  last/focus up", mytest prop_delete_focus_end)
-        ,("delete ~last/focus down", mytest prop_delete_focus_not_end)
-
-        ,("filter preserves order", mytest prop_filter_order)
-
-        ,("swapMaster: invariant", mytest prop_swap_master_I)
-        ,("swapUp: invariant" , mytest prop_swap_left_I)
-        ,("swapDown: invariant", mytest prop_swap_right_I)
-        ,("swapMaster id on focus", mytest prop_swap_master_focus)
-        ,("swapUp id on focus", mytest prop_swap_left_focus)
-        ,("swapDown id on focus", mytest prop_swap_right_focus)
-        ,("swapMaster is idempotent", mytest prop_swap_master_idempotent)
-        ,("swap all left  "     , mytest prop_swap_all_l)
-        ,("swap all right "     , mytest prop_swap_all_r)
-        ,("swapMaster is local" , mytest prop_swap_master_local)
-        ,("swapUp is local"   , mytest prop_swap_left_local)
-        ,("swapDown is local"  , mytest prop_swap_right_local)
-
-        ,("shiftMaster id on focus", mytest prop_shift_master_focus)
-        ,("shiftMaster is local", mytest prop_shift_master_local)
-        ,("shiftMaster is idempotent", mytest prop_shift_master_idempotent)
-        ,("shiftMaster preserves ordering", mytest prop_shift_master_ordering)
-
-        ,("shift: invariant"    , mytest prop_shift_I)
-        ,("shift is reversible" , mytest prop_shift_reversible)
-        ,("shiftWin: invariant" , mytest prop_shift_win_I)
-        ,("shiftWin is shift on focus" , mytest prop_shift_win_focus)
-        ,("shiftWin fix current" , mytest prop_shift_win_fix_current)
-
-        ,("floating is reversible" , mytest prop_float_reversible)
-        ,("floating sets geometry" , mytest prop_float_geometry)
-        ,("floats can be deleted", mytest prop_float_delete)
-        ,("screens includes current", mytest prop_screens)
-
-        ,("differentiate works", mytest prop_differentiate)
-        ,("lookupTagOnScreen", mytest prop_lookup_current)
-        ,("lookupTagOnVisbleScreen", mytest prop_lookup_visible)
-        ,("screens works",      mytest prop_screens_works)
-        ,("renaming works",     mytest prop_rename1)
-        ,("ensure works",     mytest prop_ensure)
-        ,("ensure hidden semantics",     mytest prop_ensure_append)
-
-        ,("mapWorkspace id", mytest prop_mapWorkspaceId)
-        ,("mapWorkspace inverse", mytest prop_mapWorkspaceInverse)
-        ,("mapLayout id", mytest prop_mapLayoutId)
-        ,("mapLayout inverse", mytest prop_mapLayoutInverse)
-
-        -- testing for failure:
-        ,("abort fails",            mytest prop_abort)
-        ,("new fails with abort",   mytest prop_new_abort)
-        ,("shiftWin identity",      mytest prop_shift_win_indentity)
-
-        -- tall layout
-
-        ,("tile 1 window fullsize", mytest prop_tile_fullscreen)
-        ,("tiles never overlap",    mytest prop_tile_non_overlap)
-        ,("split hozizontally",     mytest prop_split_hoziontal)
-        ,("split verticalBy",       mytest prop_splitVertically)
-
-        ,("pure layout tall",       mytest prop_purelayout_tall)
-        ,("send shrink    tall",    mytest prop_shrink_tall)
-        ,("send expand    tall",    mytest prop_expand_tall)
-        ,("send incmaster tall",    mytest prop_incmaster_tall)
-
-        -- full layout
-
-        ,("pure layout full",       mytest prop_purelayout_full)
-        ,("send message full",      mytest prop_sendmsg_full)
-        ,("describe full",          mytest prop_desc_full)
-
-        ,("describe mirror",        mytest prop_desc_mirror)
-
-        -- resize hints
-        ,("window hints: inc",      mytest prop_resize_inc)
-        ,("window hints: inc all",  mytest prop_resize_inc_extra)
-        ,("window hints: max",      mytest prop_resize_max)
-        ,("window hints: max all ", mytest prop_resize_max_extra)
-
-        ]
-
-------------------------------------------------------------------------
 --
 -- QC driver
 --
@@ -1153,7 +995,9 @@ instance (Num a, Ord a, Arbitrary a) => Arbitrary (NonZero a) where
   coarbitrary = undefined
 
 newtype NonNegative a = NonNegative a
- deriving ( Eq, Ord, Num, Integral, Real, Enum, Show, Read )
+ deriving ( Eq, Ord, Num, Integral, Real, Enum, Show, Read, Generic )
+
+instance (Observable a) => Observable (NonNegative a)
 
 instance (Num a, Ord a, Arbitrary a) => Arbitrary (NonNegative a) where
   arbitrary =

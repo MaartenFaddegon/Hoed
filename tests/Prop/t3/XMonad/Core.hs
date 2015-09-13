@@ -1,5 +1,6 @@
 {-# LANGUAGE ExistentialQuantification, FlexibleInstances, GeneralizedNewtypeDeriving,
-             MultiParamTypeClasses, TypeSynonymInstances, CPP, DeriveDataTypeable #-}
+             MultiParamTypeClasses, TypeSynonymInstances, CPP, DeriveDataTypeable, 
+             DeriveGeneric, StandaloneDeriving #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -28,6 +29,8 @@ module XMonad.Core (
     getAtom, spawn, spawnPID, xfork, getXMonadDir, recompile, trace, whenJust, whenX,
     atom_WM_STATE, atom_WM_PROTOCOLS, atom_WM_DELETE_WINDOW, atom_WM_TAKE_FOCUS, ManageHook, Query(..), runQuery
   ) where
+
+import Debug.Hoed.Pure
 
 import XMonad.StackSet hiding (modify)
 
@@ -216,7 +219,10 @@ atom_WM_TAKE_FOCUS      = getAtom "WM_TAKE_FOCUS"
 
 -- | An existential type that can hold any object that is in 'Read'
 --   and 'LayoutClass'.
-data Layout a = forall l. (LayoutClass l a, Read (l a)) => Layout (l a)
+data Layout a = forall l. (LayoutClass l a, Read (l a), Observable (l a)) => Layout (l a)
+
+instance (Observable a) => Observable (Layout a) where
+  observer (Layout x) = send "Layout" (return Layout << x)
 
 -- | Using the 'Layout' as a witness, parse existentially wrapped windows
 -- from a 'String'.

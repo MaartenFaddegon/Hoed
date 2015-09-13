@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, PatternGuards, TypeSynonymInstances, DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, PatternGuards, TypeSynonymInstances, DeriveDataTypeable, DeriveGeneric #-}
 
 -- --------------------------------------------------------------------------
 -- |
@@ -24,6 +24,8 @@ module XMonad.Layout (
 
   ) where
 
+import Debug.Hoed.Pure
+
 import XMonad.Core
 
 import Graphics.X11 (Rectangle(..))
@@ -44,7 +46,9 @@ instance Message Resize
 instance Message IncMasterN
 
 -- | Simple fullscreen mode. Renders the focused window fullscreen.
-data Full a = Full deriving (Show, Read)
+data Full a = Full deriving (Show, Read, Generic)
+
+instance (Observable a) => Observable (Full a)
 
 instance LayoutClass Full a
 

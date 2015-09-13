@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE PatternGuards, DeriveGeneric, TypeSynonymInstances, FlexibleInstances #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -51,11 +51,12 @@ module XMonad.StackSet (
         abort
     ) where
 
+import Debug.Hoed.Pure
 import Prelude hiding (filter)
 import Data.Maybe   (listToMaybe,isJust,fromMaybe)
 import qualified Data.List as L (deleteBy,find,splitAt,filter,nub)
 import Data.List ( (\\) )
-import qualified Data.Map  as M (Map,insert,delete,empty)
+import qualified Data.Map  as M (Map,insert,delete,empty,toList,fromList)
 
 -- $intro
 --
@@ -136,23 +137,38 @@ data StackSet i l a sid sd =
              , visible  :: [Screen i l a sid sd]     -- ^ non-focused workspaces, visible in xinerama
              , hidden   :: [Workspace i l a]         -- ^ workspaces not visible anywhere
              , floating :: M.Map a RationalRect      -- ^ floating windows
-             } deriving (Show, Read, Eq)
+             } deriving (Show, Read, Eq, Generic)
+
+instance (Observable a, Observable b, Observable c, Show c, Observable d,  Observable e) 
+         => Observable (StackSet a b c d e)
+
+-- MF TODO: this whole declaration is a bit of a hack "fromList" is used instead of a data constructor to generate a new map, and then we actually observe a list produced by toList
+instance (Show k, Show a) => Observable (M.Map k a) where 
+  observer m = send ("M.fromList " ++ show (M.toList m)) (return m) -- MF TODO: could this violate strictness?
 
 -- | Visible workspaces, and their Xinerama screens.
 data Screen i l a sid sd = Screen { workspace :: !(Workspace i l a)
                                   , screen :: !sid
                                   , screenDetail :: !sd }
-    deriving (Show, Read, Eq)
+    deriving (Show, Read, Eq, Generic)
+
+instance (Observable a, Observable b, Observable c, Observable d,  Observable e) => Observable (Screen a b c d e)
 
 -- |
 -- A workspace is just a tag, a layout, and a stack.
 --
 data Workspace i l a = Workspace  { tag :: !i, layout :: l, stack :: Maybe (Stack a) }
-    deriving (Show, Read, Eq)
+    deriving (Show, Read, Eq, Generic)
+
+instance (Observable a, Observable b, Observable c) => Observable (Workspace a b c)
 
 -- | A structure for window geometries
 data RationalRect = RationalRect Rational Rational Rational Rational
-    deriving (Show, Read, Eq)
+    deriving (Show, Read, Eq, Generic)
+
+instance Observable RationalRect
+
+instance Observable Rational where observer = observeBase
 
 -- |
 -- A stack is a cursor onto a window list.
@@ -175,7 +191,9 @@ data RationalRect = RationalRect Rational Rational Rational Rational
 data Stack a = Stack { focus  :: !a        -- focused thing in this set
                      , up     :: [a]       -- clowns to the left
                      , down   :: [a] }     -- jokers to the right
-    deriving (Show, Read, Eq)
+    deriving (Show, Read, Eq, Generic)
+
+instance (Observable a) => Observable (Stack a)
 
 
 -- | this function indicates to catch that an error is expected
@@ -209,13 +227,17 @@ new _ _ _ = abort "non-positive argument to StackSet.new"
 -- becomes the current screen. If it is in the visible list, it becomes
 -- current.
 
-view :: (Eq s, Eq i) => i -> StackSet i l a s sd -> StackSet i l a s sd
-view i s
+view :: (Eq s, Eq i, Show a, Observable a, Observable i, Observable l, Observable s, Observable sd) => i -> StackSet i l a s sd -> StackSet i l a s sd
+view = observe "view" view'
+view' i s
     | i == currentTag s = s  -- current
+
+{- BUG: missing clause
 
     | Just x <- L.find ((i==).tag.workspace) (visible s)
     -- if it is visible, it is just raised
     = s { current = x, visible = current s : L.deleteBy (equating screen) x (visible s) }
+-}
 
     | Just x <- L.find ((i==).tag)           (hidden  s) -- must be hidden then
     -- if it was hidden, it is raised on the xine screen currently used
@@ -239,8 +261,9 @@ view i s
 -- screen, the workspaces of the current screen and the other screen are
 -- swapped.
 
-greedyView :: (Eq s, Eq i) => i -> StackSet i l a s sd -> StackSet i l a s sd
-greedyView w ws
+greedyView :: (Eq s, Eq i, Show a, Observable a, Observable i, Observable l, Observable s, Observable sd) => i -> StackSet i l a s sd -> StackSet i l a s sd
+greedyView = observe "greedyView" greedyView'
+greedyView' w ws
      | any wTag (hidden ws) = view w ws
      | (Just s) <- L.find (wTag . workspace) (visible ws)
                             = ws { current = (current ws) { workspace = workspace s }
@@ -367,7 +390,7 @@ reverseStack (Stack t ls rs) = Stack t rs ls
 -- | /O(1) on current window, O(n) in general/. Focus the window 'w',
 -- and set its workspace as current.
 --
-focusWindow :: (Eq s, Eq a, Eq i) => a -> StackSet i l a s sd -> StackSet i l a s sd
+focusWindow :: (Eq s, Eq a, Eq i, Show a, Observable a, Observable i, Observable l, Observable s, Observable sd)=> a -> StackSet i l a s sd -> StackSet i l a s sd
 focusWindow w s | Just w == peek s = s
                 | otherwise        = fromMaybe s $ do
                     n <- findTag w s
@@ -538,7 +561,7 @@ focusMaster = modify' $ \c -> case c of
 -- The actual focused workspace doesn't change. If there is no
 -- element on the current stack, the original stackSet is returned.
 --
-shift :: (Ord a, Eq s, Eq i) => i -> StackSet i l a s sd -> StackSet i l a s sd
+shift :: (Ord a, Eq s, Eq i, Show a, Observable a, Observable i, Observable l, Observable s, Observable sd) => i -> StackSet i l a s sd -> StackSet i l a s sd
 shift n s = maybe s (\w -> shiftWin n w s) (peek s)
 
 -- | /O(n)/. shiftWin. Searches for the specified window 'w' on all workspaces
@@ -547,12 +570,12 @@ shift n s = maybe s (\w -> shiftWin n w s) (peek s)
 -- focused element on that workspace.
 -- The actual focused workspace doesn't change. If the window is not
 -- found in the stackSet, the original stackSet is returned.
-shiftWin :: (Ord a, Eq a, Eq s, Eq i) => i -> a -> StackSet i l a s sd -> StackSet i l a s sd
+shiftWin :: (Ord a, Eq a, Eq s, Eq i, Show a, Observable a, Observable i, Observable l, Observable s, Observable sd) => i -> a -> StackSet i l a s sd -> StackSet i l a s sd
 shiftWin n w s = case findTag w s of
                     Just from | n `tagMember` s && n /= from -> go from s
                     _                                        -> s
  where go from = onWorkspace n (insertUp w) . onWorkspace from (delete' w)
 
-onWorkspace :: (Eq i, Eq s) => i -> (StackSet i l a s sd -> StackSet i l a s sd)
+onWorkspace :: (Eq i, Eq s, Show a, Observable a, Observable i, Observable l, Observable s, Observable sd) => i -> (StackSet i l a s sd -> StackSet i l a s sd)
             -> (StackSet i l a s sd -> StackSet i l a s sd)
 onWorkspace n f s = view (currentTag s) . f . view n $ s

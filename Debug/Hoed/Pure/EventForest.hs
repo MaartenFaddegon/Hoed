@@ -57,7 +57,6 @@ parentUIDLookup i frt = case IntMap.lookup i frt of
 parentPosLookup :: ParentPosition -> [(ParentPosition,Event)] -> [Event]
 parentPosLookup p = map snd . filter ((==p) . fst)
 
-
 data InfixOrPrefix = Infix | Prefix
 
 data Location = Trunk | ArgumentOf Location | ResultOf Location | FieldOf Int Location
@@ -82,8 +81,6 @@ type Visit a = Maybe Event -> Location -> a -> a
 
 idVisit :: Visit a
 idVisit _ _ z = z
-
-
 
 -- Given an event, return the list of (expected) children in depth-first order.
 --

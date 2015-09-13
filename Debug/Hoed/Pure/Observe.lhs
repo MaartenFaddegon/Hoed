@@ -171,8 +171,10 @@ instance (GObservable a) => GObservable (M1 D d a) where
 -- Meta: Selectors
 instance (GObservable a, Selector s) => GObservable (M1 S s a) where
         gdmobserver m@(M1 x) cxt
-          | selName m == "" = M1 (gdmobserver x cxt)
-          | otherwise       = M1 (send (selName m ++ " =") (gdmObserveChildren x) cxt)
+          = M1 (gdmobserver x cxt)
+          -- Uncomment next two lines to record selector names
+          -- | selName m == "" = M1 (gdmobserver x cxt)
+          -- | otherwise       = M1 (send (selName m ++ " =") (gdmObserveChildren x) cxt)
         gdmObserveChildren  = gthunk
         gdmShallowShow      = error "gdmShallowShow not defined on <<Meta: selectors>>"
 
