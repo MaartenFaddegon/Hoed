@@ -25,8 +25,10 @@ main = logOwp "hoed-tests-Prop-t3.graph" propositions $ do
  where
     propositions =
         [ Propositions [ (QuickCheckProposition,module_Properties,"prop_view_reversible",[1,0])
-                       -- Note how the arguments are swapped for prop_view_current
-                       -- , (QuickCheckProposition,module_Properties,"prop_view_current",[0,1])
+                       , (QuickCheckProposition,module_Properties,"prop_view_I",[1,0])
+                       , (QuickCheckProposition,module_Properties,"prop_view_current",[0,1])
+                       , (QuickCheckProposition,module_Properties,"prop_view_idem",[0,1])
+                       , (QuickCheckProposition,module_Properties,"prop_view_local",[0,1])
                        ] 
                        PropertiesOf "view" [module_StackSet, module_QuickCheck, module_Map, module_Random, module_Maybe]
         , Propositions [ (QuickCheckProposition,module_Properties,"prop_greedyView_reversible",[1,0])
