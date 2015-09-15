@@ -9,22 +9,42 @@ import Data.Maybe
 import XMonad.StackSet
 import qualified Data.Map as M
 
+myStackSet = (StackSet {current = Screen {workspace = Workspace {tag = NonNegative 4, layout = 8, stack = Just (Stack {focus = 'v', up = "hyimlnxj", down = "z"})}, screen = 0, screenDetail = 6}, visible = [Screen {workspace = Workspace {tag = NonNegative 0, layout = 8, stack = Nothing}, screen = 1, screenDetail = 7},Screen {workspace = Workspace {tag = NonNegative 2, layout = 8, stack = Just (Stack {focus = 'a', up = "", down = "s"})}, screen = 2, screenDetail = 3},Screen {workspace = Workspace {tag = NonNegative 3, layout = 8, stack = Just (Stack {focus = 'u', up = "", down = "wdrg"})}, screen = 3, screenDetail = 9},Screen {workspace = Workspace {tag = NonNegative 4, layout = 8, stack = Just (Stack {focus = 'j', up = "", down = "xnlmiyhvz"})}, screen = 0, screenDetail = 6},Screen {workspace = Workspace {tag = NonNegative 1, layout = 8, stack = Nothing}, screen = 1, screenDetail = 7},Screen {workspace = Workspace {tag = NonNegative 2, layout = 8, stack = Nothing}, screen = 2, screenDetail = 3},Screen {workspace = Workspace {tag = NonNegative 3, layout = 8, stack = Nothing}, screen = 3, screenDetail = 9}], hidden = [Workspace {tag = NonNegative 1, layout = 8, stack = Just (Stack {focus = 'e', up = "", down = "btk"})}], floating = M.fromList []})
+
+
 main :: IO ()
 main = logOwp "hoed-tests-Prop-t3.graph" propositions $ do
-{-
+-- main = do
+
+{- Running all tests
     args <- fmap (drop 1) getArgs
     let n = if null args then 100 else read (head args)
     (results, passed) <- liftM unzip $ mapM (\(s,a) -> printf "%-40s: " s >> a n) tests
     printf "Passed %d tests!\n" (sum passed)
     when (not . and $ results) $ fail "Not all tests passed!"
 -}
+
+        g <- newStdGen; print . fromJust . ok . (generate 1 g) . evaluate $  prop_focusWindow_master (NonNegative 3) (StackSet {current = Screen {workspace = Workspace {tag = NonNegative 0, layout = -4, stack = Just (Stack {focus = 'r', up = "ay", down = ""})}, screen = 0, screenDetail = 0}, visible = [], hidden = [], floating = M.fromList []})
+
+--        g <- newStdGen; print . fromJust . ok . (generate 1 g) . evaluate $  prop_greedyView_idem myStackSet (NonNegative 4)
+
+
+
+{- This is an example of a failing case of prop_greedyView. However, it seems prop_view does not have enough information to judge the child statements as wrong.
  
     g <- newStdGen; print . fromJust . ok . (generate 1 g) . evaluate $  prop_greedyView_reversible (NonNegative 1) (StackSet {current = Screen {workspace = Workspace {tag = NonNegative 4, layout = 2, stack = Nothing}, screen = 0, screenDetail = 2}, visible = [Screen {workspace = Workspace {tag = NonNegative 1, layout = 2, stack = Just (Stack {focus = 'f', up = "", down = "oda"})}, screen = 1, screenDetail = 0},Screen {workspace = Workspace {tag = NonNegative 2, layout = 2, stack = Just (Stack {focus = 'w', up = "", down = "n"})}, screen = 2, screenDetail = 1},Screen {workspace = Workspace {tag = NonNegative 3, layout = 2, stack = Just (Stack {focus = 't', up = "", down = "e"})}, screen = 3, screenDetail = -1}], hidden = [Workspace {tag = NonNegative 4, layout = 2, stack = Nothing},Workspace {tag = NonNegative 5, layout = 2, stack = Nothing},Workspace {tag = NonNegative 6, layout = 2, stack = Nothing},Workspace {tag = NonNegative 7, layout = 2, stack = Nothing},Workspace {tag = NonNegative 8, layout = 2, stack = Nothing}], floating = M.fromList []})
+
+-}
 
 
  where
     propositions =
-        [ Propositions [ (QuickCheckProposition,module_Properties,"prop_view_reversible",[1,0])
+        [Propositions [(QuickCheckProposition,module_Properties,"prop_focus_all_l",[0])
+                      ,(QuickCheckProposition,module_Properties,"prop_focus_all_l_weak",[0])
+                      ]
+                      PropertiesOf "focusUp" [module_StackSet, module_QuickCheck, module_Map, module_Random, module_Maybe]
+
+        , Propositions [ (QuickCheckProposition,module_Properties,"prop_view_reversible",[1,0])
                        , (QuickCheckProposition,module_Properties,"prop_view_I",[1,0])
                        , (QuickCheckProposition,module_Properties,"prop_view_current",[0,1])
                        , (QuickCheckProposition,module_Properties,"prop_view_idem",[0,1])
@@ -32,6 +52,7 @@ main = logOwp "hoed-tests-Prop-t3.graph" propositions $ do
                        ] 
                        PropertiesOf "view" [module_StackSet, module_QuickCheck, module_Map, module_Random, module_Maybe]
         , Propositions [ (QuickCheckProposition,module_Properties,"prop_greedyView_reversible",[1,0])
+                       , (QuickCheckProposition,module_Properties,"prop_greedyView_idem",[0,1])
                        ] 
                        PropertiesOf "greedyView" [module_StackSet, module_QuickCheck, module_Map, module_Random, module_Maybe]
 
@@ -45,8 +66,11 @@ main = logOwp "hoed-tests-Prop-t3.graph" propositions $ do
     module_Maybe      = Module "Data.Maybe"              ""
 
     tests =
-        [ -- ("view reversible"    , mytest prop_view_reversible),
-          ("greedyView reversible"     , mytest prop_greedyView_reversible)
+        [ ("focusWindow works"   , mytest prop_focusWindow_works)
+        ,("focusWindow is local", mytest prop_focusWindow_local)
+        ,("focusWindow identity", mytest prop_focusWindow_identity)
+        ,("focusWindow: invariant", mytest prop_focus_I)
+        ,("focusWindow master"  , mytest prop_focusWindow_master)
         ]
 
 {-

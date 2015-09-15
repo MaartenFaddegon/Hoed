@@ -228,7 +228,7 @@ new _ _ _ = abort "non-positive argument to StackSet.new"
 -- current.
 
 view :: (Eq s, Eq i, Show a, Observable a, Observable i, Observable l, Observable s, Observable sd) => i -> StackSet i l a s sd -> StackSet i l a s sd
-view = observe "view" view'
+view = view' -- observe "view" view'
 view' i s
     | i == currentTag s = s  -- current
 
@@ -239,10 +239,7 @@ view' i s
     | Just x <- L.find ((i==).tag)           (hidden  s) -- must be hidden then
     -- if it was hidden, it is raised on the xine screen currently used
     = s { current = (current s) { workspace = x }
-        {- BUG: we make it current, but we forget to delete it from the hidden list
-        , hidden = workspace (current s) : L.deleteBy (equating tag) x (hidden s) 
-        -}
-        }
+        , hidden = workspace (current s) : L.deleteBy (equating tag) x (hidden s) }
 
     | otherwise = s -- not a member of the stackset
 
@@ -262,7 +259,7 @@ view' i s
 -- swapped.
 
 greedyView :: (Eq s, Eq i, Show a, Observable a, Observable i, Observable l, Observable s, Observable sd) => i -> StackSet i l a s sd -> StackSet i l a s sd
-greedyView = observe "greedyView" greedyView'
+greedyView = greedyView' -- observe "greedyView" greedyView'
 greedyView' w ws
      | any wTag (hidden ws) = view w ws
      | (Just s) <- L.find (wTag . workspace) (visible ws)
@@ -364,18 +361,23 @@ index = with [] integrate
 -- if we reach the end. Again the wrapping model should 'cycle' on
 -- the current stack.
 --
-focusUp, focusDown, swapUp, swapDown :: StackSet i l a s sd -> StackSet i l a s sd
-focusUp   = modify' focusUp'
-focusDown = modify' focusDown'
+focusUp, focusUp_, focusDown, swapUp, swapDown :: (Show a, Observable a, Observable i, Observable l, Observable s, Observable sd) => StackSet i l a s sd -> StackSet i l a s sd
+focusUp    = observe "focusUp" focusUp_
+focusUp_   = modify' focusUp'
+focusDown  = modify' focusDown'
 
 swapUp    = modify' swapUp'
 swapDown  = modify' (reverseStack . swapUp' . reverseStack)
 
 -- | Variants of 'focusUp' and 'focusDown' that work on a
 -- 'Stack' rather than an entire 'StackSet'.
-focusUp', focusDown' :: Stack a -> Stack a
-focusUp' (Stack t (l:ls) rs) = Stack l ls (t:rs)
-focusUp' (Stack t []     rs) = Stack x xs [] where (x:xs) = reverse (t:rs)
+focusUp', focusDown' :: Observable a => Stack a -> Stack a
+
+-- focusUp' (Stack t (l:ls) rs) = Stack l ls (t:rs)
+focusUp' = observe "focusUp'" focusUp'_
+focusUp'_ (Stack t (l:ls) rs) = Stack l ls rs -- BUG: forgotten t
+
+focusUp'_ (Stack t []     rs) = Stack x xs [] where (x:xs) = reverse (t:rs)
 focusDown'                   = reverseStack . focusUp' . reverseStack
 
 swapUp' :: Stack a -> Stack a
@@ -391,10 +393,11 @@ reverseStack (Stack t ls rs) = Stack t rs ls
 -- and set its workspace as current.
 --
 focusWindow :: (Eq s, Eq a, Eq i, Show a, Observable a, Observable i, Observable l, Observable s, Observable sd)=> a -> StackSet i l a s sd -> StackSet i l a s sd
-focusWindow w s | Just w == peek s = s
-                | otherwise        = fromMaybe s $ do
-                    n <- findTag w s
-                    return $ until ((Just w ==) . peek) focusUp (view n s)
+focusWindow = observe "focusWindow" focusWindow'
+focusWindow' w s | Just w == peek s = s
+                 | otherwise        = fromMaybe s $ do
+                     n <- findTag w s
+                     return $ until ((Just w ==) . peek) focusUp (view n s)
 
 -- | Get a list of all screens in the 'StackSet'.
 screens :: StackSet i l a s sd -> [Screen i l a s sd]

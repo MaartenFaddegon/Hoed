@@ -258,7 +258,8 @@ prop_greedyView_local  (x :: T) (n :: NonNegative Int) = i `tagMember` x ==>
     i = fromIntegral n
 
 -- greedyView is idempotent
-prop_greedyView_idem (x :: T) (i :: NonNegative Int) = i `tagMember` x ==> greedyView i (greedyView i x) == (greedyView i x)
+prop_greedyView_idem (x :: T) (i :: NonNegative Int) = i `tagMember` x ==> (observe "prop_greedyView_idem" prop_greedyView_idem') x i
+prop_greedyView_idem' (x :: T) (i :: NonNegative Int) = greedyView i (greedyView i x) == (greedyView i x)
 
 -- greedyView is reversible, though shuffles the order of hidden/visible
 prop_greedyView_reversible (i :: NonNegative Int) (x :: T) =
@@ -342,6 +343,12 @@ prop_focus_all_l (x :: T) = (foldr (const focusUp) x [1..n]) == x
   where n = length (index x)
 prop_focus_all_r (x :: T) = (foldr (const focusDown) x [1..n]) == x
   where n = length (index x)
+
+
+-- MF: added the following proposition
+prop_focus_all_l_weak (x :: T) = getStk (foldr (const focusUp) x [1..n]) == getStk x
+  where n = length (index x)
+        getStk = stack . workspace . current
 
 -- prop_rotate_all (x :: T) = f (f x) == f x
 --     f x' = foldr (\_ y -> rotate GT y) x' [1..n]
