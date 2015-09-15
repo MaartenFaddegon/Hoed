@@ -18,3 +18,4 @@ tests/Prop/t2/*.hi
 tests/Prop/t2/*.o
 tests/Prop/t3/*.hi
 tests/Prop/t3/*.o
+*.swp
