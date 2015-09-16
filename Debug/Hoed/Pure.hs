@@ -134,9 +134,11 @@ import Debug.Hoed.Pure.EventForest
 import Debug.Hoed.Pure.CompTree
 import Debug.Hoed.Pure.DemoGUI
 import Debug.Hoed.Pure.Prop
+import Paths_Hoed(getDataDir)
 
 import Prelude hiding (Right)
 import qualified Prelude
+import System.Process(system)
 import System.IO
 import Data.Maybe
 import Control.Monad
@@ -325,6 +327,8 @@ parseArgs (arg:_) = case arg of
 debugSession :: Trace -> TraceInfo -> CompTree -> EventForest -> IO ()
 debugSession trace traceInfo tree frt
   = do createDirectoryIfMissing True ".Hoed/wwwroot/css"
+       dataDir <- getDataDir
+       system $ "cp " ++ dataDir ++ "/img/*png .Hoed/wwwroot/"
        treeRef <- newIORef tree
        startGUI defaultConfig
            { jsPort       = Just 10000

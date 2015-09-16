@@ -53,7 +53,7 @@ guiMain trace traceInfo treeRef frt window
        -- Tabs to select which pane to display
        tab1 <- UI.button # set UI.text "Help"                  # set UI.style activeTab
        tab2 <- UI.button # set UI.text "Observe"               # set UI.style otherTab
-       tab3 <- UI.button # set UI.text "Algorithmic debugging" # set UI.style otherTab
+       tab3 <- UI.button # set UI.text "Explore"               # set UI.style otherTab
        tab4 <- UI.button # set UI.text "Events"                # set UI.style otherTab
        tabs <- UI.div    # set UI.style [("background-color","#D3D3D3")]  #+ (map return [tab1,tab2,tab3,tab4])
 
@@ -69,7 +69,7 @@ guiMain trace traceInfo treeRef frt window
             UI.getBody window # set UI.children [tabs,pane]
        on UI.click tab3 $ \_ -> do
             coloActive tab3
-            pane <- guiAlgoDeb treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef # set UI.style [("margin-top","0.5em")]
+            pane <- guiExplore treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef # set UI.style [("margin-top","0.5em")]
             UI.getBody window # set UI.children [tabs,pane]
        on UI.click tab4 $ \_ -> do
          coloActive tab4
@@ -181,10 +181,10 @@ updateRegEx currentVertexRef vs stmtDiv r = draw
           draw
 
 --------------------------------------------------------------------------------
--- The algorithmic debugging GUI
+-- Explore the computation tree
 
-guiAlgoDeb :: IORef CompTree -> IORef [Vertex] -> IORef Int -> IORef String -> IORef Int -> UI UI.Element
-guiAlgoDeb treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef = do
+guiExplore :: IORef CompTree -> IORef [Vertex] -> IORef Int -> IORef String -> IORef Int -> UI UI.Element
+guiExplore treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef = do
 
        -- Get a list of vertices from the computation graph
        tree <- UI.liftIO $ readIORef treeRef
@@ -228,8 +228,8 @@ guiAlgoDeb treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef = d
        updateStatus status treeRef 
 
        -- Buttons to judge the current statement
-       right <- UI.button # set UI.text "right"
-       wrong <- UI.button # set UI.text "wrong"
+       right <- UI.button # UI.set UI.text "right " #+ [UI.img # set UI.src "static/right.png" # set UI.height 20]
+       wrong <- UI.button # set UI.text "wrong "    #+ [UI.img # set UI.src "static/wrong.png" # set UI.height 20]
        let onJudge = onClick status menu img imgCountRef treeRef 
                              currentVertexRef filteredVerticesRef
        onJudge right Right
