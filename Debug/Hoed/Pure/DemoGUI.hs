@@ -54,10 +54,11 @@ guiMain trace traceInfo treeRef frt window
        tab1 <- UI.button # set UI.text "Help"                  # set UI.style activeTab
        tab2 <- UI.button # set UI.text "Observe"               # set UI.style otherTab
        tab3 <- UI.button # set UI.text "Explore"               # set UI.style otherTab
-       tab4 <- UI.button # set UI.text "Events"                # set UI.style otherTab
-       tabs <- UI.div    # set UI.style [("background-color","#D3D3D3")]  #+ (map return [tab1,tab2,tab3,tab4])
+       tab4 <- UI.button # set UI.text "Algorithmic Debugging" # set UI.style otherTab
+       tab5 <- UI.button # set UI.text "Events"                # set UI.style otherTab
+       tabs <- UI.div    # set UI.style [("background-color","#D3D3D3")]  #+ (map return [tab1,tab2,tab3,tab4,tab5])
 
-       let coloActive tab = do mapM_ (\t -> t # set UI.style otherTab) [return tab1,return tab2,return tab3,return tab4]; return tab # set UI.style activeTab
+       let coloActive tab = do mapM_ (\t -> t # set UI.style otherTab) [return tab1,return tab2,return tab3,return tab4,return tab5]; return tab # set UI.style activeTab
 
        help <- guiHelp # set UI.style [("margin-top","0.5em")]
        on UI.click tab1 $ \_ -> do
@@ -72,7 +73,11 @@ guiMain trace traceInfo treeRef frt window
             pane <- guiExplore treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef # set UI.style [("margin-top","0.5em")]
             UI.getBody window # set UI.children [tabs,pane]
        on UI.click tab4 $ \_ -> do
-         coloActive tab4
+            coloActive tab4
+            pane <- guiAlgoDebug treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef # set UI.style [("margin-top","0.5em")]
+            UI.getBody window # set UI.children [tabs,pane]
+       on UI.click tab5 $ \_ -> do
+         coloActive tab5
          pane <- guiTrace trace traceInfo # set UI.style [("margin-top","0.5em")]
          UI.getBody window # set UI.children [tabs,pane]
 
@@ -181,6 +186,50 @@ updateRegEx currentVertexRef vs stmtDiv r = draw
           draw
 
 --------------------------------------------------------------------------------
+-- The Algorithmic Debugging GUI
+
+guiAlgoDebug :: IORef CompTree -> IORef [Vertex] -> IORef Int -> IORef String -> IORef Int -> UI UI.Element
+guiAlgoDebug treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef = do
+
+       -- Get a list of vertices from the computation graph
+       tree <- UI.liftIO $ readIORef treeRef
+       let ns = filter (not . isRootVertex) (preorder tree)
+
+       -- Status
+       status <- UI.span
+       updateStatus status treeRef 
+
+       -- Field to show computation statement(s) of current vertex
+       compStmt <- UI.pre
+       showStmt compStmt filteredVerticesRef currentVertexRef
+
+       -- Buttons to judge the current statement
+       right <- UI.button # UI.set UI.text "right " #+ [UI.img # set UI.src "static/right.png" # set UI.height 30]
+       wrong <- UI.button # set UI.text "wrong "    #+ [UI.img # set UI.src "static/wrong.png" # set UI.height 30]
+       judge status compStmt right Right
+       judge status compStmt wrong Wrong
+
+       -- Populate the main screen
+       top    <- UI.center #+ [UI.element compStmt]
+       hr     <- UI.hr
+       bottom <- UI.center #+ (map UI.element [right, wrong, status])
+       UI.div #+ (map UI.element [top, hr, bottom])
+
+       where 
+       judge status compStmt b j = 
+         on UI.click b $ \_ -> do
+           (Just v) <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
+           tree'    <- UI.liftIO $ readIORef treeRef
+           let tree  = markNode tree' v j
+               w     = next_step tree vertexJmt v{vertexJmt=j}
+           UI.element compStmt # UI.set UI.text (show . vertexStmt $ w)
+           UI.liftIO $ writeIORef currentVertexRef (vertexUID w)
+           UI.liftIO $ writeIORef treeRef tree
+           vs <- UI.liftIO $ readIORef filteredVerticesRef
+           updateStatus status treeRef 
+           UI.liftIO $ writeIORef filteredVerticesRef $ map (\x -> if x == v then v{vertexJmt=j} else x) vs
+
+--------------------------------------------------------------------------------
 -- Explore the computation tree
 
 guiExplore :: IORef CompTree -> IORef [Vertex] -> IORef Int -> IORef String -> IORef Int -> UI UI.Element
@@ -230,8 +279,7 @@ guiExplore treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef = d
        -- Buttons to judge the current statement
        right <- UI.button # UI.set UI.text "right " #+ [UI.img # set UI.src "static/right.png" # set UI.height 20]
        wrong <- UI.button # set UI.text "wrong "    #+ [UI.img # set UI.src "static/wrong.png" # set UI.height 20]
-       let onJudge = onClick status menu img imgCountRef treeRef 
-                             currentVertexRef filteredVerticesRef
+       let onJudge = onClick status menu img imgCountRef treeRef currentVertexRef filteredVerticesRef
        onJudge right Right
        onJudge wrong Wrong
 
