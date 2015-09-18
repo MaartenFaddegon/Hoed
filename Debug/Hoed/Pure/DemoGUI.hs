@@ -11,6 +11,8 @@ import Debug.Hoed.Pure.Render
 import Debug.Hoed.Pure.CompTree
 import Debug.Hoed.Pure.EventForest
 import Debug.Hoed.Pure.Observe
+import Paths_Hoed (version)
+import Data.Version (showVersion)
 import Data.Graph.Libgraph
 import qualified Graphics.UI.Threepenny as UI
 import Graphics.UI.Threepenny (startGUI,defaultConfig, Window, UI, (#), (#+), (#.), string, on,get,set)
@@ -53,12 +55,13 @@ guiMain trace traceInfo treeRef frt window
        -- Tabs to select which pane to display
        tab1 <- UI.button # set UI.text "About Hoed"            # set UI.style activeTab
        tab2 <- UI.button # set UI.text "Observe"               # set UI.style otherTab
-       tab3 <- UI.button # set UI.text "Explore"               # set UI.style otherTab
-       tab4 <- UI.button # set UI.text "Algorithmic Debugging" # set UI.style otherTab
-       tab5 <- UI.button # set UI.text "Events"                # set UI.style otherTab
-       tabs <- UI.div    # set UI.style [("background-color","#D3D3D3")]  #+ (map return [tab1,tab2,tab3,tab4,tab5])
+       tab3 <- UI.button # set UI.text "Algorithmic Debugging" # set UI.style otherTab
+       tab4 <- UI.button # set UI.text "Explore"               # set UI.style otherTab
+       -- tab5 <- UI.button # set UI.text "Events"                # set UI.style otherTab
+       logo <- UI.img # set UI.src "static/hoed-logo.png"      # set UI.style [("float","right"), ("height","2.2em")]
+       tabs <- UI.div    # set UI.style [("background-color","#D3D3D3")]  #+ (map return [tab1,tab2,tab3,tab4{-,tab5-},logo])
 
-       let coloActive tab = do mapM_ (\t -> t # set UI.style otherTab) [return tab1,return tab2,return tab3,return tab4,return tab5]; return tab # set UI.style activeTab
+       let coloActive tab = do mapM_ (\t -> (return t) # set UI.style otherTab) [tab1,tab2,tab3,tab4{-,tab5-}]; return tab # set UI.style activeTab
 
        help <- guiHelp # set UI.style [("margin-top","0.5em")]
        on UI.click tab1 $ \_ -> do
@@ -70,16 +73,16 @@ guiMain trace traceInfo treeRef frt window
             UI.getBody window # set UI.children [tabs,pane]
        on UI.click tab3 $ \_ -> do
             coloActive tab3
-            pane <- guiExplore treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef # set UI.style [("margin-top","0.5em")]
+            pane <- guiAlgoDebug treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef # set UI.style [("margin-top","0.5em")]
             UI.getBody window # set UI.children [tabs,pane]
        on UI.click tab4 $ \_ -> do
             coloActive tab4
-            pane <- guiAlgoDebug treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef # set UI.style [("margin-top","0.5em")]
+            pane <- guiExplore treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef # set UI.style [("margin-top","0.5em")]
             UI.getBody window # set UI.children [tabs,pane]
-       on UI.click tab5 $ \_ -> do
-         coloActive tab5
-         pane <- guiTrace trace traceInfo # set UI.style [("margin-top","0.5em")]
-         UI.getBody window # set UI.children [tabs,pane]
+       -- on UI.click tab5 $ \_ -> do
+       --   coloActive tab5
+       --   pane <- guiTrace trace traceInfo # set UI.style [("margin-top","0.5em")]
+       --   UI.getBody window # set UI.children [tabs,pane]
 
        UI.getBody window # set UI.style [("margin","0")] #+ (map return [tabs,help])
        return ()
@@ -87,14 +90,14 @@ guiMain trace traceInfo treeRef frt window
 
 activeTab = ("background-color", "white") : tabstyle
 otherTab  = ("background-color", "#f0f0f0") : tabstyle
-tabstyle = [("-webkit-border-top-left-radius", "19"), ("-moz-border-top-left-radius", "19"), ("border-top-left-radius", "19px"),("-webkit-border-top-right-radius", "19"), ("-moz-border-top-right-radius", "19"), ("border-top-right-radius", "19px"), ("border-width", "medium medium 0px")]
+tabstyle = [("-webkit-border-top-left-radius", "19"), ("-moz-border-top-left-radius", "19"), ("border-top-left-radius", "0.5em"),("-webkit-border-top-right-radius", "19"), ("-moz-border-top-right-radius", "19"), ("border-top-right-radius", "0.5em"), ("border-width", "medium medium 0px"),("margin-top","1em")]
 
 --------------------------------------------------------------------------------
 -- The help/welcome page
 
 guiHelp :: UI UI.Element
 guiHelp = UI.div # set UI.style [("margin-left", "20%"),("margin-right", "20%")] #+ 
-  [ UI.h1 # set UI.text "Welcome to Hoed"
+  [ UI.h1 # set UI.text ("Welcome to Hoed " ++ showVersion version)
   , UI.p # set UI.text "Hoed is a tracer and debugger for the language Haskell. You can trace a program by annotating functions in suspected modules. After running the program the trace can be viewed in different ways using a web browser. Use the tabs at the top of this page to select the view you want to use. Below we give a short explenation of each view."
   , UI.h2 # set UI.text "Observe"
   , UI.p # set UI.text "The observe view is useful to get a first impression of what is happening in your program, or to get an overview of the computation statements of a particular slice or pattern. At the top the list of slices and for each slice how many times it was reduced. Below the line a list of computation statements."
@@ -158,7 +161,7 @@ guiObserve treeRef currentVertexRef = do
        matchField  <- UI.input
        on UI.valueChange matchField (updateRegEx currentVertexRef vs_sorted stmtDiv)
 
-       UI.div  #+ (spans ++ [UI.br, UI.span # set UI.text "regex filter: ", return matchField, UI.hr, return stmtDiv])
+       UI.div  #+ (spans ++ [UI.hr, UI.span # set UI.text "regex filter: ", return matchField, UI.hr, return stmtDiv])
 
 updateRegEx :: IORef Int -> [Vertex] -> UI.Element -> String -> UI ()
 updateRegEx currentVertexRef vs stmtDiv r = draw
@@ -199,11 +202,11 @@ guiAlgoDebug treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef =
        updateStatus status treeRef 
 
        -- Field to show computation statement(s) of current vertex
-       compStmt <- UI.pre
-       showStmt compStmt filteredVerticesRef currentVertexRef
+       compStmt <- UI.pre # set UI.style [("margin","0 2em")]
+       showStmt compStmt filteredVerticesRef currentVertexRef 
 
        -- Buttons to judge the current statement
-       right <- UI.button # UI.set UI.text "right " #+ [UI.img # set UI.src "static/right.png" # set UI.height 30]
+       right <- UI.button # UI.set UI.text "right " #+ [UI.img # set UI.src "static/right.png" # set UI.height 30] # set UI.style [("margin-right","1em")]
        wrong <- UI.button # set UI.text "wrong "    #+ [UI.img # set UI.src "static/wrong.png" # set UI.height 30]
        judge status compStmt right Right
        judge status compStmt wrong Wrong

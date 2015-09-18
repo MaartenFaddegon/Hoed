@@ -78,7 +78,7 @@ library
 ---------------------------------------------------------------------------
 
 
-Executable hoed-examples-Insort2
+Executable hoed-examples-Insertion_Sort_elements_disappear
   if flag(buildExamples)
     build-depends:       base >= 4 && < 5
                          , Hoed
@@ -86,7 +86,7 @@ Executable hoed-examples-Insort2
                          , filepath
   else
     buildable: False
-  main-is:             Insort2.hs
+  main-is:             Insertion_Sort_elements_disappear.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
 
