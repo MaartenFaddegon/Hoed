@@ -51,7 +51,7 @@ guiMain trace traceInfo treeRef frt window
        imgCountRef         <- UI.liftIO $ newIORef (0 :: Int)
 
        -- Tabs to select which pane to display
-       tab1 <- UI.button # set UI.text "About"                 # set UI.style activeTab
+       tab1 <- UI.button # set UI.text "About Hoed"            # set UI.style activeTab
        tab2 <- UI.button # set UI.text "Observe"               # set UI.style otherTab
        tab3 <- UI.button # set UI.text "Explore"               # set UI.style otherTab
        tab4 <- UI.button # set UI.text "Algorithmic Debugging" # set UI.style otherTab
