@@ -51,7 +51,7 @@ guiMain trace traceInfo treeRef frt window
        imgCountRef         <- UI.liftIO $ newIORef (0 :: Int)
 
        -- Tabs to select which pane to display
-       tab1 <- UI.button # set UI.text "Help"                  # set UI.style activeTab
+       tab1 <- UI.button # set UI.text "About"                 # set UI.style activeTab
        tab2 <- UI.button # set UI.text "Observe"               # set UI.style otherTab
        tab3 <- UI.button # set UI.text "Explore"               # set UI.style otherTab
        tab4 <- UI.button # set UI.text "Algorithmic Debugging" # set UI.style otherTab
@@ -210,10 +210,9 @@ guiAlgoDebug treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef =
        judge status compStmt wrong Wrong
 
        -- Populate the main screen
-       top    <- UI.center #+ [UI.element compStmt]
-       hr     <- UI.hr
-       bottom <- UI.center #+ (map UI.element [right, wrong, status])
-       UI.div #+ (map UI.element [top, hr, bottom])
+       top    <- UI.center #+ [return compStmt]
+       bottom <- UI.center #+ [return right, return wrong, UI.br, return status]
+       UI.div #+ [return top, UI.hr, return bottom]
 
        where 
        judge status compStmt b j = 
