@@ -99,7 +99,9 @@ guiHelp = UI.div # set UI.style [("margin-left", "20%"),("margin-right", "20%")]
   , UI.h2 # set UI.text "Observe"
   , UI.p # set UI.text "The observe view is useful to get a first impression of what is happening in your program, or to get an overview of the computation statements of a particular slice or pattern. At the top the list of slices and for each slice how many times it was reduced. Below the line a list of computation statements."
   , UI.h2 # set UI.text "Algorithmic Debugging"
-  , UI.p # set UI.text "The trace is translated into a tree of computation statements for the algorithmic debugging view. You can freely browse this tree to get a better understanding of your program. If your program misbehaves, you can judge the computation statements in the tree as right or wrong according to your intention. When enough statements are judged the debugger tells you the location of the fault in your code."
+  , UI.p # set UI.text "The algorithmic debugger shows you recorded computation statements, that is a function applied to an argument and its result. You judge these statements as right or wrong. When enough statements are judged the debugger tells you the location of the fault in your code."
+  , UI.h2 # set UI.text "Explore"
+  , UI.p # set UI.text "The trace is translated into a tree of computation statements for the algorithmic debugging view. In the explore view you can freely browse this tree to get a better understanding of your program. You can decide yourself in which order you want to judge statements. When enough statements are judged the debugger tells you the location of the fault in your code."
   ] 
 
 
@@ -146,20 +148,17 @@ guiObserve treeRef currentVertexRef = do
            count slice = length (filter (==slice) slices')
            span s = UI.span # set UI.text s # set UI.style [("margin-right","1em")]
            spans = map (\(c,lbl) -> span $ show c ++ " " ++ lbl) $ zip (map count slices) slices
-       div1 <- UI.div #+ spans
 
        -- Alphabetical sorted list of computation statements
        let vs_sorted = sortOn (stmtRes . vertexStmt) . filter (not . isRootVertex) $ vs
-       div3 <- UI.form # set UI.style [("margin-left","2em")]
-       updateRegEx currentVertexRef vs_sorted div3 "" -- with empty regex to fill div3 1st time
+       stmtDiv <- UI.form # set UI.style [("margin-left","2em")]
+       updateRegEx currentVertexRef vs_sorted stmtDiv "" -- with empty regex to fill div3 1st time
 
        -- The regexp filter
        matchField  <- UI.input
-       on UI.valueChange matchField (updateRegEx currentVertexRef vs_sorted div3)
-       div2 <- UI.div # set UI.style [("float","right")] # set UI.text "filter " #+ [return matchField]
+       on UI.valueChange matchField (updateRegEx currentVertexRef vs_sorted stmtDiv)
 
-       hr <- UI.hr
-       UI.div  #+ map return [div1,hr,div2,div3]
+       UI.div  #+ (spans ++ [UI.br, UI.span # set UI.text "regex filter: ", return matchField, UI.hr, return stmtDiv])
 
 updateRegEx :: IORef Int -> [Vertex] -> UI.Element -> String -> UI ()
 updateRegEx currentVertexRef vs stmtDiv r = draw
@@ -210,7 +209,8 @@ guiAlgoDebug treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef =
        judge status compStmt wrong Wrong
 
        -- Populate the main screen
-       top    <- UI.center #+ [return compStmt]
+       let top = compStmt
+       -- top    <- UI.center #+ [return compStmt]
        bottom <- UI.center #+ [return right, return wrong, UI.br, return status]
        UI.div #+ [return top, UI.hr, return bottom]
 
@@ -412,9 +412,10 @@ summarizeVertex :: [Vertex] -> Vertex -> String
 -- summarizeVertex fs v = shorten (ShorterThan 27) (noNewlines . show . vertexStmt $ v) ++ s
 summarizeVertex fs v = (noNewlines . show . vertexStmt $ v) ++ s
   where s = if v `elem` fs then " !!" else case vertexJmt v of
-              Unassessed     -> " ??"
               Wrong          -> " :("
               Right          -> " :)"
+              _              -> " ??"
+              
 
 updateStatus :: UI.Element -> IORef CompTree -> UI ()
 updateStatus e compGraphRef = do
@@ -425,7 +426,8 @@ updateStatus e compGraphRef = do
       ns = filter (not . isRootVertex) (preorder g)
       js = filter isJudged ns
       fs = faultyVertices g
-      txt = if length fs > 0 then " Fault detected in: " ++ getLabel (head fs)
+      txt = if length fs > 0 then " Fault detected in: " -- ++ getLabel (head fs)
+                                                         ++ (stmtRes . vertexStmt . head) fs
                              else " Judged " ++ slen js ++ "/" ++ slen ns
   UI.element e # set UI.text txt
   return ()

@@ -99,19 +99,20 @@ module Debug.Hoed.Pure
   , printO
   , logO
 
-    -- * Experimental annotations
-  , traceOnly
-  , observeTempl
-  , observedTypes
-  , observeCC
-
   -- * Property-based judging
+  , runOwp
+  , logOwp
   , Propositions(..)
   , PropType(..)
   , Proposition(..)
   , PropositionType(..)
   , Module(..)
-  , logOwp
+
+    -- * Experimental annotations
+  , traceOnly
+  , observeTempl
+  , observedTypes
+  , observeCC
 
    -- * The Observable class
   , Observer(..)
@@ -202,8 +203,19 @@ putStrO expr = runO (putStr expr)
 
 runO :: IO a -> IO ()
 runO program = do
-  (trace,traceInfo,compGraph,frt) <- runO' program
-  debugSession trace traceInfo compGraph frt
+  (trace,traceInfo,compTree,frt) <- runO' program
+  debugSession trace traceInfo compTree frt
+  return ()
+
+
+-- | Use property based judging.
+
+runOwp :: [Propositions] -> IO a -> IO ()
+runOwp ps program = do
+  (trace,traceInfo,compTree,frt) <- runO' program
+  hPutStrLn stderr "\n=== Evaluating assigned properties ===\n"
+  compTree' <- judge trace ps compTree
+  debugSession trace traceInfo compTree' frt
   return ()
 
 -- | Short for @runO . print@.

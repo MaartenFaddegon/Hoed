@@ -6,7 +6,8 @@ i=0
 
 echo "Available examples:"
 for e in $EXAMPLES; do
-  echo "$i) $e"
+  echo -n "$i) "
+  echo $e | sed 's/^hoed-examples-//' |  sed 's/_/ /g'
   ((i++))
 done
 
