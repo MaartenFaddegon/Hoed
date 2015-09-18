@@ -126,7 +126,7 @@ evalProposition trc v ms prop = do
   hPutStrLn stderr $ "Exitted with " ++ show exit
   hPutStrLn stderr $ "Output is " ++ show out
   return $ case (exit, out) of
-    (ExitFailure _, _)         -> Nothing
+    (ExitFailure _, _)         -> Nothing -- TODO: Can we do better with a failing precondition?
     (ExitSuccess  , "True\n")  -> Just True
     (ExitSuccess  , "False\n") -> Just False
     (ExitSuccess  , _)         -> Nothing
