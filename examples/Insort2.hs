@@ -3,25 +3,21 @@
 --
 -- As Insort1, but with observe rather than templated observers.
 
-{-# LANGUAGE StandaloneDeriving #-}
-import Debug.Hoed
+import Debug.Hoed.Pure
 
 -- Insertion sort.
-
 isort :: [Int] -> [Int]
-isort ns = observe "isort" (\ns -> {-# SCC "isort" #-} isort' ns) ns
+isort = observe "isort" isort'
 isort' []     = []
 isort' (n:ns) = insert n (isort ns)
 
 -- Insert number into sorted list.
-
 insert :: Int -> [Int] -> [Int]
-insert n ms = (observe "insert" (\n ms -> {-# SCC "insert" #-} insert' n ms)) n ms
+insert = observe "insert" insert'
 insert' :: Int -> [Int] -> [Int]
 insert' n []      = [n]
 insert' n (m:ms)
       | n <= m    = n : ms -- bug: `m' is missing in this case
       | otherwise = m : (insert n ms)
 
-main = printO $
-         (observe "result") ({-# SCC "result" #-} isort [1,2])
+main = printO $ isort [1,2]
