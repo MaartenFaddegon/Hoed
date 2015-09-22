@@ -49,6 +49,8 @@ module XMonad.StackSet (
 
         -- for testing
         abort
+
+        , (===)
     ) where
 
 import Debug.Hoed.Pure
@@ -142,9 +144,15 @@ data StackSet i l a sid sd =
 instance (Observable a, Observable b, Observable c, Show c, Observable d,  Observable e) 
          => Observable (StackSet a b c d e)
 
+instance (ParEq a, ParEq b, ParEq c, ParEq d,  ParEq e) 
+         => ParEq (StackSet a b c d e)
+
 -- MF TODO: this whole declaration is a bit of a hack "fromList" is used instead of a data constructor to generate a new map, and then we actually observe a list produced by toList
 instance (Show k, Show a) => Observable (M.Map k a) where 
   observer m = send ("M.fromList " ++ show (M.toList m)) (return m) -- MF TODO: could this violate strictness?
+
+instance (ParEq k, ParEq a) => ParEq (M.Map k a) where 
+  m === n = (M.toList m) === (M.toList n)
 
 -- | Visible workspaces, and their Xinerama screens.
 data Screen i l a sid sd = Screen { workspace :: !(Workspace i l a)
@@ -154,6 +162,8 @@ data Screen i l a sid sd = Screen { workspace :: !(Workspace i l a)
 
 instance (Observable a, Observable b, Observable c, Observable d,  Observable e) => Observable (Screen a b c d e)
 
+instance (ParEq a, ParEq b, ParEq c, ParEq d,  ParEq e) => ParEq (Screen a b c d e)
+
 -- |
 -- A workspace is just a tag, a layout, and a stack.
 --
@@ -162,13 +172,17 @@ data Workspace i l a = Workspace  { tag :: !i, layout :: l, stack :: Maybe (Stac
 
 instance (Observable a, Observable b, Observable c) => Observable (Workspace a b c)
 
+instance (ParEq a, ParEq b, ParEq c) => ParEq (Workspace a b c)
+
 -- | A structure for window geometries
 data RationalRect = RationalRect Rational Rational Rational Rational
     deriving (Show, Read, Eq, Generic)
 
 instance Observable RationalRect
-
 instance Observable Rational where observer = observeBase
+
+instance ParEq RationalRect
+instance ParEq Rational where x === y = Just (x == y)
 
 -- |
 -- A stack is a cursor onto a window list.
@@ -195,6 +209,7 @@ data Stack a = Stack { focus  :: !a        -- focused thing in this set
 
 instance (Observable a) => Observable (Stack a)
 
+instance (ParEq a) => ParEq (Stack a)
 
 -- | this function indicates to catch that an error is expected
 abort :: String -> a

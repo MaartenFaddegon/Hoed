@@ -44,6 +44,7 @@ This was ported for the version found on www.haskell.org/hood.
 
 \begin{code}
 module Debug.Hoed.Pure.Observe
+{-
   (
    -- * The main Hood API
   
@@ -76,7 +77,7 @@ module Debug.Hoed.Pure.Observe
   , endEventStream
   , ourCatchAllIO
   , peepUniq
-  ) where
+  ) -} where
 \end{code}
 
 

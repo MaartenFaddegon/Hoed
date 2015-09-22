@@ -114,6 +114,9 @@ module Debug.Hoed.Pure
   , observedTypes
   , observeCC
 
+   -- * Parallel equality
+  , ParEq(..)
+
    -- * The Observable class
   , Observer(..)
   , Observable(..)

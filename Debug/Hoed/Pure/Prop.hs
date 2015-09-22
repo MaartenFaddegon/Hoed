@@ -2,16 +2,19 @@
 --
 -- Copyright (c) Maarten Faddegon, 2015
 
+{-# LANGUAGE DefaultSignatures, TypeOperators, FlexibleContexts, FlexibleInstances #-}
+
 module Debug.Hoed.Pure.Prop where
 -- ( judge
 -- , Propositions(..)
 -- ) where
-
-import Debug.Hoed.Pure.Observe(Trace(..),UID,Event(..),Change(..))
+import Debug.Hoed.Pure.Observe(Trace(..),UID,Event(..),Change(..),ourCatchAllIO,evaluate)
 import Debug.Hoed.Pure.Render(CompStmt(..))
 import Debug.Hoed.Pure.CompTree(CompTree,Vertex(..),Graph(..),vertexUID)
 import Debug.Hoed.Pure.EventForest(EventForest,mkEventForest,dfsChildren)
 import qualified Data.IntMap as M
+
+import qualified Debug.Trace as Debug -- MF TODO
 
 import Prelude hiding (Right)
 import Data.Graph.Libgraph(Judgement(..),mapGraph)
@@ -19,9 +22,11 @@ import System.Directory(createDirectoryIfMissing)
 import System.Process(system)
 import System.Exit(ExitCode(..))
 import System.IO(hPutStrLn,stderr)
+import System.IO.Unsafe(unsafePerformIO)
 import Data.Char(isAlpha)
 import Data.Maybe(isNothing,fromJust)
 import Data.List(intersperse)
+import GHC.Generics hiding (moduleName) --(Generic(..),Rep(..),from,(:+:)(..),(:*:)(..),U1(..),K1(..),M1(..))
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -111,7 +116,8 @@ evalProposition trc v ms prop = do
   createDirectoryIfMissing True ".Hoed/exe"
   hPutStrLn stderr $ "Evaluating proposition " ++ propName prop ++ " with statement " ++ (shorten . stmtRes . vertexStmt) v
 
-  let args = map (\(n,s) -> "Argument " ++ show n ++ ": " ++ (shorten s)) $ zip [0..] (generateArgs trc getEvent i)
+  let args = map (\(n,s) -> "Argument " ++ show n ++ ": " ++ s) $ zip [0..] (generateArgs trc getEvent i)
+  -- let args = map (\(n,s) -> "Argument " ++ show n ++ ": " ++ (shorten s)) $ zip [0..] (generateArgs trc getEvent i)
   hPutStrLn stderr $ "Statement UID = " ++ show i
   mapM (hPutStrLn stderr) args
 
@@ -124,7 +130,7 @@ evalProposition trc v ms prop = do
                          ExitSuccess     -> evaluate
   out  <- readFile outFile
   hPutStrLn stderr $ "Exitted with " ++ show exit
-  hPutStrLn stderr $ "Output is " ++ show out
+  hPutStrLn stderr $ "Output is " ++ show out ++ "\n"
   return $ case (exit, out) of
     (ExitFailure _, _)         -> Nothing -- TODO: Can we do better with a failing precondition?
     (ExitSuccess  , "True\n")  -> Just True
@@ -224,3 +230,73 @@ generateExpr frt (Just e) = -- uncomment next line to add events as comments to 
 
 __ :: String
 __ = "(error \"Request of value that was unevaluated in original program.\")"
+
+------------------------------------------------------------------------------------------------------------------------
+
+class ParEq a where
+  (===) :: a -> a -> Maybe Bool
+  default (===) :: (Generic a, GParEq (Rep a)) => a -> a -> Maybe Bool
+  x === y = gParEq (from x) (from y)
+
+class GParEq rep where
+  gParEq :: rep a -> rep a -> Maybe Bool
+
+orNothing :: IO (Maybe Bool) -> Maybe Bool
+orNothing mb = unsafePerformIO $ ourCatchAllIO mb (\_ -> return Nothing)
+
+catchEq :: Eq a => a -> a -> Maybe Bool
+catchEq x y = orNothing $ do mb <- evaluate (x == y); return (Just mb)
+
+catchGEq :: GParEq rep => rep a -> rep a -> Maybe Bool
+catchGEq x y = orNothing $ x `seq` y `seq` (evaluate $ gParEq x y)
+
+-- Sums: encode choice between constructors
+instance (GParEq a, GParEq b) => GParEq (a :+: b) where
+  gParEq x y = let r = gParEq_ x y in r
+    where gParEq_ (L1 x) (L1 y) = x `catchGEq` y
+          gParEq_ (R1 x) (R1 y) = x `catchGEq` y
+          gParEq_ _      _      = Just False
+
+-- Products: encode multiple arguments to constructors
+instance (GParEq a, GParEq b) => GParEq (a :*: b) where
+  gParEq x y = let r = gParEq_ x y in r
+    where gParEq_ (x :*: x') (y :*: y')
+            | any (== (Just False)) mbs = Just False
+            | all (== (Just True))  mbs = Just True
+            | otherwise                 = Nothing
+            where mbs = [(catchGEq x y) `seq` (catchGEq x y), (catchGEq x' y') `seq` (catchGEq x' y')]
+
+-- Unit: used for constructors without arguments
+instance GParEq U1 where
+  gParEq x y = let r = gParEq_ x y in r
+    where gParEq_ x y = catchEq x y
+
+-- Constants: additional parameters and recursion of kind *
+instance (ParEq a) => GParEq (K1 i a) where
+  gParEq x y = let r = gParEq_ x y in r
+    where gParEq_ (K1 x) (K1 y) = x === y
+
+-- Meta: data types
+instance (GParEq a) => GParEq (M1 D d a) where
+  gParEq x y = let r = gParEq_ x y in r
+    where gParEq_ (M1 x) (M1 y) = x `catchGEq` y
+
+-- Meta: Selectors
+instance (GParEq a, Selector s) => GParEq (M1 S s a) where
+  gParEq x y = let r = gParEq_ x y in r
+    where gParEq_ (M1 x) (M1 y) = x `catchGEq` y
+        
+-- Meta: Constructors
+instance (GParEq a, Constructor c) => GParEq (M1 C c a) where
+  gParEq x y = let r = gParEq_ x y in r
+    where gParEq_ (M1 x) (M1 y) = x `catchGEq` y
+
+instance (ParEq a)          => ParEq [a]
+instance (ParEq a, ParEq b) => ParEq (a,b)
+instance (ParEq a)          => ParEq (Maybe a)
+instance ParEq Int          where x === y = Just (x == y)
+instance ParEq Bool         where x === y = Just (x == y)
+instance ParEq Integer      where x === y = Just (x == y)
+instance ParEq Float        where x === y = Just (x == y)
+instance ParEq Double       where x === y = Just (x == y)
+instance ParEq Char         where x === y = Just (x == y)

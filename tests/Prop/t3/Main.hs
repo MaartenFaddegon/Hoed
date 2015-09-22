@@ -40,7 +40,8 @@ main = logOwp "hoed-tests-Prop-t3.graph" propositions $ do
  where
     propositions =
         [Propositions [(QuickCheckProposition,module_Properties,"prop_focus_all_l",[0])
-                      ,(QuickCheckProposition,module_Properties,"prop_focus_all_l_weak",[0])
+                      ,(QuickCheckProposition,module_Properties,"prop_focus_all_l_generic",[0])
+                      -- ,(QuickCheckProposition,module_Properties,"prop_focus_all_l_weak",[0])
                       ]
                       PropertiesOf "focusUp" [module_StackSet, module_QuickCheck, module_Map, module_Random, module_Maybe]
 

@@ -348,7 +348,15 @@ prop_focus_all_r (x :: T) = (foldr (const focusDown) x [1..n]) == x
 -- MF: added the following proposition
 prop_focus_all_l_weak (x :: T) = getStk (foldr (const focusUp) x [1..n]) == getStk x
   where n = length (index x)
-        getStk = stack . workspace . current
+
+getStk = stack . workspace . current
+
+-- MF: added the following proposition
+prop_focus_all_l_generic (x :: T) = (foldr (const focusUp) x [1..n]) === x
+  where n = length (index x)
+
+instance Testable a => Testable (Maybe a) where
+  property = property . fromJust
 
 -- prop_rotate_all (x :: T) = f (f x) == f x
 --     f x' = foldr (\_ y -> rotate GT y) x' [1..n]
@@ -400,6 +408,8 @@ prop_insert_idem i (x :: T) = insertUp i x == insertUp i (insertUp i x)
 
 -- insert when an item is a member should leave the stackset unchanged
 prop_insert_duplicate i (x :: T) = member i x ==> insertUp i x == x
+
+prop_insert_duplicate_weak i (x :: T) = member i x ==> getStk (insertUp i x) == getStk x
 
 -- push shouldn't change anything but the current workspace
 prop_insert_local (x :: T) i = not (member i x) ==> hidden_spaces x == hidden_spaces (insertUp i x)
@@ -1005,6 +1015,8 @@ newtype NonNegative a = NonNegative a
  deriving ( Eq, Ord, Num, Integral, Real, Enum, Show, Read, Generic )
 
 instance (Observable a) => Observable (NonNegative a)
+
+instance (ParEq a) => ParEq (NonNegative a)
 
 instance (Num a, Ord a, Arbitrary a) => Arbitrary (NonNegative a) where
   arbitrary =

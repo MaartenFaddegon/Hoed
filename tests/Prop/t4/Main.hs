@@ -30,13 +30,13 @@ main = logOwp "hoed-tests-Prop-t4.graph" propositions $ do
   where
     propositions =
         [Propositions [(QuickCheckProposition,module_Properties,"prop_focus_all_l",[0])
-                      ,(QuickCheckProposition,module_Properties,"prop_focus_all_l_weak",[0])
+                      -- ,(QuickCheckProposition,module_Properties,"prop_focus_all_l_weak",[0])
                       ]
                       PropertiesOf "focusUp" [module_StackSet, module_QuickCheck, module_Map, module_Random, module_Maybe]
 
-        , Propositions [ (QuickCheckProposition,module_Properties,"prop_insert_duplicate_weak",[1,0])
-                       ] 
-                       PropertiesOf "insertUp" [module_StackSet, module_QuickCheck, module_Map, module_Random, module_Maybe]
+        -- , Propositions [ (QuickCheckProposition,module_Properties,"prop_insert_duplicate_weak",[1,0])
+        --                ] 
+        --                PropertiesOf "insertUp" [module_StackSet, module_QuickCheck, module_Map, module_Random, module_Maybe]
 
         , Propositions [ (QuickCheckProposition,module_Properties,"prop_view_reversible",[1,0])
                        , (QuickCheckProposition,module_Properties,"prop_view_I",[1,0])
