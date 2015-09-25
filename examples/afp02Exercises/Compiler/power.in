@@ -1,0 +1,6 @@
+a, n, x := 3, 6, 1;
+while 0 < n do
+  if (n\2) = 1 then n, x := n-1, x*a else skip fi;
+  a, n := a*a, n/2
+od;
+print x

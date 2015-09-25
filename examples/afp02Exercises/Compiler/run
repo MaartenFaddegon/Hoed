@@ -1,0 +1,5 @@
+ulimit -v 1000000 # limit memory usage to 10 GB
+./Main +RTS -p -h -xt &
+# ./Main &
+sleep 1s
+kill -2 $! # send a "ctrl-C" signal to stop the hanging compiler...

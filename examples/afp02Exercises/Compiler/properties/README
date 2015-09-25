@@ -1,0 +1,6 @@
+This property file can be used with any of the versions of the compiler.
+
+Give the right include path to your compiler, for example:
+
+$ hugs -P../broken: -P../../../QuickCheck2: Properties
+

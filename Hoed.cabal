@@ -78,42 +78,56 @@ library
 ---------------------------------------------------------------------------
 
 
-Executable hoed-examples-Insertion_Sort_elements_disappear
-  if flag(buildExamples)
-    build-depends:       base >= 4 && < 5
-                         , Hoed
-                         , threepenny-gui
-                         , filepath
-  else
-    buildable: False
-  main-is:             Insertion_Sort_elements_disappear.hs
-  hs-source-dirs:      examples
-  default-language:    Haskell2010
+-- Executable hoed-examples-Insertion_Sort_elements_disappear
+--   if flag(buildExamples)
+--     build-depends:       base >= 4 && < 5
+--                          , Hoed
+--                          , threepenny-gui
+--                          , filepath
+--   else
+--     buildable: False
+--   main-is:             Insertion_Sort_elements_disappear.hs
+--   hs-source-dirs:      examples
+--   default-language:    Haskell2010
+-- 
+-- Executable hoed-examples-XMonad_changing_focus_duplicates_windows
+--   if flag(buildExamples)
+--     build-depends:     base >= 4 && < 5, Hoed, 
+--                        X11>=1.5 && < 1.7, mtl, unix,
+--                        utf8-string >= 0.3 && < 0.4,
+--                        extensible-exceptions, random,
+--                        containers, filepath, process, directory
+--   else
+--     buildable: False
+--   main-is:             Main.hs
+--   hs-source-dirs:      examples/XMonad_changing_focus_duplicates_windows
+--   default-language:    Haskell2010
+-- 
+-- Executable hoed-examples-XMonad_changing_focus_duplicates_windows__using_properties
+--   if flag(buildExamples)
+--     build-depends:     base >= 4 && < 5, Hoed, 
+--                        X11>=1.5 && < 1.7, mtl, unix,
+--                        utf8-string >= 0.3 && < 0.4,
+--                        extensible-exceptions, random,
+--                        containers, filepath, process, directory
+--   else
+--     buildable: False
+--   main-is:             Main.hs
+--   hs-source-dirs:      examples/XMonad_changing_focus_duplicates_windows__using_properties
+--   default-language:    Haskell2010
 
-Executable hoed-examples-XMonad_changing_focus_duplicates_windows
+Executable hoed-examples-SummerSchool_compiler_does_not_terminate
   if flag(buildExamples)
     build-depends:     base >= 4 && < 5, Hoed, 
                        X11>=1.5 && < 1.7, mtl, unix,
                        utf8-string >= 0.3 && < 0.4,
                        extensible-exceptions, random,
-                       containers, filepath, process, directory
+                       containers, filepath, process, directory,
+                       array
   else
     buildable: False
   main-is:             Main.hs
-  hs-source-dirs:      examples/XMonad_changing_focus_duplicates_windows
-  default-language:    Haskell2010
-
-Executable hoed-examples-XMonad_changing_focus_duplicates_windows__using_properties
-  if flag(buildExamples)
-    build-depends:     base >= 4 && < 5, Hoed, 
-                       X11>=1.5 && < 1.7, mtl, unix,
-                       utf8-string >= 0.3 && < 0.4,
-                       extensible-exceptions, random,
-                       containers, filepath, process, directory
-  else
-    buildable: False
-  main-is:             Main.hs
-  hs-source-dirs:      examples/XMonad_changing_focus_duplicates_windows__using_properties
+  hs-source-dirs:      examples/afp02Exercises/Compiler/
   default-language:    Haskell2010
 
 --      

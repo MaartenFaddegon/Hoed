@@ -1,0 +1,3 @@
+rm *.o *.hi Main
+ghc -prof -fprof-auto --make Main
+# ghc --make Main

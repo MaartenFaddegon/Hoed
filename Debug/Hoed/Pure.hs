@@ -251,6 +251,7 @@ runO' program = do
   -- hPutStrLn stderr "\n=== Events ===\n"
   -- hPutStrLn stderr $ unlines (map show . reverse $ events)
   writeFile ".Hoed/Events" (unlines . map show . reverse $ events)
+  -- writeFile ".Hoed/CDSSet" (show cdss2)
 
   -- hPutStrLn stderr "\n=== Dependencies ===\n"
   -- hPutStrLn stderr $ unlines (map (\(m,n,msg) -> show m ++ " -> " ++ show n ++ " %" ++ msg) ds)
@@ -264,11 +265,13 @@ runO' program = do
       n  = length eqs
       d  = treeDepth ct
       b  = fromIntegral (length . arcs $ ct ) / fromIntegral ((length . vertices $ ct) - (length . leafs $ ct))
+      m  = maximum . map (length . show) $ eqs
   hPutStrLn stderr $ "e = " ++ show e
   hPutStrLn stderr $ "n = " ++ show n
   hPutStrLn stderr $ "d' = " ++ (show . length $ ds)
   -- hPutStrLn stderr $ "d = " ++ show d
   hPutStrLn stderr $ "b = " ++ show b
+  hPutStrLn stderr $ "m = " ++ show m
 
   -- hPutStrLn stderr "\n=== Debug Session ===\n"
   return (events, ti, ct, frt)
@@ -291,7 +294,7 @@ logO filePath program = {- SCC "logO" -} do
         showVertex RootVertex = ("root","")
         showVertex v       = ("\"" ++ (escape . showCompStmt) v ++ "\"", "")
         showArc _          = ""
-        showCompStmt       = show . vertexStmt
+        showCompStmt       = take 25 . show . vertexStmt -- MF TODO: meer dan 25!
 
 -- | As logO, but with property-based judging.
 logOwp :: FilePath -> [Propositions] -> IO a -> IO ()

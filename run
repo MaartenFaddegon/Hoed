@@ -1,10 +1,9 @@
 #!/bin/bash
-
 EXAMPLES=`ls dist/build | grep hoed-examples`
-
-i=0
+ulimit -v 1000000 # limit memory usage to 10 GB
 
 echo "Available examples:"
+i=0
 for e in $EXAMPLES; do
   echo -n "$i) "
   echo $e | sed 's/^hoed-examples-//' | sed 's/__.*/ (&)/' |sed 's/__//' |  sed 's/_/ /g'
@@ -32,11 +31,18 @@ fi
 
 echo "Now executing $EXE."
 
-# OPTS="--PushTruncate +RTS --PushTruncate"
-# OPTS="--PushVanilla +RTS --PushVanilla"
-# OPTS="--PushVanilla +RTS --PushHybrid"
-# OPTS="--PushVanilla"
-
 rm -f tmp/wwwroot/debugTree.png tmp/debugTree.dot
 cd tmp
-eval ../dist/build/$EXE/$EXE
+if echo $EXE | grep -q does_not_terminate; then
+  echo "You selected a non terminating program. Will kill after 1 second."
+  ../dist/build/$EXE/$EXE +RTS -p -h -xt -L80 &
+  sleep 1s
+  kill -2 $! # send a "ctrl-C" signal to stop the hanging compiler...
+  wait
+  hp2ps $EXE.hp
+  okular $EXE.ps
+else
+  eval ../dist/build/$EXE/$EXE
+fi
+
+
