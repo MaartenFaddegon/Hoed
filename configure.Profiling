@@ -1,0 +1,3 @@
+cabal configure --enable-library-profiling --enable-executable-profiling --flags="buildExamples"
+
+# --ghc-options="-fprof-auto -fprof-cafs" 
