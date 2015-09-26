@@ -40,7 +40,7 @@ if echo $EXE | grep -q does_not_terminate; then
   kill -2 $! # send a "ctrl-C" signal to stop the hanging compiler...
   wait
   hp2ps $EXE.hp
-  okular $EXE.ps
+  # okular $EXE.ps
 else
   eval ../dist/build/$EXE/$EXE
 fi
