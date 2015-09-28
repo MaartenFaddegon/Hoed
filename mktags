@@ -1,1 +1,1 @@
-hasktags --ignore-close-implementation --ctags .; sort tags
+(hasktags --ignore-close-implementation --ctags .; sort tags) &> /dev/null

@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
-module Behaviour(Trace(..),(+++),approx) where
+module Behaviour(Trace(..),(+++),approx,prop_traceLessThan100Deep) where
 import Debug.Hoed.Pure
 
 data Trace a
@@ -25,3 +25,10 @@ approx n End    End        = True
 approx n Crash  Crash      = True
 approx n _        _        = False
 
+prop_traceLessThan100Deep :: (Trace a) -> Bool
+prop_traceLessThan100Deep = lessThanXDeep 100
+  where lessThanXDeep 0 _          = False
+        lessThanXDeep x (Step trc) = lessThanXDeep (x-1) trc
+        lessThanXDeep x (_ :> trc) = lessThanXDeep (x-1) trc
+        lessThanXDeep _ End        = True
+        lessThanXDeep _ Crash      = True

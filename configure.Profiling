@@ -1,1 +1,1 @@
-cabal configure --enable-library-profiling --enable-executable-profiling --flags="validatePure" --ghc-options="-fprof-auto -fprof-cafs" 
+cabal configure --enable-library-profiling --enable-executable-profiling --flags="buildExamples" --ghc-options="-fprof-auto -fprof-cafs" 

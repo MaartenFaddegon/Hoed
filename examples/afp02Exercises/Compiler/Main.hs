@@ -7,7 +7,7 @@ import Interpreter
 import Machine
 import Compiler
 
-main = logO "comptree" $ do
+main = runO $ do
   let prog = parse gcdSource
   putStrLn "interpreted:"
   print (obey prog)
