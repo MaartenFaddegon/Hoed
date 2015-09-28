@@ -6,10 +6,6 @@
 module Debug.Hoed.Pure.Render
 (CompStmt(..)
 ,renderCompStmts
-,renderCompStmt1
-,renderCompStmt2
-,renderCompStmt3
-,renderCompStmt4
 ,CDS
 ,eventsToCDS
 ,rmEntrySet
@@ -69,50 +65,29 @@ renderCompStmts = foldl (\acc set -> acc ++ renderCompStmt set) []
 -- renderCompStmt: an observed function can be applied multiple times, each application
 -- is rendered to a computation statement
 
-{-
-renderCompStmt (CDSNamed name threadId dependsOn set) =
-  {-# SCC "renderCompStmt" #-} map (mkStmt name) statements
-  where statements :: [(String,UID)]
-        statements   = {-# SCC "renderCompStmt.statements" #-}
-                       map (\(d,i) -> (pretty 120 d,i)) doc
-        doc          = {-# SCC "renderCompStmt.doc" #-}
-                       foldl (\a b -> a ++ renderNamedTop name b) [] output
-        output       = {-# SCC "renderCompStmt.output" #-}
-                       cdssToOutput set
--}
 renderCompStmt :: CDS -> [CompStmt]
-renderCompStmt (CDSNamed name _ _ set) =
-  renderCompStmt4 name . renderCompStmt3 . renderCompStmt2 name . renderCompStmt1 $ set
+renderCompStmt (CDSNamed name threadId dependsOn set uids')
+  = map mkStmt statements
+  where statements :: [(String,UID)]
+        statements   = map (\(d,i) -> (pretty 120 d,i)) doc
+        doc          = foldl (\a b -> a ++ renderNamedTop name b) [] output
+        output       = cdssToOutput set
 
-renderCompStmt1 :: CDSSet -> [Output]
-renderCompStmt1 set = cdssToOutput set
-
-renderCompStmt2 :: String -> [Output] -> [(DOC,UID)]
-renderCompStmt2 name output = foldl (\a b -> a ++ renderNamedTop name b) [] output
-
-renderCompStmt3 :: [(DOC,UID)] -> [(String,UID)]
-renderCompStmt3 doc = map (\(d,i) -> (pretty 120 d,i)) doc
-
-renderCompStmt4 :: String -> [(String,UID)] -> [CompStmt]
-renderCompStmt4 name statements = map (mkStmt name) statements
-
-
-mkStmt :: String -> (String,UID) -> CompStmt
-mkStmt name (s,i) = CompStmt name i s
+        mkStmt :: (String,UID) -> CompStmt
+        mkStmt (s,i) = CompStmt name i s
 
 renderNamedTop :: String -> Output -> [(DOC,UID)]
 renderNamedTop name (OutData cds)
   =  map (\(args,res,Just i) -> (renderNamedFn name (args,res), i)) pairs
-  where pairs  = {-# SCC "renderNamedTop.pairs" #-} (nubSorted . sortOn argAndRes) pairs'
-        pairs' = {-# SCC "renderNamedTop.pairs'" #-} findFn [cds]
+
+  where pairs' = findFn [cds]
+        pairs  = (nub . sortOn argAndRes) pairs'
+        -- local nub for sorted lists
+        nub []                  = []
+        nub (a:a':as) | a == a' = nub (a' : as)
+        nub (a:as)              = a : nub as
+
         argAndRes (arg,res,_) = (arg,res)
-
-
--- local nub for sorted lists
-nubSorted :: Eq a => [a] -> [a]
-nubSorted []                  = []
-nubSorted (a:a':as) | a == a' = nub (a' : as)
-nubSorted (a:as)              = a : nub as
 
 -- %************************************************************************
 -- %*                                                                   *
@@ -121,7 +96,7 @@ nubSorted (a:as)              = a : nub as
 -- %************************************************************************
 
 
-data CDS = CDSNamed      String ThreadId UID CDSSet
+data CDS = CDSNamed      String ThreadId UID CDSSet [UID]
          | CDSCons       UID    String   [CDSSet]
          | CDSFun        UID             CDSSet CDSSet
          | CDSEntered    UID
@@ -155,7 +130,7 @@ eventsToCDS pairs = getChild 0 0
      getNode'' node e change =
        case change of
         (Observe str t i) -> let chd = getChild node 0
-                               in CDSNamed str t (getId chd i) chd
+                               in CDSNamed str t (getId chd i) chd (treeUIDs frt e)
         (Enter)             -> CDSEntered node
         (NoEnter)           -> CDSTerminated node
         Fun                 -> CDSFun node (getChild node 0) (getChild node 1)
@@ -233,13 +208,13 @@ renderFn (args, res)
                )
 
 renderNamedFn :: String -> ([CDSSet],CDSSet) -> DOC
-renderNamedFn name (args,res) = {-# SCC "renderNamedFn" #-}
-  grp (nest 3
-          (  text name <> sep
-          <> foldr (\ a b -> nest 0 (renderSet' 10 False a) <> sp <> b) nil args
-          <> sep <> text "= " <> renderSet' 0 False res
-          )
-      )
+renderNamedFn name (args,res)
+  = grp (nest 3
+            (  text name <> sep
+            <> foldr (\ a b -> nest 0 (renderSet' 10 False a) <> sp <> b) nil args
+            <> sep <> text "= " <> renderSet' 0 False res
+            )
+        )
 
 findFn :: CDSSet -> [([CDSSet],CDSSet, Maybe UID)]
 findFn = foldr findFn' []
@@ -260,7 +235,7 @@ renderTop (OutLabel str set extras) =
                 <> renderTops extras) <> line
 
 rmEntry :: CDS -> CDS
-rmEntry (CDSNamed str t i set)= CDSNamed str t i (rmEntrySet set)
+rmEntry (CDSNamed str t i set us)= CDSNamed str t i (rmEntrySet set) us
 rmEntry (CDSCons i str sets)       = CDSCons i str (map rmEntrySet sets)
 rmEntry (CDSFun i a b)             = CDSFun i (rmEntrySet a) (rmEntrySet b)
 rmEntry (CDSTerminated i)          = CDSTerminated i
@@ -272,7 +247,7 @@ rmEntrySet = map rmEntry . filter noEntered
         noEntered _              = True
 
 simplifyCDS :: CDS -> CDS
-simplifyCDS (CDSNamed str t i set) = CDSNamed str t i (simplifyCDSSet set)
+simplifyCDS (CDSNamed str t i set us) = CDSNamed str t i (simplifyCDSSet set) us
 simplifyCDS (CDSCons _ "throw"
                   [[CDSCons _ "ErrorCall" set]]
             ) = simplifyCDS (CDSCons 0 "error" set)
@@ -285,7 +260,7 @@ simplifyCDS (CDSFun i a b) = CDSFun i (simplifyCDSSet a) (simplifyCDSSet b)
 
 simplifyCDS (CDSTerminated i) = (CDSCons i "<?>" [])
 
-simplifyCDSSet = {-# SCC "simplifyCDSSet" #-} map simplifyCDS
+simplifyCDSSet = map simplifyCDS
 
 spotString :: CDSSet -> Maybe String
 spotString [CDSCons _ ":"
@@ -320,9 +295,9 @@ commonOutput = sortBy byLabel
      byLabel (OutLabel lab _ _) (OutLabel lab' _ _) = compare lab lab'
 
 cdssToOutput :: CDSSet -> [Output]
-cdssToOutput = map cdsToOutput
+cdssToOutput =  map cdsToOutput
 
-cdsToOutput (CDSNamed name _ _ cdsset)
+cdsToOutput (CDSNamed name _ _ cdsset _)
             = OutLabel name res1 res2
   where
       res1 = [ cdss | (OutData cdss) <- res ]
@@ -376,88 +351,48 @@ brk                     = BREAK
 fold x                  = grp (brk <> x)
 
 grp                     :: DOC -> DOC
--- MF TODO!!!
--- replace code line below with following commented line to insert some newlines
-grp x                   = {-# SCC "grp" #-} flatten x :<|> x
--- grp x                   = {-# SCC "grp" #-} flatten x
-
-
-{-
+grp x                   =
         case flatten x of
           Just x' -> x' :<|> x
           Nothing -> x
--}
 
-flatten                 :: DOC -> DOC
-flatten NIL             = {-# SCC "flatten.NIL" #-}    NIL
-flatten (x :<> y)       = {-# SCC "flatten.(:<>)" #-}  
-                                x `seq` y `seq` (flatten x :<> flatten y)
-flatten (NEST i x)      = {-# SCC "flatten.nest"  #-}  x `seq` NEST i (flatten x)
-flatten (TEXT s)        = {-# SCC "flatten.TEXT" #-}   TEXT s
-flatten LINE            = {-# SCC "flatten.LINE" #-}   TEXT " "     -- abort
-flatten SEP             = {-# SCC "flatten.SEP" #-}    TEXT " "     -- SEP is space
-flatten BREAK           = {-# SCC "flatten.BREAK" #-}  NIL          -- BREAK is nil
-flatten (x :<|> y)      = {-# SCC "flatten.(:<|>)" #-} x `seq` flatten x
-
-{-
 flatten                 :: DOC -> Maybe DOC
-flatten NIL             = {-# SCC "flatten.NIL" #-} return NIL
-flatten (x :<> y)       = {-# SCC "flatten.(:<>)" #-}
-        do x' <- x `seq` flatten x
-           y' <- y `seq` flatten y
-           return (x' `seq` y' `seq` (x' :<> y'))
+flatten NIL             = return NIL
+flatten (x :<> y)       =
+        do x' <- flatten x
+           y' <- flatten y
+           return (x' :<> y')
 flatten (NEST i x)      =
         do x' <- flatten x
            return (NEST i x')
-flatten (TEXT s)        = {-# SCC "flatten.TEXT" #-} return (TEXT s)
-flatten LINE            = {-# SCC "flatten.LINE" #-} Nothing               -- abort
-flatten SEP             = {-# SCC "flatten.SEP" #-} return (TEXT " ")     -- SEP is space
-flatten BREAK           = {-# SCC "flatten.BREAK" #-} return NIL            -- BREAK is nil
-flatten (x :<|> y)      = {-# SCC "flatten.(:<|>)" #-} flatten x
--}
+flatten (TEXT s)        = return (TEXT s)
+flatten LINE            = Nothing               -- abort
+flatten SEP             = return (TEXT " ")     -- SEP is space
+flatten BREAK           = return NIL            -- BREAK is nil
+flatten (x :<|> y)      = flatten x
 
 layout                  :: Doc -> String
--- layout Nil              = {-# SCC "layout.Nil" #-} ""
--- layout (Text _ s x)     = {-# SCC "layout.Text" #-} s ++ layout x
--- layout (Line _ i x)     = {-# SCC "layout.Line" #-} '\n' : replicate i ' ' ++ layout x
--- -- layout (Line _ i x)     = {-# SCC "layout.Line" #-} let pre = '\n' : replicate i ' ' in pre `seq` pre ++ layout x
-layout = layout' ""
-  where
-  layout' :: String -> Doc -> String
-  layout' t (Text _ s x) = {-# SCC "layout.Text" #-} let t' = t ++ s 
-                                                     in t' `seq` layout' t' x
-  layout' t (Line _ i x) = {-# SCC "layout.Line" #-} let t' = t ++ ('\n' : replicate i ' ')
-                                                     in t' `seq` layout' t' x
-  layout' t Nil          = {-# SCC "layout.Nil" #-}  t
+layout Nil              = ""
+layout (Text _ s x)     = s ++ layout x
+layout (Line _ i x)     = '\n' : replicate i ' ' ++ layout x
 
-best :: Int -> Int -> DOC -> Doc
-best w k doc = {-# SCC "best" #-} be w k [(0,doc)]
+best w k doc = be w k [(0,doc)]
 
 be                      :: Int -> Int -> [(Int,DOC)] -> Doc
-be w k []               = {-# SCC "be.[]" #-}     Nil
-be w k ((i,NIL):z)      = {-# SCC "be.NIL" #-}    be w k z
-be w k ((i,x :<> y):z)  = {-# SCC "be.(:<>)" #-}  be w k ((i,x):(i,y):z)
-be w k ((i,NEST j x):z) = {-# SCC "be.NEST" #-}   be w k ((k+j,x):z)
-be w k ((i,TEXT s):z)   = {-# SCC "be.TEXT" #-}   s `mkText` be w (k+length s) z
-be w k ((i,LINE):z)     = {-# SCC "be.LINE" #-}   i `mkLine` be w i z
-be w k ((i,SEP):z)      = {-# SCC "be.SEP" #-}    i `mkLine` be w i z
-be w k ((i,BREAK):z)    = {-# SCC "be.BREAK" #-}  i `mkLine` be w i z
-be w k ((i,x :<|> y):z) = {-# SCC "be.(:<|>)" #-} be w k ((i,x):z)
-{-
-  | (w-k) >= toplen z1 = z1
-  | otherwise          = z2
-  where z1 = let d = (i,x):z in d `seq` be w k d
-        z2 = let d = (i,y):z in d `seq` be w k d
--}
-
-{- replaced by above. MF TODO: delete this?
+be w k []               = Nil
+be w k ((i,NIL):z)      = be w k z
+be w k ((i,x :<> y):z)  = be w k ((i,x):(i,y):z)
+be w k ((i,NEST j x):z) = be w k ((k+j,x):z)
+be w k ((i,TEXT s):z)   = s `mkText` be w (k+length s) z
+be w k ((i,LINE):z)     = i `mkLine` be w i z
+be w k ((i,SEP):z)      = i `mkLine` be w i z
+be w k ((i,BREAK):z)    = i `mkLine` be w i z
 be w k ((i,x :<|> y):z) = better w k
-                                (x `seq` be w k ((i,x):z))
-                                (y `seq` be w k ((i,y):z))
+                                (be w k ((i,x):z))
+                                (be w k ((i,y):z))
 
 better                  :: Int -> Int -> Doc -> Doc -> Doc
 better w k x y          = if (w-k) >= toplen x then x else y
--}
 
 pretty                  :: Int -> DOC -> String
-pretty w x              = {-# SCC "pretty" #-} layout (best w 0 x)
+pretty w x              = layout (best w 0 x)

@@ -224,7 +224,7 @@ guiAlgoDebug treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef =
            tree'    <- UI.liftIO $ readIORef treeRef
            let tree  = markNode tree' v j
                w     = next_step tree vertexJmt v{vertexJmt=j}
-           UI.element compStmt # UI.set UI.text (shorten (ShorterThan 250) . show . vertexStmt $ w)
+           UI.element compStmt # UI.set UI.text (show . vertexStmt $ w)
            UI.liftIO $ writeIORef currentVertexRef (vertexUID w)
            UI.liftIO $ writeIORef treeRef tree
            vs <- UI.liftIO $ readIORef filteredVerticesRef

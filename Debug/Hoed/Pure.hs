@@ -233,7 +233,7 @@ traceOnly program = do
 
 
 runO' :: IO a -> IO (Trace,TraceInfo,CompTree,EventForest)
-runO' program = {-# SCC "runO'" #-} do
+runO' program = do
   createDirectoryIfMissing True ".Hoed/"
   putStrLn "=== program output ===\n"
   events <- debugO program
@@ -241,10 +241,6 @@ runO' program = {-# SCC "runO'" #-} do
   let cdss1 = rmEntrySet cdss
   let cdss2 = simplifyCDSSet cdss1
   let eqs   = renderCompStmts cdss2
-
-  let cds2 = head cdss2
-      
-
 
   let frt  = mkEventForest events
       rs   = filter isRootEvent events
@@ -255,7 +251,6 @@ runO' program = {-# SCC "runO'" #-} do
   -- hPutStrLn stderr "\n=== Events ===\n"
   -- hPutStrLn stderr $ unlines (map show . reverse $ events)
   writeFile ".Hoed/Events" (unlines . map show . reverse $ events)
-  writeFile ".Hoed/CDSSet" (show cdss2)
 
   -- hPutStrLn stderr "\n=== Dependencies ===\n"
   -- hPutStrLn stderr $ unlines (map (\(m,n,msg) -> show m ++ " -> " ++ show n ++ " %" ++ msg) ds)
@@ -263,20 +258,17 @@ runO' program = {-# SCC "runO'" #-} do
   -- hPutStrLn stderr "\n=== Computation Statements ===\n"
   -- hPutStrLn stderr $ show eqs
   -- hPutStrLn stderr $ unlines . (map $ show . stmtUIDs) $ eqs
-{-
+
   hPutStrLn stderr "\n=== Statistics ===\n"
   let e  = length events
       n  = length eqs
       d  = treeDepth ct
       b  = fromIntegral (length . arcs $ ct ) / fromIntegral ((length . vertices $ ct) - (length . leafs $ ct))
-      -- m  = maximum . map (length . show) $ eqs
   hPutStrLn stderr $ "e = " ++ show e
   hPutStrLn stderr $ "n = " ++ show n
   hPutStrLn stderr $ "d' = " ++ (show . length $ ds)
   -- hPutStrLn stderr $ "d = " ++ show d
   hPutStrLn stderr $ "b = " ++ show b
-  -- hPutStrLn stderr $ "m = " ++ show m
--}
 
   -- hPutStrLn stderr "\n=== Debug Session ===\n"
   return (events, ti, ct, frt)
@@ -292,14 +284,14 @@ runO' program = {-# SCC "runO'" #-} do
 logO :: FilePath -> IO a -> IO ()
 logO filePath program = {- SCC "logO" -} do
   (_,_,compTree,_) <- runO' program
-  -- writeFile filePath (showGraph compTree)
+  writeFile filePath (showGraph compTree)
   return ()
 
   where showGraph g        = showWith g showVertex showArc
         showVertex RootVertex = ("root","")
         showVertex v       = ("\"" ++ (escape . showCompStmt) v ++ "\"", "")
         showArc _          = ""
-        showCompStmt       = take 25 . show . vertexStmt -- MF TODO: meer dan 25!
+        showCompStmt       = show . vertexStmt
 
 -- | As logO, but with property-based judging.
 logOwp :: FilePath -> [Propositions] -> IO a -> IO ()
