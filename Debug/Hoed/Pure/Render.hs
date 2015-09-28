@@ -66,7 +66,7 @@ renderCompStmts = foldl (\acc set -> acc ++ renderCompStmt set) []
 -- is rendered to a computation statement
 
 renderCompStmt :: CDS -> [CompStmt]
-renderCompStmt (CDSNamed name threadId dependsOn set uids')
+renderCompStmt (CDSNamed name threadId dependsOn set)
   = map mkStmt statements
   where statements :: [(String,UID)]
         statements   = map (\(d,i) -> (pretty 120 d,i)) doc
@@ -79,15 +79,16 @@ renderCompStmt (CDSNamed name threadId dependsOn set uids')
 renderNamedTop :: String -> Output -> [(DOC,UID)]
 renderNamedTop name (OutData cds)
   =  map (\(args,res,Just i) -> (renderNamedFn name (args,res), i)) pairs
-
-  where pairs' = findFn [cds]
-        pairs  = (nub . sortOn argAndRes) pairs'
-        -- local nub for sorted lists
-        nub []                  = []
-        nub (a:a':as) | a == a' = nub (a' : as)
-        nub (a:as)              = a : nub as
-
+  where pairs  = (nubSorted . sortOn argAndRes) pairs'
+        pairs' = findFn [cds]
         argAndRes (arg,res,_) = (arg,res)
+
+
+-- local nub for sorted lists
+nubSorted :: Eq a => [a] -> [a]
+nubSorted []                  = []
+nubSorted (a:a':as) | a == a' = nub (a' : as)
+nubSorted (a:as)              = a : nub as
 
 -- %************************************************************************
 -- %*                                                                   *
@@ -96,7 +97,7 @@ renderNamedTop name (OutData cds)
 -- %************************************************************************
 
 
-data CDS = CDSNamed      String ThreadId UID CDSSet [UID]
+data CDS = CDSNamed      String ThreadId UID CDSSet
          | CDSCons       UID    String   [CDSSet]
          | CDSFun        UID             CDSSet CDSSet
          | CDSEntered    UID
@@ -130,7 +131,7 @@ eventsToCDS pairs = getChild 0 0
      getNode'' node e change =
        case change of
         (Observe str t i) -> let chd = getChild node 0
-                               in CDSNamed str t (getId chd i) chd (treeUIDs frt e)
+                               in CDSNamed str t (getId chd i) chd
         (Enter)             -> CDSEntered node
         (NoEnter)           -> CDSTerminated node
         Fun                 -> CDSFun node (getChild node 0) (getChild node 1)
@@ -235,7 +236,7 @@ renderTop (OutLabel str set extras) =
                 <> renderTops extras) <> line
 
 rmEntry :: CDS -> CDS
-rmEntry (CDSNamed str t i set us)= CDSNamed str t i (rmEntrySet set) us
+rmEntry (CDSNamed str t i set)= CDSNamed str t i (rmEntrySet set)
 rmEntry (CDSCons i str sets)       = CDSCons i str (map rmEntrySet sets)
 rmEntry (CDSFun i a b)             = CDSFun i (rmEntrySet a) (rmEntrySet b)
 rmEntry (CDSTerminated i)          = CDSTerminated i
@@ -247,7 +248,7 @@ rmEntrySet = map rmEntry . filter noEntered
         noEntered _              = True
 
 simplifyCDS :: CDS -> CDS
-simplifyCDS (CDSNamed str t i set us) = CDSNamed str t i (simplifyCDSSet set) us
+simplifyCDS (CDSNamed str t i set) = CDSNamed str t i (simplifyCDSSet set)
 simplifyCDS (CDSCons _ "throw"
                   [[CDSCons _ "ErrorCall" set]]
             ) = simplifyCDS (CDSCons 0 "error" set)
@@ -297,7 +298,7 @@ commonOutput = sortBy byLabel
 cdssToOutput :: CDSSet -> [Output]
 cdssToOutput =  map cdsToOutput
 
-cdsToOutput (CDSNamed name _ _ cdsset _)
+cdsToOutput (CDSNamed name _ _ cdsset)
             = OutLabel name res1 res2
   where
       res1 = [ cdss | (OutData cdss) <- res ]

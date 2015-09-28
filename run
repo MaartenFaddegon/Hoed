@@ -35,14 +35,12 @@ rm -f tmp/wwwroot/debugTree.png tmp/debugTree.dot
 cd tmp
 if echo $EXE | grep -q does_not_terminate; then
   echo "You selected a non terminating program. Will kill after 1 second."
-  ../dist/build/$EXE/$EXE +RTS -p -h -xt -L80 &
+  ../dist/build/$EXE/$EXE &
   sleep 1s
   kill -2 $! # send a "ctrl-C" signal to stop the hanging compiler...
   wait
-  hp2ps $EXE.hp
-  # okular $EXE.ps
 else
-  eval ../dist/build/$EXE/$EXE
+  ../dist/build/$EXE/$EXE
 fi
 
 
