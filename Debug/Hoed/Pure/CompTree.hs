@@ -297,8 +297,7 @@ traceInfo trc = foldl loop s0 trc
                                      . seeFun e $ s
 
                         -- Span start
-                        Enter{}   -> if not . corToCons cs $ e then s else
-                                     cpyTopLvlFun e
+                        Enter{}   -> if not . corToCons cs $ e then s else cpyTopLvlFun e
                                      $ case loc of
                                           True  -> addDependency e
                                                    $ start e s

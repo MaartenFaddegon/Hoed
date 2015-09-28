@@ -1,4 +1,5 @@
 #!/bin/bash
+ulimit -v 1000000 # limit memory usage to 10 GB
 
 TESTS=`ls dist/build | grep hoed-tests-Pure`
 FAIL=0
