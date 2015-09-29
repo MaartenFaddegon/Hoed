@@ -6,6 +6,7 @@
 module Debug.Hoed.Pure.DemoGUI
 where
 
+import qualified Prelude
 import Prelude hiding(Right)
 import Debug.Hoed.Pure.Render
 import Debug.Hoed.Pure.CompTree
@@ -19,6 +20,7 @@ import Graphics.UI.Threepenny (startGUI,defaultConfig, Window, UI, (#), (#+), (#
 import System.Process(system)
 import Data.IORef
 import Text.Regex.Posix
+import Text.Regex.Posix.String
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import Data.List(intersperse,nub,sort,sortBy
@@ -153,39 +155,54 @@ guiObserve treeRef currentVertexRef = do
            spans = map (\(c,lbl) -> span $ show c ++ " " ++ lbl) $ zip (map count slices) slices
 
        -- Alphabetical sorted list of computation statements
-       let vs_sorted = sortOn (stmtRes . vertexStmt) . filter (not . isRootVertex) $ vs
+       let vs_sorted = sortOn (vertexRes) . filter (not . isRootVertex) $ vs
        stmtDiv <- UI.form # set UI.style [("margin-left","2em")]
        updateRegEx currentVertexRef vs_sorted stmtDiv "" -- with empty regex to fill div3 1st time
 
        -- The regexp filter
+       regexRef <- UI.liftIO $ newIORef ""
        matchField  <- UI.input
-       on UI.valueChange matchField (updateRegEx currentVertexRef vs_sorted stmtDiv)
+       matchButton <- UI.button # UI.set UI.text "search"
+       -- Uncomment next line to search automatically when the user changes the regex
+       -- on UI.valueChange matchField (updateRegEx currentVertexRef vs_sorted stmtDiv)
+       on UI.valueChange matchField $ \s -> UI.liftIO $ writeIORef regexRef s
+       on UI.click matchButton $ \_ -> do
+            r <- UI.liftIO $ readIORef regexRef
+            updateRegEx currentVertexRef vs_sorted stmtDiv r
 
-       UI.div  #+ (spans ++ [UI.hr, UI.span # set UI.text "regex filter: ", return matchField, UI.hr, return stmtDiv])
+       UI.div  #+ (spans ++ [UI.hr, UI.span # set UI.text "regex filter: ", return matchField, return matchButton, UI.hr, return stmtDiv])
 
 updateRegEx :: IORef Int -> [Vertex] -> UI.Element -> String -> UI ()
-updateRegEx currentVertexRef vs stmtDiv r = draw
+updateRegEx currentVertexRef vs stmtDiv r = do
+  (return stmtDiv) # set UI.text "Applying filter ..."
+  rComp <- UI.liftIO $ compile defaultCompOpt defaultExecOpt r
+  case rComp of Prelude.Right _                 -> drawR
+                Prelude.Left  (_, errorMessage) -> drawL errorMessage
+  return ()
 
-  where draw = do (return stmtDiv) # set UI.children [] #+ csDivs; return ()
+  where 
+  drawL m = do (return stmtDiv) # set UI.text m
+  drawR
+    | False && vs_filtered == []  = drawL $ "There are no computation statements matching \"" ++ r ++ "\"."
+    | otherwise = do (return stmtDiv) # set UI.children [] #+ csDivs
 
-        vs_filtered = if r == "" then vs else filter (\v -> (stmtRes . vertexStmt) v =~ r) vs
-        ss = map (stmtRes . vertexStmt) vs_filtered
+  vs_filtered = if r == "" then vs else filter (\v -> (noNewlines . vertexRes $ v) =~ r) vs
 
-        csDivs = map stmtToDiv vs_filtered
+  csDivs = map stmtToDiv vs_filtered
 
-        stmtToDiv v = do
-          i <- UI.liftIO $ readIORef currentVertexRef
-          s <- UI.span # set UI.text (stmtRes . vertexStmt $ v)
-          r <- UI.input # set UI.type_ "radio" # set UI.checked (i == vertexUID v)
-          on UI.checkedChange r $ \_ -> checked v
-          UI.div #+ [return r, return s]
+  stmtToDiv v = do
+    i <- UI.liftIO $ readIORef currentVertexRef
+    s <- UI.span # set UI.text (vertexRes v)
+    r <- UI.input # set UI.type_ "radio" # set UI.checked (i == vertexUID v)
+    on UI.checkedChange r $ \_ -> checked v
+    UI.div #+ [return r, return s]
 
-        -- MF TODO: instead of re-drawing it would be prettier to just
-        -- read out the old value of currentVertexRef and set the appropriate
-        -- radio button's checked property to False.
-        checked v = do
-          UI.liftIO $ writeIORef currentVertexRef (vertexUID v)
-          draw
+  -- MF TODO: instead of re-drawing it would be prettier to just
+  -- read out the old value of currentVertexRef and set the appropriate
+  -- radio button's checked property to False.
+  checked v = do
+    UI.liftIO $ writeIORef currentVertexRef (vertexUID v)
+    drawR
 
 --------------------------------------------------------------------------------
 -- The Algorithmic Debugging GUI
@@ -212,10 +229,8 @@ guiAlgoDebug treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef =
        judge status compStmt wrong Wrong
 
        -- Populate the main screen
-       let top = compStmt
-       -- top    <- UI.center #+ [return compStmt]
-       bottom <- UI.center #+ [return right, return wrong, UI.br, return status]
-       UI.div #+ [return top, UI.hr, return bottom]
+       top <- UI.center #+ [return status, UI.br, return right, return wrong]
+       UI.div #+ [return top, UI.hr, return compStmt]
 
        where 
        judge status compStmt b j = 
@@ -407,9 +422,13 @@ shorten (ShorterThan l) s
           | l > 3        = take (l - 3) s ++ "..."
           | otherwise    = take l s
 
--- MF TODO: Maybe we should do something smart with witespace substitution here?
 noNewlines :: String -> String
-noNewlines = filter (/= '\n')
+noNewlines = noNewlines' False
+noNewlines' _ [] = []
+noNewlines' w (s:ss)
+ | w       && (s == ' ' || s == '\n') =       noNewlines' True ss
+ | (not w) && (s == ' ' || s == '\n') = ' ' : noNewlines' True ss
+ | otherwise                          = s   : noNewlines' False ss
 
 summarizeVertex :: [Vertex] -> Vertex -> String
 -- summarizeVertex fs v = shorten (ShorterThan 27) (noNewlines . show . vertexStmt $ v) ++ s
@@ -430,7 +449,7 @@ updateStatus e compGraphRef = do
       js = filter isJudged ns
       fs = faultyVertices g
       txt = if length fs > 0 then " Fault detected in: " -- ++ getLabel (head fs)
-                                                         ++ (stmtRes . vertexStmt . head) fs
+                                                         ++ (vertexRes . head) fs
                              else " Judged " ++ slen js ++ "/" ++ slen ns
   UI.element e # set UI.text txt
   return ()
@@ -464,7 +483,7 @@ redraw img imgCountRef treeRef mcv
 
   where shw g = showWith g (coloVertex $ faultyVertices g) showArc
         coloVertex fs v = ( "\"" ++ (show . vertexUID) v ++ ": "
-                            ++ summarizeVertex fs v ++ "\""
+                            ++ escape (summarizeVertex fs v) ++ "\""
                           , if isCurrentVertex mcv v then "style=filled fillcolor=yellow"
                                                      else ""
                           )

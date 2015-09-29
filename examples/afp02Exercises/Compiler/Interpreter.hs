@@ -13,10 +13,12 @@ obey_ p = if prop_traceLessThan100Deep trc then trc else error "Stuck (or comman
   where trc = fst (run p [])
 
 look :: Name -> Env -> Value
-look x s = maybe Wrong id (lookup x s)
+look = observe "look" look'
+look' x s = maybe Wrong id (lookup x s)
 
 update :: Name -> Value -> Env -> Env
-update x a s = (x,a) : filter (\(y,_) -> y/=x) s
+update = observe "update" update'
+update' x a s = (x,a) : filter (\(y,_) -> y/=x) s
 
 run :: Command -> Env -> (Trace Value, Env)
 run = observe "run" run'

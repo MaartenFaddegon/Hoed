@@ -8,6 +8,7 @@ module Debug.Hoed.Pure.CompTree
 , mkCompTree
 , isRootVertex
 , vertexUID
+, vertexRes
 , leafs
 , ConstantValue(..)
 , getLocation
@@ -35,6 +36,9 @@ data Vertex = RootVertex | Vertex {vertexStmt :: CompStmt, vertexJmt :: Judgemen
 vertexUID :: Vertex -> UID
 vertexUID RootVertex   = -1
 vertexUID (Vertex s _) = stmtIdentifier s
+
+vertexRes :: Vertex -> String
+vertexRes = stmtRes . vertexStmt
 
 type CompTree = Graph Vertex ()
 
