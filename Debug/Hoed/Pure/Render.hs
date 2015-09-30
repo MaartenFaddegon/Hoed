@@ -23,6 +23,7 @@ import Data.List(sort,sortBy,partition,nub
                 )
 import Data.Graph.Libgraph
 import Data.Array as Array
+import Data.Char(isAlpha)
 
 head' :: String -> [a] -> a
 head' msg [] = error msg
@@ -70,7 +71,7 @@ renderCompStmt :: CDS -> [CompStmt]
 renderCompStmt (CDSNamed name threadId dependsOn set)
   = map mkStmt statements
   where statements :: [(String,UID)]
-        statements   = map (\(d,i) -> (pretty 120 d,i)) doc
+        statements   = map (\(d,i) -> (pretty 80 d,i)) doc
         doc          = foldl (\a b -> a ++ renderNamedTop name b) [] output
         output       = cdssToOutput set
 
@@ -164,15 +165,29 @@ render prec par (CDSCons _ "," cdss) | length cdss > 0 =
         nest 2 (text "(" <> foldl1 (\ a b -> a <> text ", " <> b)
                             (map renderSet cdss) <>
                 text ")")
-render prec par (CDSCons _ name cdss) =
+render prec par (CDSCons _ name cdss)
+  | (not . isAlpha . head) name && length cdss > 1 = -- render as infix
+        paren (prec /= 0)
+                  (grp
+                    (renderSet' 10 False (head cdss)
+                     <> sep <> text name
+                     <> nest 2 (foldr (<>) nil
+                                 [ if cds == [] then nil else sep <> renderSet' 10 False cds
+                                 | cds <- tail cdss
+                                 ]
+                              )
+                    )
+                  )
+  | otherwise = -- render as prefix
         paren (length cdss > 0 && prec /= 0)
-              (nest 2
-                 (text name <> foldr (<>) nil
-                                [ sep <> renderSet' 10 False cds
-                                | cds <- cdss
-                                ]
+                 ( grp
+                   (text name <> nest 2 (foldr (<>) nil
+                                          [ sep <> renderSet' 10 False cds
+                                          | cds <- cdss
+                                          ]
+                                       )
+                   )
                  )
-              )
 
 {- renderSet handles the various styles of CDSSet.
  -}
@@ -184,7 +199,7 @@ renderSet' :: Int -> Bool -> CDSSet -> Doc
 renderSet' _ _      [] = text "_"
 renderSet' prec par [cons@(CDSCons {})]    = render prec par cons
 renderSet' prec par cdss                   =
-        nest 0 (text "{ " <> foldl1 (\ a b -> a <> line <>
+         (text "{ " <> foldl1 (\ a b -> a <> line <>
                                     text ", " <> b)
                                     (map renderFn pairs) <>
                 line <> text "}")
@@ -202,7 +217,7 @@ renderFn :: ([CDSSet],CDSSet) -> Doc
 renderFn (args, res)
         = grp  (nest 3
                 (text "\\ " <>
-                 foldr (\ a b -> nest 0 (renderSet' 10 False a) <> sp <> b)
+                 foldr (\ a b ->  (renderSet' 10 False a) <> sp <> b)
                        nil
                        args <> sep <>
                  text "-> " <> renderSet' 0 False res
@@ -211,12 +226,9 @@ renderFn (args, res)
 
 renderNamedFn :: String -> ([CDSSet],CDSSet) -> Doc
 renderNamedFn name (args,res)
-  = grp (nest 3
-            (  text name <> sep
-            <> foldr (\ a b -> nest 0 (renderSet' 10 False a) <> sp <> b) nil args
-            <> sep <> text "= " <> renderSet' 0 False res
-            )
-        )
+  = text name
+      <> grp (nest 3 (sep <> foldr (\ a b -> (renderSet' 10 False a) <> sep <> b) nil args))
+      <> grp (nest 3 (brk <> (text "= " <> renderSet' 0 False res)))
 
 findFn :: CDSSet -> [([CDSSet],CDSSet, Maybe UID)]
 findFn = foldr findFn' []
@@ -280,11 +292,8 @@ spotString [CDSCons _ "[]" []] = return []
 spotString other = Nothing
 
 paren :: Bool -> Doc -> Doc
-paren False doc = grp (nest 0 doc)
-paren True  doc = grp (nest 0 (text "(" <> nest 0 doc <> brk <> text ")"))
-
-sp :: Doc
-sp = text " "
+paren False doc = grp ( doc)
+paren True  doc = grp ( (text "(" <> doc <> text ")"))
 
 data Output = OutLabel String CDSSet [Output]
             | OutData  CDS
@@ -310,5 +319,8 @@ cdsToOutput    fn@(CDSFun {}) = OutData fn
 
 nil = Text.PrettyPrint.FPretty.empty
 grp = Text.PrettyPrint.FPretty.group
-brk = softbreak
-sep = softline
+brk = softbreak -- Nothing, if the following still fits on the current line, otherwise newline. 
+sep = softline  -- A space, if the following still fits on the current line, otherwise newline. 
+sp :: Doc
+sp = text " "   -- A space, always.
+

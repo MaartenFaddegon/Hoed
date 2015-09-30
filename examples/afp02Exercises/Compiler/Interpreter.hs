@@ -9,7 +9,7 @@ type Env = [(Name,Value)]
 
 obey :: Command -> Trace Value
 obey = observe "obey" obey_
-obey_ p = if prop_traceLessThan100Deep trc then trc else error "Stuck (or command is too dificult)"
+obey_ p = if prop_traceLessThan100Deep trc then trc else error "Stuck"
   where trc = fst (run p [])
 
 look :: Name -> Env -> Value

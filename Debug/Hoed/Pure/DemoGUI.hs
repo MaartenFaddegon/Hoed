@@ -183,8 +183,8 @@ updateRegEx currentVertexRef vs stmtDiv r = do
   where 
   drawL m = do (return stmtDiv) # set UI.text m
   drawR
-    | False && vs_filtered == []  = drawL $ "There are no computation statements matching \"" ++ r ++ "\"."
-    | otherwise = do (return stmtDiv) # set UI.children [] #+ csDivs
+    | vs_filtered == []  = drawL $ "There are no computation statements matching \"" ++ r ++ "\"."
+    | otherwise          = (return stmtDiv) # set UI.children [] #+ csDivs
 
   vs_filtered = if r == "" then vs else filter (\v -> (noNewlines . vertexRes $ v) =~ r) vs
 
