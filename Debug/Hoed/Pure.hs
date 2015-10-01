@@ -248,17 +248,9 @@ runO' program = do
       ds   = dependencies ti
       ct   = mkCompTree eqs ds
 
-  -- hPutStrLn stderr "\n=== Events ===\n"
-  -- hPutStrLn stderr $ unlines (map show . reverse $ events)
-  writeFile ".Hoed/Events" (unlines . map show . reverse $ events)
-
-  -- hPutStrLn stderr "\n=== Dependencies ===\n"
-  -- hPutStrLn stderr $ unlines (map (\(m,n,msg) -> show m ++ " -> " ++ show n ++ " %" ++ msg) ds)
-
-  -- hPutStrLn stderr "\n=== Computation Statements ===\n"
-  -- hPutStrLn stderr $ show eqs
-  -- hPutStrLn stderr $ unlines . (map $ show . stmtUIDs) $ eqs
-
+  writeFile ".Hoed/Events"     (unlines . map show . reverse $ events)
+  writeFile ".Hoed/Transcript" (getTranscript events ti)
+  
   hPutStrLn stderr "\n=== Statistics ===\n"
   let e  = length events
       n  = length eqs
@@ -288,7 +280,7 @@ logO filePath program = {- SCC "logO" -} do
   return ()
 
   where showGraph g        = showWith g showVertex showArc
-        showVertex RootVertex = ("root","")
+        showVertex RootVertex = ("\".\"","shape=none")
         showVertex v       = ("\"" ++ (escape . showCompStmt) v ++ "\"", "")
         showArc _          = ""
         showCompStmt       = show . vertexStmt

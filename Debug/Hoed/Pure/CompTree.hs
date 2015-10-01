@@ -13,6 +13,7 @@ module Debug.Hoed.Pure.CompTree
 , ConstantValue(..)
 , getLocation
 , getMessage
+, getTranscript
 , TraceInfo(..)
 , traceInfo
 , Graph(..) -- re-export from LibGraph
@@ -131,6 +132,17 @@ getMessage e s = case IntMap.lookup i (messages s) of
 
   where i = eventUID e
 
+getTranscript :: [Event] -> TraceInfo -> String
+getTranscript es t = foldl (\acc e -> (show e ++ m e) ++ "\n" ++ acc) "" es
+
+  where m e = case IntMap.lookup (eventUID e) ms of
+          Nothing    -> ""
+          (Just msg) -> "\n  " ++ msg
+        
+        ms = messages t
+
+
+
 ------------------------------------------------------------------------------------------------------------------------
 
 getLocation :: Event -> TraceInfo -> Bool
@@ -215,25 +227,25 @@ pause :: Event -> TraceInfo -> TraceInfo
 pause e s = m s{computations=cs}
 
   where i  = getTopLvlFun e s
-        cs = map pause' (computations s)
+        cs = case cs_post of
+               []      -> cs_pre
+               (c:cs') -> cs_pre ++ (Paused i) : cs'
+        (cs_pre,cs_post)           = break isComputingI (computations s)
+        isComputingI (Computing j) = i == j
+        isComputingI _             = False
         m  = addMessage e $ "Pause computation " ++ show i ++ ": " ++ showCs cs
-
-        pause' (Computing j) | i == j    = Paused i
-                             | otherwise = Computing j
-        pause' s = s
-
 
 resume :: Event -> TraceInfo -> TraceInfo
 resume e s = m s{computations=cs}
 
   where i  = getTopLvlFun e s
-        cs = map resume' (computations s)
-        m  = addMessage e $ "Resume computation " ++ show i ++ ": " ++ showCs cs
-
-        resume' (Paused j)   | i == j    = Computing i
-                             | otherwise = Paused j
-        resume' s = s
-
+        cs = case cs_post of
+               []      -> cs_pre
+               (c:cs') -> cs_pre ++ (Computing i) : cs'
+        (cs_pre,cs_post)     = break isPausedI (computations s)
+        isPausedI (Paused j) = i == j
+        isPausedI _          = False
+        m = addMessage e $ "Resume computation " ++ show i ++ ": " ++ showCs cs
 
 activeComputations :: TraceInfo -> [UID]
 activeComputations s = map getSpanUID . filter isActive $ computations s
