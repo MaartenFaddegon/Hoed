@@ -38,7 +38,8 @@ vertexUID RootVertex   = -1
 vertexUID (Vertex s _) = stmtIdentifier s
 
 vertexRes :: Vertex -> String
-vertexRes = stmtRes . vertexStmt
+vertexRes RootVertex = "RootVertex"
+vertexRes v          = stmtRes . vertexStmt $ v
 
 type CompTree = Graph Vertex ()
 

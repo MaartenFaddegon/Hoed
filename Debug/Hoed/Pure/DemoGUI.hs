@@ -235,8 +235,13 @@ guiAlgoDebug treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef =
        where 
        judge status compStmt b j = 
          on UI.click b $ \_ -> do
-           (Just v) <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
+           mv       <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
            tree'    <- UI.liftIO $ readIORef treeRef
+           case mv of
+             (Just v) -> judge' status compStmt b j v tree'
+             Nothing  -> return ()
+
+       judge' status compStmt b j v tree' = do
            let tree  = markNode tree' v j
                w     = next_step tree vertexJmt v{vertexJmt=j}
            UI.element compStmt # UI.set UI.text (show . vertexStmt $ w)
@@ -383,7 +388,8 @@ selectVertex compStmt filteredVerticesRef currentVertexRef myRedraw mi = case mi
                       showStmt compStmt filteredVerticesRef currentVertexRef
                       myRedraw filteredVerticesRef currentVertexRef 
                       return ()
-        Nothing -> return ()
+        Nothing -> do UI.liftIO $ putStrLn "selectVertex: Nothing selected"
+                      return ()
 
 
 onClickFilter :: UI.Element -> IORef CompTree -> IORef Int -> IORef [Vertex] 
@@ -401,17 +407,13 @@ onClickFilter menu treeRef currentVertexRef filteredVerticesRef selectVertex' re
     updateMenu menu treeRef currentVertexRef filteredVerticesRef
     selectVertex' (Just 0)
 
--- MF TODO: We may need to reconsider how Vertex is defined,
--- and how we determine equality. I think it could happen that
--- two vertices with equal equation but different stacks/relations
--- are now both changed.
 markNode :: CompTree -> Vertex -> Judgement -> CompTree
 markNode g v s = mapGraph f g
   where f RootVertex = RootVertex
         f v'         = if v' === v then v{vertexJmt=s} else v'
 
         (===) :: Vertex -> Vertex -> Bool
-        v1 === v2 = (vertexStmt v1) == (vertexStmt v2)
+        v1 === v2 = (vertexUID v1) == (vertexUID v2)
 
 data MaxStringLength = ShorterThan Int | Unlimited
 
@@ -431,13 +433,11 @@ noNewlines' w (s:ss)
  | otherwise                          = s   : noNewlines' False ss
 
 summarizeVertex :: [Vertex] -> Vertex -> String
--- summarizeVertex fs v = shorten (ShorterThan 27) (noNewlines . show . vertexStmt $ v) ++ s
-summarizeVertex fs v = (noNewlines . show . vertexStmt $ v) ++ s
+summarizeVertex fs v = shorten (ShorterThan 60) (noNewlines . show . vertexStmt $ v) ++ s
   where s = if v `elem` fs then " !!" else case vertexJmt v of
               Wrong          -> " :("
               Right          -> " :)"
               _              -> " ??"
-              
 
 updateStatus :: UI.Element -> IORef CompTree -> UI ()
 updateStatus e compGraphRef = do
@@ -469,10 +469,7 @@ redrawWith img imgCountRef treeRef filteredVerticesRef currentVertexRef = do
 redraw :: UI.Element -> IORef Int -> IORef CompTree -> (Maybe Vertex) -> UI ()
 redraw img imgCountRef treeRef mcv
   = do tree <- UI.liftIO $ readIORef treeRef
-       -- replace with the following line to "summarize" big trees  by
-       -- dropping some nodes
-       --UI.liftIO $ writeFile ".Hoed/debugTree.dot" (shw $ summarize tree mcv)
-       UI.liftIO $ writeFile ".Hoed/debugTree.dot" (shw tree)
+       UI.liftIO $ writeFile ".Hoed/debugTree.dot" (shw $ summarize tree mcv)
        UI.liftIO $ system $ "dot -Tpng -Gsize=9,5 -Gdpi=100 .Hoed/debugTree.dot "
                           ++ "> .Hoed/wwwroot/debugTree.png"
        i <- UI.liftIO $ readIORef imgCountRef
@@ -482,25 +479,24 @@ redraw img imgCountRef treeRef mcv
        return ()
 
   where shw g = showWith g (coloVertex $ faultyVertices g) showArc
-        coloVertex fs v = ( "\"" ++ (show . vertexUID) v ++ ": "
+        coloVertex _ RootVertex = ("\".\"", "shape=none")
+        coloVertex fs v = ( "\"" -- ++ (show . vertexUID) v ++ ": "
                             ++ escape (summarizeVertex fs v) ++ "\""
                           , if isCurrentVertex mcv v then "style=filled fillcolor=yellow"
                                                      else ""
                           )
         showArc _  = ""
 
--- MF TODO: summarize now just "throws away" some vertices if there are too
--- many. Better would be to inject summarizing nodes (e.g. "and 25 more").
-{-
+-- Selects current vertex, its predecessor and its successors
 summarize :: CompTree -> Maybe Vertex -> CompTree
-summarize g mcv = Graph (root g) keep as
-  where keep1 v = take 7 $ succs g v
-        keep'   = nub $ RootVertex : foldl (\ks v -> ks ++ keep1 v) [] (vertices g)
-        keep    = case filter (isCurrentVertex mcv) (vertices g) of
-                        []    -> keep'
-                        (w:_) -> if w `elem` keep' then keep' else w : keep
-        as      = filter (\(Arc v w _) -> v `elem` keep && w `elem` keep) (arcs g)
--}
+summarize tree Nothing   = tree
+summarize tree (Just cv) = Graph r vs as
+  where 
+  i    = vertexUID cv
+  as   = filter (\a -> isCV (source a) || isCV (target a)) (arcs tree)
+  vs   = nub ((preds tree cv) ++ (cv : succs tree cv)) -- could be done more efficient
+  r    = if RootVertex `elem` vs then RootVertex else head vs
+  isCV = (==i) . vertexUID
 
 isCurrentVertex :: Maybe Vertex -> Vertex -> Bool
 isCurrentVertex mcv v = case v of
@@ -557,7 +553,7 @@ updateStmt stmtDiv currentVertexRef ss pos = do
 drawDDT :: ConstantTree -> UI.Element -> IORef Int -> EventForest -> UI ()
 drawDDT ddt img imgCountRef frt = do
   UI.liftIO $ writeFile ".Hoed/dynData.dot" (shw ddt)
-  UI.liftIO $ system $ "dot -Tpng -Gsize=9,9 -Gdpi=100 .Hoed/dynData.dot > .Hoed/wwwroot/dynData.png"
+  UI.liftIO $ system $ "dot -Tpng -Gsize=12,12 -Gdpi=100 .Hoed/dynData.dot > .Hoed/wwwroot/dynData.png"
   i <- UI.liftIO $ readIORef imgCountRef
   UI.liftIO $ writeIORef imgCountRef (i+1)
   UI.element img # set UI.src ("static/dynData.png#" ++ show i)

@@ -78,6 +78,18 @@ library
 --
 ---------------------------------------------------------------------------
 
+Executable hoed-examples-FPretty-indents-too-much
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+                         , containers
+  else
+    buildable: False
+  main-is:             Main.hs
+  hs-source-dirs:      examples/FPretty
+  default-language:    Haskell2010
 
 Executable hoed-examples-Insertion_Sort_elements_disappear
   if flag(buildExamples)
@@ -130,6 +142,7 @@ Executable hoed-examples-SummerSchool_compiler_does_not_terminate
   main-is:             Main.hs
   hs-source-dirs:      examples/afp02Exercises/Compiler/
   default-language:    Haskell2010
+
 
 --      
 --      
