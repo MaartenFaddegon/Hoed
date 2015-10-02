@@ -71,7 +71,7 @@ renderCompStmt :: CDS -> [CompStmt]
 renderCompStmt (CDSNamed name threadId dependsOn set)
   = map mkStmt statements
   where statements :: [(String,UID)]
-        statements   = map (\(d,i) -> (pretty 80 d,i)) doc
+        statements   = map (\(d,i) -> (pretty 70 d,i)) doc
         doc          = foldl (\a b -> a ++ renderNamedTop name b) [] output
         output       = cdssToOutput set
 
@@ -217,7 +217,7 @@ renderFn :: ([CDSSet],CDSSet) -> Doc
 renderFn (args, res)
         = grp  (nest 3
                 (text "\\ " <>
-                 foldr (\ a b ->  (renderSet' 10 False a) <> sp <> b)
+                 foldr (\ a b -> nest 0 (renderSet' 10 False a) <> sp <> b)
                        nil
                        args <> sep <>
                  text "-> " <> renderSet' 0 False res
@@ -226,9 +226,10 @@ renderFn (args, res)
 
 renderNamedFn :: String -> ([CDSSet],CDSSet) -> Doc
 renderNamedFn name (args,res)
-  = text name
-      <> grp (nest 3 (sep <> foldr (\ a b -> (renderSet' 10 False a) <> sep <> b) nil args))
-      <> grp (nest 3 (brk <> (text "= " <> renderSet' 0 False res)))
+  = text name <> nest 2
+     ( sep <> (foldr (\ a b -> grp (renderSet' 10 False a) <> line <> b) nil args)
+       <> linebreak <> grp (text "= " <> renderSet' 0 False res)
+     )
 
 findFn :: CDSSet -> [([CDSSet],CDSSet, Maybe UID)]
 findFn = foldr findFn' []
@@ -321,6 +322,6 @@ nil = Text.PrettyPrint.FPretty.empty
 grp = Text.PrettyPrint.FPretty.group
 brk = softbreak -- Nothing, if the following still fits on the current line, otherwise newline. 
 sep = softline  -- A space, if the following still fits on the current line, otherwise newline. 
-sp :: Doc
+sp,bk :: Doc
 sp = text " "   -- A space, always.
-
+bk = text "\n"  -- A break, always

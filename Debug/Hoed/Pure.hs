@@ -237,6 +237,9 @@ runO' program = do
   createDirectoryIfMissing True ".Hoed/"
   putStrLn "=== program output ===\n"
   events <- debugO program
+  putStrLn "\n=== program terminated ==="
+  putStrLn "Please wait while the computation tree is constructed..."
+
   let cdss = eventsToCDS events
   let cdss1 = rmEntrySet cdss
   let cdss2 = simplifyCDSSet cdss1
