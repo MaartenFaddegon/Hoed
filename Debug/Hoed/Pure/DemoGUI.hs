@@ -3,7 +3,7 @@
 -- Copyright (c) Maarten Faddegon, 2014-2015
 {-# LANGUAGE CPP #-}
 
-module Debug.Hoed.Pure.DemoGUI
+module Debug.Hoed.Pure.DemoGUI (guiMain)
 where
 
 import qualified Prelude
@@ -197,9 +197,6 @@ updateRegEx currentVertexRef vs stmtDiv r = do
     on UI.checkedChange r $ \_ -> checked v
     UI.div #+ [return r, return s]
 
-  -- MF TODO: instead of re-drawing it would be prettier to just
-  -- read out the old value of currentVertexRef and set the appropriate
-  -- radio button's checked property to False.
   checked v = do
     UI.liftIO $ writeIORef currentVertexRef (vertexUID v)
     drawR
@@ -225,32 +222,33 @@ guiAlgoDebug compTreeRef filteredVerticesRef currentVertexRef regexRef imgCountR
        -- Buttons to judge the current statement
        right <- UI.button # UI.set UI.text "right " #+ [UI.img # set UI.src "static/right.png" # set UI.height 30] # set UI.style [("margin-right","1em")]
        wrong <- UI.button # set UI.text "wrong "    #+ [UI.img # set UI.src "static/wrong.png" # set UI.height 30]
-       judge status compStmt right Right
-       judge status compStmt wrong Wrong
+       let j = judge status compStmt currentVertexRef compTreeRef
+       j right Right
+       j wrong Wrong
 
        -- Populate the main screen
        top <- UI.center #+ [return status, UI.br, return right, return wrong]
        UI.div #+ [return top, UI.hr, return compStmt]
 
-       where 
-       judge status compStmt b j = 
-         on UI.click b $ \_ -> do
-           mv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
-           case mv of
-             (Just v) -> judge' status compStmt b j v
-             Nothing  -> return ()
-
-       judge' status compStmt b j v = do
-           t' <- UI.liftIO $ readIORef compTreeRef
-           let t  = markNode t' v j
-               v' = setJudgement v j
-               w = case next_step t getJudgement v' of RootVertex -> v'; w' -> w'
-           UI.liftIO $ writeIORef currentVertexRef (vertexUID w)
-           UI.liftIO $ writeIORef compTreeRef t
-           UI.element compStmt # UI.set UI.text (show . vertexStmt $ w)
-           updateStatus status compTreeRef 
-           vs <- UI.liftIO $ readIORef filteredVerticesRef
-           UI.liftIO $ writeIORef filteredVerticesRef $ map (\x -> if x == v then v' else x) vs
+judge :: UI.Element -> UI.Element -> IORef UID -> IORef CompTree -> UI.Element -> Judgement  -> UI ()
+judge status compStmt currentVertexRef compTreeRef b j = 
+  on UI.click b $ \_ -> do
+    mv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
+    case mv of
+      (Just v) -> judge' status compStmt b j v
+      Nothing  -> return ()
+  where 
+  judge' status compStmt b j v = do
+      t' <- UI.liftIO $ readIORef compTreeRef
+      let t  = markNode t' v j
+          v' = setJudgement v j
+          w = case next_step t getJudgement v' of RootVertex -> v'; w' -> w'
+      UI.liftIO $ writeIORef currentVertexRef (vertexUID w)
+      UI.liftIO $ writeIORef compTreeRef t
+      UI.element compStmt # UI.set UI.text (show . vertexStmt $ w)
+      updateStatus status compTreeRef 
+      -- vs <- UI.liftIO $ readIORef filteredVerticesRef
+      -- UI.liftIO $ writeIORef filteredVerticesRef $ map (\x -> if x == v then v' else x) vs
 
 
 --------------------------------------------------------------------------------
@@ -345,13 +343,6 @@ menuVertices compTreeRef currentVertexRef = do
   mcv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
   let cv = case mcv of (Just v) -> v; Nothing -> RootVertex
   return $ filter (/= RootVertex) $ (preds t cv) ++ (cv : (succs t cv))
-
-{-
-pos :: (a->Bool) -> [a] -> Int
-pos p xs = case filter (\(_,x) -> p x) $ zip [0..] xs of 
-                []        -> -1
-                ((i,_):_) -> i
--}
 
 vertexFilter :: Filter -> CompTree -> Vertex -> String -> [Vertex]
 vertexFilter f g cv r = filter (not . isRootVertex) $ case f of 
