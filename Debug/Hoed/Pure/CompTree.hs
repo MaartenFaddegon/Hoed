@@ -9,6 +9,8 @@ module Debug.Hoed.Pure.CompTree
 , isRootVertex
 , vertexUID
 , vertexRes
+, getJudgement
+, setJudgement
 , leafs
 , ConstantValue(..)
 , getLocation
@@ -33,6 +35,14 @@ import qualified Data.IntSet as IntSet
 
 data Vertex = RootVertex | Vertex {vertexStmt :: CompStmt, vertexJmt :: Judgement}
   deriving (Eq,Show,Ord)
+
+getJudgement :: Vertex -> Judgement
+getJudgement RootVertex = Right
+getJudgement v          = vertexJmt v
+
+setJudgement :: Vertex -> Judgement -> Vertex
+setJudgement RootVertex _ = RootVertex
+setJudgement v          j = v{vertexJmt=j}
 
 vertexUID :: Vertex -> UID
 vertexUID RootVertex   = -1

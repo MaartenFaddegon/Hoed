@@ -41,11 +41,11 @@ sortOn' f = sortBy (\x y -> compare (f x) (f y))
 -- The tabbed layout from which we select the different views
 
 guiMain :: Trace -> TraceInfo -> IORef CompTree ->  EventForest -> Window -> UI ()
-guiMain trace traceInfo treeRef frt window
+guiMain trace traceInfo compTreeRef frt window
   = do return window # set UI.title "Hoed debugging session"
 
        -- Get a list of vertices from the computation graph
-       tree <- UI.liftIO $ readIORef treeRef
+       tree <- UI.liftIO $ readIORef compTreeRef
        let ns = filter (not . isRootVertex) (preorder tree)
 
        -- Shared memory
@@ -71,15 +71,15 @@ guiMain trace traceInfo treeRef frt window
             UI.getBody window # set UI.children [tabs,help]
        on UI.click tab2 $ \_ -> do
             coloActive tab2
-            pane <- guiObserve treeRef currentVertexRef # set UI.style [("margin-top","0.5em")]
+            pane <- guiObserve compTreeRef currentVertexRef # set UI.style [("margin-top","0.5em")]
             UI.getBody window # set UI.children [tabs,pane]
        on UI.click tab3 $ \_ -> do
             coloActive tab3
-            pane <- guiAlgoDebug treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef # set UI.style [("margin-top","0.5em")]
+            pane <- guiAlgoDebug compTreeRef filteredVerticesRef currentVertexRef regexRef imgCountRef # set UI.style [("margin-top","0.5em")]
             UI.getBody window # set UI.children [tabs,pane]
        on UI.click tab4 $ \_ -> do
             coloActive tab4
-            pane <- guiExplore treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef # set UI.style [("margin-top","0.5em")]
+            pane <- guiExplore compTreeRef filteredVerticesRef currentVertexRef regexRef imgCountRef # set UI.style [("margin-top","0.5em")]
             UI.getBody window # set UI.children [tabs,pane]
        -- on UI.click tab5 $ \_ -> do
        --   coloActive tab5
@@ -143,8 +143,8 @@ getStk e traceInfo = case change e of
 -- The observe GUI
 
 guiObserve :: IORef CompTree -> IORef Int -> UI UI.Element
-guiObserve treeRef currentVertexRef = do
-       (Graph _ vs _) <- UI.liftIO $ readIORef treeRef
+guiObserve compTreeRef currentVertexRef = do
+       (Graph _ vs _) <- UI.liftIO $ readIORef compTreeRef
 
        -- Alphabetical sorted list of slices, and for each slice how many computation statements
        -- there are for that slice
@@ -208,19 +208,19 @@ updateRegEx currentVertexRef vs stmtDiv r = do
 -- The Algorithmic Debugging GUI
 
 guiAlgoDebug :: IORef CompTree -> IORef [Vertex] -> IORef Int -> IORef String -> IORef Int -> UI UI.Element
-guiAlgoDebug treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef = do
+guiAlgoDebug compTreeRef filteredVerticesRef currentVertexRef regexRef imgCountRef = do
 
        -- Get a list of vertices from the computation graph
-       tree <- UI.liftIO $ readIORef treeRef
+       tree <- UI.liftIO $ readIORef compTreeRef
        let ns = filter (not . isRootVertex) (preorder tree)
 
        -- Status
        status <- UI.span
-       updateStatus status treeRef 
+       updateStatus status compTreeRef 
 
        -- Field to show computation statement(s) of current vertex
        compStmt <- UI.pre # set UI.style [("margin","0 2em")]
-       showStmt compStmt filteredVerticesRef currentVertexRef 
+       showStmt compStmt compTreeRef currentVertexRef 
 
        -- Buttons to judge the current statement
        right <- UI.button # UI.set UI.text "right " #+ [UI.img # set UI.src "static/right.png" # set UI.height 30] # set UI.style [("margin-right","1em")]
@@ -235,35 +235,37 @@ guiAlgoDebug treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef =
        where 
        judge status compStmt b j = 
          on UI.click b $ \_ -> do
-           mv       <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
-           tree'    <- UI.liftIO $ readIORef treeRef
+           mv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
            case mv of
-             (Just v) -> judge' status compStmt b j v tree'
+             (Just v) -> judge' status compStmt b j v
              Nothing  -> return ()
 
-       judge' status compStmt b j v tree' = do
-           let tree  = markNode tree' v j
-               w     = next_step tree vertexJmt v{vertexJmt=j}
-           UI.element compStmt # UI.set UI.text (show . vertexStmt $ w)
+       judge' status compStmt b j v = do
+           t' <- UI.liftIO $ readIORef compTreeRef
+           let t  = markNode t' v j
+               v' = setJudgement v j
+               w = case next_step t getJudgement v' of RootVertex -> v'; w' -> w'
            UI.liftIO $ writeIORef currentVertexRef (vertexUID w)
-           UI.liftIO $ writeIORef treeRef tree
+           UI.liftIO $ writeIORef compTreeRef t
+           UI.element compStmt # UI.set UI.text (show . vertexStmt $ w)
+           updateStatus status compTreeRef 
            vs <- UI.liftIO $ readIORef filteredVerticesRef
-           updateStatus status treeRef 
-           UI.liftIO $ writeIORef filteredVerticesRef $ map (\x -> if x == v then v{vertexJmt=j} else x) vs
+           UI.liftIO $ writeIORef filteredVerticesRef $ map (\x -> if x == v then v' else x) vs
+
 
 --------------------------------------------------------------------------------
 -- Explore the computation tree
 
 guiExplore :: IORef CompTree -> IORef [Vertex] -> IORef Int -> IORef String -> IORef Int -> UI UI.Element
-guiExplore treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef = do
+guiExplore compTreeRef filteredVerticesRef currentVertexRef regexRef imgCountRef = do
 
        -- Get a list of vertices from the computation graph
-       tree <- UI.liftIO $ readIORef treeRef
+       tree <- UI.liftIO $ readIORef compTreeRef
        let ns = filter (not . isRootVertex) (preorder tree)
 
        -- Draw the computation graph
        img  <- UI.img 
-       redrawWith img imgCountRef treeRef filteredVerticesRef currentVertexRef
+       redrawWith img imgCountRef compTreeRef currentVertexRef
        img' <- UI.center #+ [UI.element img]
 
        -- Field to show computation statement(s) of current vertex
@@ -271,19 +273,19 @@ guiExplore treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef = d
 
        -- Menu to select which statement to show
        menu <- UI.select
-       showStmt compStmt filteredVerticesRef currentVertexRef
-       updateMenu menu treeRef currentVertexRef filteredVerticesRef
-       let selectVertex' = selectVertex compStmt menu treeRef filteredVerticesRef currentVertexRef (redrawWith img imgCountRef treeRef)
+       showStmt compStmt compTreeRef currentVertexRef
+       updateMenu menu compTreeRef currentVertexRef filteredVerticesRef
+       let selectVertex' = selectVertex compStmt menu compTreeRef filteredVerticesRef currentVertexRef (redrawWith img imgCountRef compTreeRef)
        on UI.selectionChange menu selectVertex'
 
        -- Status
        status <- UI.span
-       updateStatus status treeRef 
+       updateStatus status compTreeRef 
 
        -- Buttons to judge the current statement
        right <- UI.button # UI.set UI.text "right " #+ [UI.img # set UI.src "static/right.png" # set UI.height 20]
        wrong <- UI.button # set UI.text "wrong "    #+ [UI.img # set UI.src "static/wrong.png" # set UI.height 20]
-       let onJudge = onClick status menu img imgCountRef treeRef currentVertexRef filteredVerticesRef
+       let onJudge = onClick status menu img imgCountRef compTreeRef currentVertexRef filteredVerticesRef
        onJudge right Right
        onJudge wrong Wrong
 
@@ -296,9 +298,9 @@ guiExplore treeRef filteredVerticesRef currentVertexRef regexRef imgCountRef = d
 preorder :: CompTree -> [Vertex]
 preorder = getPreorder . getDfs
 
-showStmt :: UI.Element -> IORef [Vertex] -> IORef Int -> UI ()
-showStmt e filteredVerticesRef currentVertexRef = do 
-  mv <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
+showStmt :: UI.Element -> IORef CompTree -> IORef Int -> UI ()
+showStmt e compTreeRef currentVertexRef = do 
+  mv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
   let s = case mv of
                 Nothing  -> "Select vertex above to show details."
                 (Just v) -> show . vertexStmt $ v
@@ -309,11 +311,11 @@ data Filter = ShowAll | ShowSucc | ShowPred | ShowMatch
 
 -- populate the exploration menu with the current vertex, its predecessor and its successors
 updateMenu :: UI.Element -> IORef CompTree -> IORef Int -> IORef [Vertex] -> UI ()
-updateMenu menu treeRef currentVertexRef filteredVerticesRef = do
-       vs <- menuVertices treeRef currentVertexRef filteredVerticesRef
+updateMenu menu compTreeRef currentVertexRef filteredVerticesRef = do
+       vs <- menuVertices compTreeRef currentVertexRef
        i  <- UI.liftIO $ readIORef currentVertexRef
        let (Just j) = findIndex (\v -> vertexUID v == i) vs
-       t  <- UI.liftIO $ readIORef treeRef
+       t  <- UI.liftIO $ readIORef compTreeRef
        let fs = faultyVertices t
        ops   <- mapM (\s->UI.option # set UI.text s) $ map (summarizeVertex fs) vs
        (UI.element menu) # set UI.children []
@@ -323,24 +325,24 @@ updateMenu menu treeRef currentVertexRef filteredVerticesRef = do
 
 -- on selecting a vertex in the exploration menu, update current vertex accordingly
 selectVertex :: UI.Element -> UI.Element -> IORef CompTree -> IORef [Vertex] -> IORef Int  
-        -> (IORef [Vertex] -> IORef Int -> UI ()) -> Maybe Int -> UI ()
-selectVertex compStmt menu treeRef filteredVerticesRef currentVertexRef myRedraw mi = case mi of
-        Just j  -> do vs    <- menuVertices treeRef currentVertexRef filteredVerticesRef
-                      mcv   <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
+        -> (IORef Int -> UI ()) -> Maybe Int -> UI ()
+selectVertex compStmt menu compTreeRef filteredVerticesRef currentVertexRef myRedraw mi = case mi of
+        Just j  -> do vs    <- menuVertices compTreeRef currentVertexRef
+                      mcv   <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
                       let v  = vs !! j
                       UI.liftIO $ writeIORef currentVertexRef (vertexUID v)
-                      showStmt compStmt filteredVerticesRef currentVertexRef
-                      myRedraw filteredVerticesRef currentVertexRef 
-                      updateMenu menu treeRef currentVertexRef filteredVerticesRef
+                      showStmt compStmt compTreeRef currentVertexRef
+                      myRedraw currentVertexRef 
+                      updateMenu menu compTreeRef currentVertexRef filteredVerticesRef
                       return ()
         Nothing -> do UI.liftIO $ putStrLn "selectVertex: Nothing selected"
                       return ()
 
-menuVertices :: IORef CompTree -> IORef Int -> IORef [Vertex] -> UI [Vertex]
-menuVertices treeRef currentVertexRef filteredVerticesRef = do
-  t   <- UI.liftIO $ readIORef treeRef
+menuVertices :: IORef CompTree -> IORef Int -> UI [Vertex]
+menuVertices compTreeRef currentVertexRef = do
+  t   <- UI.liftIO $ readIORef compTreeRef
   i   <- UI.liftIO $ readIORef currentVertexRef
-  mcv <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
+  mcv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
   let cv = case mcv of (Just v) -> v; Nothing -> RootVertex
   return $ filter (/= RootVertex) $ (preds t cv) ++ (cv : (succs t cv))
 
@@ -363,34 +365,33 @@ vertexFilter f g cv r = filter (not . isRootVertex) $ case f of
 onClick :: UI.Element -> UI.Element -> UI.Element 
            -> IORef Int-> IORef CompTree -> IORef Int -> IORef [Vertex]
            -> UI.Element -> Judgement-> UI ()
-onClick status menu img imgCountRef treeRef currentVertexRef filteredVerticesRef b j = do
+onClick status menu img imgCountRef compTreeRef currentVertexRef filteredVerticesRef b j = do
   on UI.click b $ \_ -> do
-        (Just v) <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
-        replaceFilteredVertex v (v{vertexJmt=j})
-        updateTree img imgCountRef treeRef (Just v) (\tree -> markNode tree v j)
-        updateMenu menu treeRef currentVertexRef filteredVerticesRef
-        updateStatus status treeRef
+        (Just v) <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
+        replaceFilteredVertex v (setJudgement v j)
+        updateTree img imgCountRef compTreeRef (Just v) (\tree -> markNode tree v j)
+        updateMenu menu compTreeRef currentVertexRef filteredVerticesRef
+        updateStatus status compTreeRef
 
   where replaceFilteredVertex v w = do
           vs <- UI.liftIO $ readIORef filteredVerticesRef
           UI.liftIO $ writeIORef filteredVerticesRef $ map (\x -> if x == v then w else x) vs
 
-lookupCurrentVertex :: IORef Int -> IORef [Vertex] -> IO (Maybe Vertex)
-lookupCurrentVertex currentVertexRef filteredVerticesRef = do
-  i  <- readIORef currentVertexRef
-  vs <- readIORef filteredVerticesRef
-  return $ case filter (\v->vertexUID v==i) vs of
+lookupCurrentVertex :: IORef Int -> IORef CompTree -> IO (Maybe Vertex)
+lookupCurrentVertex currentVertexRef compTree = do
+  i <- readIORef currentVertexRef
+  t <- readIORef compTree
+  return $ case filter (\v->vertexUID v==i) (vertices t) of
                  []  -> Nothing
                  [v] -> Just v
                  vs   -> error $ "lookupCurrentVertex: UID " ++ show i ++ " identifies "
                                  ++ (show . length $ vs) ++ " computation statements"
 
 
-
 markNode :: CompTree -> Vertex -> Judgement -> CompTree
 markNode g v s = mapGraph f g
   where f RootVertex = RootVertex
-        f v'         = if v' === v then v{vertexJmt=s} else v'
+        f v'         = if v' === v then setJudgement v s else v'
 
         (===) :: Vertex -> Vertex -> Bool
         v1 === v2 = (vertexUID v1) == (vertexUID v2)
@@ -414,7 +415,7 @@ noNewlines' w (s:ss)
 
 summarizeVertex :: [Vertex] -> Vertex -> String
 summarizeVertex fs v = shorten (ShorterThan 60) (noNewlines . show . vertexStmt $ v) ++ s
-  where s = if v `elem` fs then " !!" else case vertexJmt v of
+  where s = if v `elem` fs then " !!" else case getJudgement v of
               Wrong          -> " :("
               Right          -> " :)"
               _              -> " ??"
@@ -423,7 +424,7 @@ updateStatus :: UI.Element -> IORef CompTree -> UI ()
 updateStatus e compGraphRef = do
   g <- UI.liftIO $ readIORef compGraphRef
   let getLabel   = stmtLabel . vertexStmt
-      isJudged v = vertexJmt v /= Unassessed
+      isJudged v = getJudgement v /= Unassessed
       slen       = show . length
       ns = filter (not . isRootVertex) (preorder g)
       js = filter isJudged ns
@@ -436,19 +437,19 @@ updateStatus e compGraphRef = do
 
 updateTree :: UI.Element -> IORef Int -> IORef CompTree -> (Maybe Vertex) -> (CompTree -> CompTree)
            -> UI ()
-updateTree img imgCountRef treeRef mcv f
-  = do tree <- UI.liftIO $ readIORef treeRef
-       UI.liftIO $ writeIORef treeRef (f tree)
-       redraw img imgCountRef treeRef mcv
+updateTree img imgCountRef compTreeRef mcv f
+  = do tree <- UI.liftIO $ readIORef compTreeRef
+       UI.liftIO $ writeIORef compTreeRef (f tree)
+       redraw img imgCountRef compTreeRef mcv
 
-redrawWith :: UI.Element -> IORef Int -> IORef CompTree -> IORef [Vertex] -> IORef Int -> UI ()
-redrawWith img imgCountRef treeRef filteredVerticesRef currentVertexRef = do
-  mv <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
-  redraw img imgCountRef treeRef mv
+redrawWith :: UI.Element -> IORef Int -> IORef CompTree -> IORef Int -> UI ()
+redrawWith img imgCountRef compTreeRef currentVertexRef = do
+  mv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
+  redraw img imgCountRef compTreeRef mv
 
 redraw :: UI.Element -> IORef Int -> IORef CompTree -> (Maybe Vertex) -> UI ()
-redraw img imgCountRef treeRef mcv
-  = do tree <- UI.liftIO $ readIORef treeRef
+redraw img imgCountRef compTreeRef mcv
+  = do tree <- UI.liftIO $ readIORef compTreeRef
        UI.liftIO $ writeFile ".Hoed/debugTree.dot" (shw $ summarize tree mcv)
        UI.liftIO $ system $ "cat .Hoed/debugTree.dot | unflatten -l 5| dot -Tpng -Gsize=15,15 -Gdpi=100"
                             ++ "> .Hoed/wwwroot/debugTree.png"
@@ -487,17 +488,14 @@ isCurrentVertex mcv v = case v of
                 (Just w)          -> vertexStmt v == vertexStmt w
 
 faultyVertices :: CompTree -> [Vertex]
-faultyVertices = findFaulty_dag getStatus
-  where getStatus RootVertex = Right
-        getStatus v    = vertexJmt v
-
+faultyVertices = findFaulty_dag getJudgement
 
 --------------------------------------------------------------------------------
 -- The data flow GUI
 {-
 guiDDT :: ConstantTree -> IORef Int -> EventForest -> IORef Int -> IORef CompTree -> UI UI.Element
-guiDDT ddt imgCountRef frt currentVertexRef treeRef = do
-  (Graph _ vs _) <- UI.liftIO $ readIORef treeRef
+guiDDT ddt imgCountRef frt currentVertexRef compTreeRef = do
+  (Graph _ vs _) <- UI.liftIO $ readIORef compTreeRef
   let idStmts = map (\(Vertex s _) -> (equIdentifier s, s)) . filter (not . isRootVertex) $ vs
 
   -- The current computation statement
