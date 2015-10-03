@@ -68,15 +68,6 @@ instance Show Location where
    show (ResultOf   loc) = 'r' : show loc
    show (FieldOf n  loc) = 'f' : show n ++ show loc
 
-data ArgOrRes = Arg | Res
-
--- Is the first location in the argument, or result subtree of the second location?
-argOrRes :: Location -> Location -> ArgOrRes
-argOrRes (ArgumentOf loc') loc = if loc == loc' then Arg else argOrRes loc' loc
-argOrRes (ResultOf loc')   loc = if loc == loc' then Res else argOrRes loc' loc
-argOrRes Trunk             _   = error $ "argOrRes: Second location is not on the path"
-                                       ++ "between root and the first location."
-
 type Visit a = Maybe Event -> Location -> a -> a
 
 idVisit :: Visit a
@@ -98,11 +89,7 @@ dfsChildren frt e = case change e of
     Observe{}            -> manyByPosition 0
     Fun                  -> manyByPosition 0 ++ manyByPosition 1
 
-  where -- Find list of events by position
-        byPosition :: [ParentPosition] -> [Maybe Event]
-        byPosition = map (\pos -> lookup pos cs)
-
-        manyByPosition :: ParentPosition -> [Maybe Event]
+  where manyByPosition :: ParentPosition -> [Maybe Event]
         manyByPosition pos = case filter (\(pos',_) -> pos == pos') cs of
           [] -> [Nothing]
           ts -> map (Just . snd) ts

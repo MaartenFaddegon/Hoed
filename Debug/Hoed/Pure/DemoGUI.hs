@@ -355,32 +355,6 @@ menuVertices compTreeRef currentVertexRef = do
   let cv = case mcv of (Just v) -> v; Nothing -> RootVertex
   return $ filter (/= RootVertex) $ (preds t cv) ++ (cv : (succs t cv))
 
-vertexFilter :: Filter -> CompTree -> Vertex -> String -> [Vertex]
-vertexFilter f g cv r = filter (not . isRootVertex) $ case f of 
-  ShowAll   -> preorder g
-  ShowSucc  -> succs g cv
-  ShowPred  -> preds g cv
-  ShowMatch -> filter matches (preorder g)
-    where matches RootVertex = False
-          matches v    = show v =~ r
-
-{-
-onClick :: UI.Element -> UI.Element -> UI.Element 
-           -> IORef Int-> IORef CompTree -> IORef Int
-           -> UI.Element -> Judgement-> UI ()
-onClick status menu img imgCountRef compTreeRef currentVertexRef b j = do
-  on UI.click b $ \_ -> do
-        (Just v) <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
-        replaceFilteredVertex v (setJudgement v j)
-        updateTree img imgCountRef compTreeRef (Just v) (\tree -> markNode tree v j)
-        updateMenu menu compTreeRef currentVertexRef
-        updateStatus status compTreeRef
-
-  where replaceFilteredVertex v w = do
-          vs <- UI.liftIO $ readIORef 
-          UI.liftIO $ writeIORef $ map (\x -> if x == v then w else x) vs
--}
-
 lookupCurrentVertex :: IORef Int -> IORef CompTree -> IO (Maybe Vertex)
 lookupCurrentVertex currentVertexRef compTree = do
   i <- readIORef currentVertexRef
@@ -390,7 +364,6 @@ lookupCurrentVertex currentVertexRef compTree = do
                  [v] -> Just v
                  vs   -> error $ "lookupCurrentVertex: UID " ++ show i ++ " identifies "
                                  ++ (show . length $ vs) ++ " computation statements"
-
 
 markNode :: CompTree -> Vertex -> Judgement -> CompTree
 markNode g v s = mapGraph f g

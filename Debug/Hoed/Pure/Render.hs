@@ -25,10 +25,6 @@ import Data.Graph.Libgraph
 import Data.Array as Array
 import Data.Char(isAlpha)
 
-head' :: String -> [a] -> a
-head' msg [] = error msg
-head' _   xs = head xs
-
 #if __GLASGOW_HASKELL__ < 710
 sortOn :: Ord b => (a -> b) -> [a] -> [a]
 sortOn f  = map snd . sortOn' fst .  map (\x -> (f x, x))
@@ -111,8 +107,6 @@ type CDSSet = [CDS]
 eventsToCDS :: [Event] -> CDSSet
 eventsToCDS pairs = getChild 0 0
    where
-     frt :: EventForest
-     frt = mkEventForest pairs
 
      res i = (!) out_arr i
 
@@ -240,15 +234,6 @@ findFn' (CDSFun i arg res) rest =
        _                -> ([arg], res, Just i) : rest
 findFn' other rest = ([],[other], Nothing) : rest
 
-renderTops []   = nil
-renderTops tops = line <> foldr (<>) nil (map renderTop tops)
-
-renderTop :: Output -> Doc
-renderTop (OutLabel str set extras) =
-        nest 2 (text ("-- " ++ str) <> line <>
-                renderSet set
-                <> renderTops extras) <> line
-
 rmEntry :: CDS -> CDS
 rmEntry (CDSNamed str t i set)= CDSNamed str t i (rmEntrySet set)
 rmEntry (CDSCons i str sets)       = CDSCons i str (map rmEntrySet sets)
@@ -300,12 +285,6 @@ data Output = OutLabel String CDSSet [Output]
             | OutData  CDS
               deriving (Eq,Ord,Show)
 
-
-commonOutput :: [Output] -> [Output]
-commonOutput = sortBy byLabel
-  where
-     byLabel (OutLabel lab _ _) (OutLabel lab' _ _) = compare lab lab'
-
 cdssToOutput :: CDSSet -> [Output]
 cdssToOutput =  map cdsToOutput
 
@@ -322,6 +301,5 @@ nil = Text.PrettyPrint.FPretty.empty
 grp = Text.PrettyPrint.FPretty.group
 brk = softbreak -- Nothing, if the following still fits on the current line, otherwise newline. 
 sep = softline  -- A space, if the following still fits on the current line, otherwise newline. 
-sp,bk :: Doc
+sp :: Doc
 sp = text " "   -- A space, always.
-bk = text "\n"  -- A break, always

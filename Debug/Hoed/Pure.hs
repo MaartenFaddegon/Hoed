@@ -182,17 +182,6 @@ debugO program =
         ; endEventStream
         }
 
--- | run some code and return the CDS structure (for when you want to write your own debugger).
-debugO' :: IO a -> IO [CDS]
-debugO' program = do
-  events <- debugO program
-  return (eventsToCDS events)
-
-
--- | print a string, with debugging
-putStrO :: String -> IO ()
-putStrO expr = runO (putStr expr)
-
 -- | The main entry point; run some IO code, and debug inside it.
 --   After the IO action is completed, an algorithmic debugging session is started at
 --   @http://localhost:10000/@ to which you can connect with your webbrowser.
@@ -246,7 +235,6 @@ runO' program = do
   let eqs   = renderCompStmts cdss2
 
   let frt  = mkEventForest events
-      rs   = filter isRootEvent events
       ti   = traceInfo (reverse events)
       ds   = dependencies ti
       ct   = mkCompTree eqs ds
@@ -257,7 +245,7 @@ runO' program = do
   hPutStrLn stderr "\n=== Statistics ===\n"
   let e  = length events
       n  = length eqs
-      d  = treeDepth ct
+      -- d  = treeDepth ct
       b  = fromIntegral (length . arcs $ ct ) / fromIntegral ((length . vertices $ ct) - (length . leafs $ ct))
   hPutStrLn stderr $ "e = " ++ show e
   hPutStrLn stderr $ "n = " ++ show n
@@ -267,13 +255,6 @@ runO' program = do
 
   -- hPutStrLn stderr "\n=== Debug Session ===\n"
   return (events, ti, ct, frt)
-
-  where summarizeEvent e = show (eventUID e) ++ ": " ++ summarizeChange (change e)
-        summarizeChange (Observe l _ _) = show l
-        summarizeChange (Cons _ c)      = show c
-        summarizeChange c               = show c
-        showJ (Just s) = show s
-        showJ Nothing  = "??"
 
 -- | Trace and write computation tree to file. Useful for regression testing.
 logO :: FilePath -> IO a -> IO ()
@@ -302,34 +283,6 @@ logOwp filePath properties program = do
         showVertex v       = ("\"" ++ (escape . showCompStmt) v ++ "\"", "")
         showArc _          = ""
         showCompStmt s     = (show . vertexJmt) s ++ ": " ++ (show . vertexStmt) s
-
-hPutStrList :: (Show a) => Handle -> [a] -> IO()
-hPutStrList h []     = hPutStrLn h ""
-hPutStrList h (c:cs) = do {hPutStrLn h (show c); hPutStrList h cs}
-
-------------------------------------------------------------------------
--- Push mode option handling
-
-data PushMode = Vanilla | Drop | Truncate
-
-pushMode :: IORef PushMode
-pushMode = unsafePerformIO $ newIORef Vanilla
-
-setPushMode :: PushMode -> IO ()
-setPushMode = writeIORef pushMode
-
-getPushMode :: PushMode
-getPushMode = unsafePerformIO $ readIORef pushMode
-
--- MF TODO: handle a bit nicer?
-parseArgs :: [String] -> PushMode
-parseArgs []      = Truncate -- default mode
-parseArgs (arg:_) = case arg of
-        "--PushVanilla"  -> Vanilla
-        "--PushDrop"     -> Drop
-        "--PushTruncate" -> Truncate
-        _              -> error ("unknown option " ++ arg)
-
 
 ------------------------------------------------------------------------
 -- Algorithmic Debugging
