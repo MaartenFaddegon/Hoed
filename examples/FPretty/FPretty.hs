@@ -289,9 +289,10 @@ go' (Align i d) tt = let (td,sd) = go d tt in (td,Align (i - docLength td) sd)
 -- To ensure linear complexity for align should actually keep track
 -- of document length within go function itself.
 docLength :: Doc -> Int
-docLength Nil = 0
-docLength (Text l _) = l
-docLength (dl :<> dr) = docLength dl + docLength dr
+docLength = observe "docLength" docLength'
+docLength' Nil = 0
+docLength' (Text l _) = l
+docLength' (dl :<> dr) = docLength dl + docLength dr
 
 type Width = Int
 type Position =  Int
@@ -324,7 +325,7 @@ interpret' (Line l t) w tc p ds =
 interpret' (dl :<> dr) w tc p ds =
   interpret dl w (interpret dr w tc) p ds
 interpret' (Group d) w tc p ds = 
-  interpret d w (leaveGroup tc) p ((p,\h c -> c) `addElem` ds)
+  interpret d w (leaveGroup tc) p ((p,\h c -> c) <| ds)
 interpret' (Nest j d) w tc p ds
   = extendFrontGroup (interpret d w) (interpret d w) (outNest j) tc p ds
 {-
@@ -365,7 +366,7 @@ extendFrontGroup' cont1 cont2 out tc p ds =
   case viewl ds of
     EmptyL -> out False (cont1 tc p ds)
     (s,outGrp) :< ds' -> 
-      cont2 tc p ((s,\h c -> outGrp h (out h c)) `addElem` ds')
+      cont2 tc p ((s,\h c -> outGrp h (out h c)) <| ds')
 
 
 leaveGroup :: TreeCont -> TreeCont
@@ -377,7 +378,7 @@ leaveGroup' tc p ds =
       case viewl ds1 of
         EmptyL -> outGrp1 True (tc p Dequeue.empty)
         (s2,outGrp2) :< ds2 ->
-          tc p ((s2, \f c -> outGrp2 f (\r1 -> outGrp1 (p <= s2+r1) c r1)) `addElem` ds2)
+          tc p ((s2, \f c -> outGrp2 f (\r1 -> outGrp1 (p <= s2+r1) c r1)) <| ds2)
 
 
 prune :: TreeCont -> TreeCont
@@ -388,9 +389,6 @@ prune' tc p ds =
     ds' :> (s,outGrp) -> \r -> if p > s+r 
                                  then outGrp False (prune tc p ds') r
                                  else tc p ds r
-
-addElem :: Observable a => a -> Seq a -> Seq a 
-addElem = observe "(<|)" (<|)
 
 -- -------------------------------------------
 -- Properties for testing. All should be True.
