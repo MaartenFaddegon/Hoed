@@ -50,7 +50,7 @@ module Debug.Hoed.Stk
   , observeCC
   , observe'
   , Identifier(..)
-  ,(*>>=),(>>==),(>>=*)
+  -- ,(*>>=),(>>==),(>>=*)
   , logO
 
    -- * The Observable class
@@ -116,10 +116,6 @@ debugO program =
 -- | Short for @runO . print@.
 printO :: (Show a) => a -> IO ()
 printO expr = runO (print expr)
-
--- | print a string, with debugging
-putStrO :: String -> IO ()
-putStrO expr = runO (putStr expr)
 
 -- | The main entry point; run some IO code, and debug inside it.
 --   After the IO action is completed, an algorithmic debugging session is started at
@@ -187,11 +183,6 @@ logO filePath program = {- SCC "logO" -} do
         showStk []         = "[]"
         showStk stk        = showStk' $ map (\lbl -> "\\\"" ++ lbl ++ "\\\"") stk
         showStk' (h:lbls)  = foldl (\lbl acc -> lbl ++ (',' : acc)) ('[' : h) lbls ++ "]"
-
-hPutStrList :: (Show a) => Handle -> [a] -> IO()
-hPutStrList h []     = hPutStrLn h ""
-hPutStrList h (c:cs) = do {hPutStrLn h (show c); hPutStrList h cs}
-
 
 ------------------------------------------------------------------------
 -- Push mode option handling

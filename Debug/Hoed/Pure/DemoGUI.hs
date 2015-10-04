@@ -108,36 +108,6 @@ guiHelp = UI.div # set UI.style [("margin-left", "20%"),("margin-right", "20%")]
   , UI.p # set UI.text "The trace is translated into a tree of computation statements for the algorithmic debugging view. In the explore view you can freely browse this tree to get a better understanding of your program. You can decide yourself in which order you want to judge statements. When enough statements are judged the debugger tells you the location of the fault in your code."
   ] 
 
-
---------------------------------------------------------------------------------
--- The page showing the list of events in the trace
-
-guiTrace :: Trace -> TraceInfo -> UI UI.Element
-guiTrace trace traceInfo = do
-  rows <- mapM (\e -> eventRow e traceInfo) (reverse trace)
-  tbl  <- UI.table #+ map return rows
-  UI.span #+ [return tbl]
-
-eventRow :: Event -> TraceInfo -> UI UI.Element
-eventRow e traceInfo = do
-  sign <- UI.td # set UI.text (let sym = case getLocation e traceInfo of True  -> "* "; False -> "o "
-                               in case change e of
-                                    Observe{} -> " "
-                                    Fun{}     -> " "
-                                    Enter{}   -> sym
-                                    Cons{}    -> sym)
-  evnt <- UI.td # set UI.text (show e)
-  msg <- UI.td # set UI.text (getMessage e traceInfo)
-  UI.tr #+ map return [sign,evnt,msg]
-
-getStk :: Event -> TraceInfo -> String
-getStk e traceInfo = case change e of
-  Enter{}  -> case IntMap.lookup (eventUID e) (storedStack traceInfo) of 
-              (Just stk) -> show stk
-              Nothing    -> ""
-  _        -> ""
-
-
 --------------------------------------------------------------------------------
 -- The observe GUI
 
@@ -208,7 +178,6 @@ guiAlgoDebug compTreeRef currentVertexRef regexRef imgCountRef = do
 
        -- Get a list of vertices from the computation graph
        tree <- UI.liftIO $ readIORef compTreeRef
-       let ns = filter (not . isRootVertex) (preorder tree)
 
        -- Status
        status <- UI.span
@@ -270,7 +239,6 @@ guiExplore compTreeRef currentVertexRef regexRef imgCountRef = do
 
        -- Get a list of vertices from the computation graph
        tree <- UI.liftIO $ readIORef compTreeRef
-       let ns = filter (not . isRootVertex) (preorder tree)
 
        -- Draw the computation graph
        img  <- UI.img 
@@ -315,8 +283,6 @@ showStmt e compTreeRef currentVertexRef = do
                 (Just v) -> show . vertexStmt $ v
   UI.element e # set UI.text s
   return ()
-
-data Filter = ShowAll | ShowSucc | ShowPred | ShowMatch
 
 -- populate the exploration menu with the current vertex, its predecessor and its successors
 updateMenu :: UI.Element -> IORef CompTree -> IORef Int -> UI ()
@@ -400,8 +366,7 @@ summarizeVertex fs v = shorten (ShorterThan 60) (noNewlines . show . vertexStmt 
 updateStatus :: UI.Element -> IORef CompTree -> UI ()
 updateStatus e compGraphRef = do
   g <- UI.liftIO $ readIORef compGraphRef
-  let getLabel   = stmtLabel . vertexStmt
-      isJudged v = getJudgement v /= Unassessed
+  let isJudged v = getJudgement v /= Unassessed
       slen       = show . length
       ns = filter (not . isRootVertex) (preorder g)
       js = filter isJudged ns
@@ -411,13 +376,6 @@ updateStatus e compGraphRef = do
                              else " Judged " ++ slen js ++ "/" ++ slen ns
   UI.element e # set UI.text txt
   return ()
-
-updateTree :: UI.Element -> IORef Int -> IORef CompTree -> (Maybe Vertex) -> (CompTree -> CompTree)
-           -> UI ()
-updateTree img imgCountRef compTreeRef mcv f
-  = do tree <- UI.liftIO $ readIORef compTreeRef
-       UI.liftIO $ writeIORef compTreeRef (f tree)
-       redraw img imgCountRef compTreeRef mcv
 
 redrawWith :: UI.Element -> IORef Int -> IORef CompTree -> IORef Int -> UI ()
 redrawWith img imgCountRef compTreeRef currentVertexRef = do
@@ -467,9 +425,42 @@ isCurrentVertex mcv v = case v of
 faultyVertices :: CompTree -> [Vertex]
 faultyVertices = findFaulty_dag getJudgement
 
+{-
+
+--------------------------------------------------------------------------------
+-- The page showing the list of events in the trace
+
+guiTrace :: Trace -> TraceInfo -> UI UI.Element
+guiTrace trace traceInfo = do
+  rows <- mapM (\e -> eventRow e traceInfo) (reverse trace)
+  tbl  <- UI.table #+ map return rows
+  UI.span #+ [return tbl]
+
+eventRow :: Event -> TraceInfo -> UI UI.Element
+eventRow e traceInfo = do
+  sign <- UI.td # set UI.text (let sym = case getLocation e traceInfo of True  -> "* "; False -> "o "
+                               in case change e of
+                                    Observe{} -> " "
+                                    Fun{}     -> " "
+                                    Enter{}   -> sym
+                                    Cons{}    -> sym)
+  evnt <- UI.td # set UI.text (show e)
+  msg <- UI.td # set UI.text (getMessage e traceInfo)
+  UI.tr #+ map return [sign,evnt,msg]
+
+getStk :: Event -> TraceInfo -> String
+getStk e traceInfo = case change e of
+  Enter{}  -> case IntMap.lookup (eventUID e) (storedStack traceInfo) of 
+              (Just stk) -> show stk
+              Nothing    -> ""
+  _        -> ""
+
+
+
+
 --------------------------------------------------------------------------------
 -- The data flow GUI
-{-
+
 guiDDT :: ConstantTree -> IORef Int -> EventForest -> IORef Int -> IORef CompTree -> UI UI.Element
 guiDDT ddt imgCountRef frt currentVertexRef compTreeRef = do
   (Graph _ vs _) <- UI.liftIO $ readIORef compTreeRef

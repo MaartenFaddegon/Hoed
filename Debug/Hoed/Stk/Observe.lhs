@@ -58,7 +58,7 @@ module Debug.Hoed.Stk.Observe
 
    -- * For advanced users, that want to render their own datatypes.
   , (<<)           -- (Observable a) => ObserverM (a -> b) -> a -> ObserverM b
-  ,(*>>=),(>>==),(>>=*)
+  -- ,(*>>=),(>>==),(>>=*)
   , thunk          -- (Observable a) => a -> ObserverM a        
   , nothunk
   , send
@@ -365,13 +365,6 @@ gobserverBase qn t = do n <- qn
 
 gobserverBaseClause :: Q Name -> Q Clause
 gobserverBaseClause qn = clause [] (normalB (varE $ mkName "observeBase")) []
-
-gobserverList :: Q Name -> Q [Dec]
-gobserverList qn = do n  <- qn
-                      cs <-listClauses qn
-                      return [FunD n cs]
-
-
 \end{code}
 
 The generic implementation of the observer function, special cases
@@ -404,46 +397,6 @@ gobserverClause t n bs (y@(NormalC name fields))
 gobserverClause t n bs (InfixC left name right) 
   = gobserverClause t n bs (NormalC name (left:[right]))
 gobserverClause t n bs y = error ("gobserverClause can't handle " ++ show y)
-
-listClauses :: Q Name -> Q [Clause]
-listClauses n = do l1 <- listClause1 n 
-                   l2 <- listClause2 n 
-                   return [l1, l2]
-
--- observer (a:as) = send ":"  (return (:) << a << as)
-listClause1 :: Q Name -> Q Clause
-listClause1 qn
-  = do { n <- qn
-       ; let a'    = varP (mkName "a")
-             a     = varE (mkName "a")
-             as'   = varP (mkName "as")
-             as    = varE (mkName "as") 
-             c'    = varP (mkName "c")
-             c     = varE (mkName "c")
-             t     = [| thunk $(varE n)|] -- MF TODO: or nothunk
-             name  = mkName ":"
-       ; clause [infixP a' name as', c']
-           ( normalB [| send ":" ( compositionM $t
-                                   ( compositionM $t
-                                     ( return (:)
-                                     ) $a
-                                   ) $as
-                                 ) $c
-                     |]
-           ) []
-       }
-
--- observer []     = send "[]" (return [])
-listClause2 :: Q Name -> Q Clause
-listClause2 qn
-  = do { n <- qn
-       ; let c'    = varP (mkName "c")
-             c     = varE (mkName "c")
-       ; clause [wildP, c']
-           ( normalB [| send "[]" (return []) $c |]
-           ) []
-       }
-
 \end{code}
 
 We also need to do some work to also generate the instance declaration
@@ -493,34 +446,6 @@ gobservableBaseInstance s qt
                 (ForallT _ c' _)   -> return c'
                 _                  -> return []
        return [InstanceD c n m]
-
-gobservableListInstance :: String -> Q [Dec]
-gobservableListInstance s
-  = do let qt = [t|forall a . [] a |]
-       t  <- qt
-       cn <- className s
-       let ct = conT cn
-       n  <- case t of
-            (ForallT tvs _ t') -> [t| $ct $(return t') |]
-            _                  -> [t| $ct $qt          |]
-       m  <- gobserverList (methodName s)
-       c  <- case t of 
-                (ForallT _ c' _)   -> return c'
-                _                  -> return []
-       return [InstanceD c n m]
-
--- MF TODO: what do we do with this?
--- gListObserver :: String -> Q [Dec]
--- gListObserver s
---   = do cn <- className s
---        let ct = conT cn
---            a  = VarT (mkName "a")
---            a' = return a
---        c <- return [ClassP cn a']
---        n <- [t| $ct [$a'] |]
---        m <- gobserverList (methodName s)
---        return [InstanceD c n m]
-
 
 gobserverFunClause :: Name -> Q Clause
 gobserverFunClause n
@@ -728,11 +653,6 @@ getName' t = case t of
                 TupleT _          -> return $ mkName "(,)"
                 t''               -> error ("getName can't handle " ++ show t'')
 
--- Given a type, get a list of type variables.
-
-getTvs :: Q Type -> Q [TyVarBndr]
-getTvs t = do {(ForallT tvs _ _) <- t; return tvs }
-
 -- Given a type, get a list of constructors.
 
 getConstructors :: Q Name -> Q [Con]
@@ -740,31 +660,6 @@ getConstructors name = do {n <- name; TyConI (DataD _ _ _ cs _)  <- reify n; ret
 
 guniqueVariables :: Int -> Q [Name]
 guniqueVariables n = replicateM n (newName "x")
-
-observableCxt :: [TyVarBndr] -> Q Cxt
-observableCxt tvs = return [classpObservable $ map (\v -> (tvname v)) tvs]
-
-#if __GLASGOW_HASKELL__ >= 710
-classpObservable :: [Type] -> Type
-classpObservable = foldl AppT (ConT (mkName "Observable"))
-#else
-classpObservable :: [Type] -> Pred
-classpObservable = ClassP (mkName "Observable")
-#endif
-
-qcontObservable :: Q Type
-qcontObservable = return contObservable
-
-contObservable :: Type
-contObservable = ConT (mkName "Observable")
-
-qtvname :: TyVarBndr -> Q Type
-qtvname = return . tvname
-
-tvname :: TyVarBndr -> Type
-tvname (PlainTV  name  ) = VarT name
-tvname (KindedTV name _) = VarT name
-
 \end{code}
 
 %************************************************************************
@@ -866,12 +761,6 @@ instance Observable Dynamic where { observer = observeOpaque "<Dynamic>" }
 \subsection{Classes and Data Definitions}
 %*                                                                      *
 %************************************************************************
-
-\begin{code}
-type Observing a = a -> a
-\end{code}
-
-MF: when do we need this type?
 
 \begin{code}
 newtype Observer = O (forall a . (Observable a) => String -> a -> a)
@@ -1076,7 +965,6 @@ data Parent = Parent
         { observeParent :: !Int -- my parent
         , observePort   :: !Int -- my branch number
         } deriving (Show, Read)
-root = Parent 0 0
 \end{code}
 
 
@@ -1295,13 +1183,11 @@ handleExc context exc = return (send "throw" (return throw << exc) context)
 
 %************************************************************************
 
-\begin{code}
-(*>>=) :: Monad m => m a -> (Identifier -> (a -> m b, Int)) -> (m b, Identifier)
-x *>>= f = let (g,i) = f UnknownId in (x >>= g,InSequenceAfter i)
-
-(>>==) :: Monad m => (m a, Identifier) -> (Identifier -> (a -> m b, Int)) -> (m b, Identifier)
-(x,d) >>== f = let (g,i) = f d in (x >>= g,InSequenceAfter i)
-
-(>>=*) :: Monad m => (m a, Identifier) -> (Identifier -> (a -> m b, Int)) -> m b
-(x,d) >>=* f = let (g,i) = f d in x >>= g
-\end{code}
+%       (*>>=) :: Monad m => m a -> (Identifier -> (a -> m b, Int)) -> (m b, Identifier)
+%       x *>>= f = let (g,i) = f UnknownId in (x >>= g,InSequenceAfter i)
+%       
+%       (>>==) :: Monad m => (m a, Identifier) -> (Identifier -> (a -> m b, Int)) -> (m b, Identifier)
+%       (x,d) >>== f = let (g,i) = f d in (x >>= g,InSequenceAfter i)
+%       
+%       (>>=*) :: Monad m => (m a, Identifier) -> (Identifier -> (a -> m b, Int)) -> m b
+%       (x,d) >>=* f = let (g,i) = f d in x >>= g

@@ -66,13 +66,6 @@ renderNamedTop name (OutData cds)
         nub (a:a':as) | a == a' = nub (a' : as)
         nub (a:as)              = a : nub as
 
-renderCallStack :: CallStack -> DOC
-renderCallStack s
-  =  text "With call stack: ["
-  <> foldl1 (\a b -> a <> text ", " <> b) 
-            (map text s)
-  <> text "]"
-
 ------------------------------------------------------------------------
 -- The CompStmt type
 
@@ -126,16 +119,16 @@ compareStack s1 s2
 nextStack = nextStack_truncate
 
 -- Always push onto top of stack
-nextStack_vanilla :: CompStmt -> CallStack
-nextStack_vanilla (CompStmt cc _ _ _ _ ccs) = cc:ccs
+-- nextStack_vanilla :: CompStmt -> CallStack
+-- nextStack_vanilla (CompStmt cc _ _ _ _ ccs) = cc:ccs
 
 -- Drop on recursion
-nextStack_drop :: CompStmt -> CallStack
-nextStack_drop (CompStmt cc _ _ _ _ [])   = [cc]
-nextStack_drop (CompStmt cc _ _ _ _ ccs)
-  = if ccs `contains` cc 
-        then ccs
-        else cc:ccs
+-- nextStack_drop :: CompStmt -> CallStack
+-- nextStack_drop (CompStmt cc _ _ _ _ [])   = [cc]
+-- nextStack_drop (CompStmt cc _ _ _ _ ccs)
+--   = if ccs `contains` cc 
+--         then ccs
+--         else cc:ccs
 
 -- Remove everything between recursion (e.g. [f,g,f,h] becomes [f,h])
 nextStack_truncate :: CompStmt -> CallStack
@@ -148,22 +141,22 @@ nextStack_truncate (CompStmt cc _ _ _ _ ccs)
 contains :: CallStack -> String -> Bool
 contains ccs cc = filter (== cc) ccs /= []
 
-call :: CallStack -> CallStack -> CallStack
-call sApp sLam = sLam' ++ sApp
-  where (sPre,sApp',sLam') = commonPrefix sApp sLam
-
-commonPrefix :: CallStack -> CallStack -> (CallStack, CallStack, CallStack)
-commonPrefix sApp sLam
-  = let (sPre,sApp',sLam') = span2 (==) (reverse sApp) (reverse sLam)
-    in (sPre, reverse sApp', reverse sLam') 
-
-span2 :: (a -> a -> Bool) -> [a] -> [a] -> ([a], [a], [a])
-span2 f = s f []
-  where s _ pre [] ys = (pre,[],ys)
-        s _ pre xs [] = (pre,xs,[])
-        s f pre xs@(x:xs') ys@(y:ys') 
-          | f x y     = s f (x:pre) xs' ys'
-          | otherwise = (pre,xs,ys)
+-- call :: CallStack -> CallStack -> CallStack
+-- call sApp sLam = sLam' ++ sApp
+--   where (sPre,sApp',sLam') = commonPrefix sApp sLam
+--
+-- commonPrefix :: CallStack -> CallStack -> (CallStack, CallStack, CallStack)
+-- commonPrefix sApp sLam
+--   = let (sPre,sApp',sLam') = span2 (==) (reverse sApp) (reverse sLam)
+--     in (sPre, reverse sApp', reverse sLam') 
+-- 
+-- span2 :: (a -> a -> Bool) -> [a] -> [a] -> ([a], [a], [a])
+-- span2 f = s f []
+--   where s _ pre [] ys = (pre,[],ys)
+--         s _ pre xs [] = (pre,xs,[])
+--         s f pre xs@(x:xs') ys@(y:ys') 
+--           | f x y     = s f (x:pre) xs' ys'
+--           | otherwise = (pre,xs,ys)
 
 ------------------------------------------------------------------------
 -- Bags are collections of computation statements with the same stack
@@ -293,19 +286,19 @@ mkGraph cs =  (dagify merge)
         nubArcs :: Graph CompStmt () -> Graph CompStmt ()
         nubArcs (Graph r vs as) = Graph r vs (nub as)
 
-        sameThread :: Graph CompStmt () -> Graph CompStmt ()
-        sameThread (Graph r vs as) = Graph r vs (filter (sameThread') as)
-        sameThread' (Arc v w _)
-          | equThreadId v == ThreadIdUnknown 
-            || equThreadId w == ThreadIdUnknown
-            || equThreadId v == equThreadId w   = True
-          | otherwise                           = False
+        -- sameThread :: Graph CompStmt () -> Graph CompStmt ()
+        -- sameThread (Graph r vs as) = Graph r vs (filter (sameThread') as)
+        -- sameThread' (Arc v w _)
+        --   | equThreadId v == ThreadIdUnknown 
+        --     || equThreadId w == ThreadIdUnknown
+        --     || equThreadId v == equThreadId w   = True
+        --   | otherwise                           = False
 
-        filterDependsJustOn :: Graph CompStmt () -> Graph CompStmt ()
-        filterDependsJustOn (Graph r vs as) = Graph r vs (filter (filterDependsJustOn') as)
-        filterDependsJustOn' (Arc v w _) = case equDependsOn w of
-          (DependsJustOn i) -> i == equIdentifier v
-          _                 -> True
+        -- filterDependsJustOn :: Graph CompStmt () -> Graph CompStmt ()
+        -- filterDependsJustOn (Graph r vs as) = Graph r vs (filter (filterDependsJustOn') as)
+        -- filterDependsJustOn' (Arc v w _) = case equDependsOn w of
+        --   (DependsJustOn i) -> i == equIdentifier v
+        --   _                 -> True
 
         addSequenceDependencies :: Graph CompStmt () -> Graph CompStmt ()
         addSequenceDependencies (Graph r vs as) = Graph r vs (seqDeps vs ++ as)

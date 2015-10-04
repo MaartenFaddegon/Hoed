@@ -309,12 +309,6 @@ traceInfo trc = foldl loop s0 trc
         cs :: ConsMap
         cs = mkConsMap trc
 
-        is :: IntSet
-        is = foldl (\s e -> case change e of Cons{} -> IntSet.insert (eventUID e) s; _ -> s) IntSet.empty trc
-
-        parentIsConstant :: Event -> Bool
-        parentIsConstant e = IntSet.member (parentUID . eventParent $ e) is
-
         loop :: TraceInfo -> Event -> TraceInfo
         loop s e = let loc = getLocation e s
                    in case change e of
