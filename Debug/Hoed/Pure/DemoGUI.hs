@@ -269,7 +269,7 @@ guiExplore compTreeRef currentVertexRef regexRef imgCountRef = do
        -- Populate the main screen
        hr <- UI.hr
        br <- UI.br
-       UI.div #+ (map UI.element [menu, right, wrong, status, br, img', hr, compStmt])
+       UI.div #+ (map UI.element [menu, right, wrong, br, img', br, status, hr, compStmt])
 
 
 preorder :: CompTree -> [Vertex]
@@ -363,6 +363,17 @@ summarizeVertex fs v = shorten (ShorterThan 60) (noNewlines . show . vertexStmt 
               Right          -> " :)"
               _              -> " ??"
 
+vertexGraphvizLabel :: [Vertex] -> Vertex -> String
+vertexGraphvizLabel fs v =
+  "<<TABLE BORDER=\"0\" CELLBORDER=\"0\"><TR><TD HEIGHT=\"30\" WIDTH=\"30\" FIXEDSIZE=\"true\"><IMG SCALE=\"true\" SRC=\"" ++ (vertexImg fs v) ++ "\"/></TD><TD><FONT POINT-SIZE=\"30\">" ++ (noNewlines . show . vertexStmt $ v) ++ "</FONT></TD></TR></TABLE>>"
+
+vertexImg :: [Vertex] -> Vertex -> String
+vertexImg fs v = if v `elem` fs then ".Hoed/wwwroot/faulty.png" else case vertexJmt v of
+              Unassessed     -> ".Hoed/wwwroot/unassessed.png"
+              Wrong          -> ".Hoed/wwwroot/wrong.png"
+              Right          -> ".Hoed/wwwroot/right.png"
+
+
 updateStatus :: UI.Element -> IORef CompTree -> UI ()
 updateStatus e compGraphRef = do
   g <- UI.liftIO $ readIORef compGraphRef
@@ -371,8 +382,7 @@ updateStatus e compGraphRef = do
       ns = filter (not . isRootVertex) (preorder g)
       js = filter isJudged ns
       fs = faultyVertices g
-      txt = if length fs > 0 then " Fault detected in: " -- ++ getLabel (head fs)
-                                                         ++ (vertexRes . head) fs
+      txt = if length fs > 0 then " Fault detected in: " ++ (vertexRes . head) fs
                              else " Judged " ++ slen js ++ "/" ++ slen ns
   UI.element e # set UI.text txt
   return ()
@@ -385,7 +395,7 @@ redrawWith img imgCountRef compTreeRef currentVertexRef = do
 redraw :: UI.Element -> IORef Int -> IORef CompTree -> (Maybe Vertex) -> UI ()
 redraw img imgCountRef compTreeRef mcv
   = do tree <- UI.liftIO $ readIORef compTreeRef
-       UI.liftIO $ writeFile ".Hoed/debugTree.dot" (shw $ summarize tree mcv)
+       UI.liftIO $ writeFile ".Hoed/debugTree.dot" $ shw (faultyVertices tree) (summarize tree mcv)
        UI.liftIO $ system $ "cat .Hoed/debugTree.dot | unflatten -l 5| dot -Tpng -Gsize=15,15 -Gdpi=100"
                             ++ "> .Hoed/wwwroot/debugTree.png"
        i <- UI.liftIO $ readIORef imgCountRef
@@ -394,12 +404,11 @@ redraw img imgCountRef compTreeRef mcv
        UI.element img # set UI.src ("static/debugTree.png#" ++ show i)
        return ()
 
-  where shw g = showWith g (coloVertex $ faultyVertices g) showArc
+  where shw fs t = showWith t (coloVertex $ fs) showArc
         coloVertex _ RootVertex = ("\".\"", "shape=none")
-        coloVertex fs v = ( "\"" -- ++ (show . vertexUID) v ++ ": "
-                            ++ escape (summarizeVertex fs v) ++ "\""
-                          , if isCurrentVertex mcv v then "style=filled fillcolor=yellow"
-                                                     else ""
+        coloVertex fs v = ( vertexGraphvizLabel fs v
+                          , if isCurrentVertex mcv v then "shape=none fontcolor=blue"
+                                                     else "shape=none"
                           )
         showArc _  = ""
 

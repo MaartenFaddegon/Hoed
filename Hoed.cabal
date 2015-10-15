@@ -127,7 +127,7 @@ Executable hoed-examples-XMonad_changing_focus_duplicates_windows
   if flag(buildExamples)
     build-depends:     base >= 4 && < 5, Hoed, 
                        X11>=1.5 && < 1.7, mtl, unix,
-                       utf8-string >= 0.3 && < 0.4,
+                       utf8-string,
                        extensible-exceptions, random,
                        containers, filepath, process, directory
   else
@@ -140,7 +140,7 @@ Executable hoed-examples-XMonad_changing_focus_duplicates_windows__using_propert
   if flag(buildExamples)
     build-depends:     base >= 4 && < 5, Hoed, 
                        X11>=1.5 && < 1.7, mtl, unix,
-                       utf8-string >= 0.3 && < 0.4,
+                       utf8-string,
                        extensible-exceptions, random,
                        containers, filepath, process, directory
   else
@@ -153,7 +153,7 @@ Executable hoed-examples-SummerSchool_compiler_does_not_terminate
   if flag(buildExamples)
     build-depends:     base >= 4 && < 5, Hoed, 
                        X11>=1.5 && < 1.7, mtl, unix,
-                       utf8-string >= 0.3 && < 0.4,
+                       utf8-string,
                        extensible-exceptions, random,
                        containers, filepath, process, directory,
                        array
@@ -493,7 +493,7 @@ Executable hoed-tests-Prop-t3
   if flag(validateProp)
     build-depends:     base >= 4 && < 5, Hoed, 
                        X11>=1.5 && < 1.7, mtl, unix,
-                       utf8-string >= 0.3 && < 0.4,
+                       utf8-string,
                        extensible-exceptions, random,
                        containers, filepath, process, directory
   else
@@ -506,7 +506,7 @@ Executable hoed-tests-Prop-t4
   if flag(validateProp)
     build-depends:     base >= 4 && < 5, Hoed, 
                        X11>=1.5 && < 1.7, mtl, unix,
-                       utf8-string >= 0.3 && < 0.4,
+                       utf8-string,
                        extensible-exceptions, random,
                        containers, filepath, process, directory
   else
