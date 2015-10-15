@@ -6,18 +6,18 @@
 import Debug.Hoed.Pure
 
 -- Insertion sort.
-isort :: [Int] -> [Int]
+isort :: [Char] -> [Char]
 isort = observe "isort" isort'
 isort' []     = []
 isort' (n:ns) = insert n (isort ns)
 
 -- Insert number into sorted list.
-insert :: Int -> [Int] -> [Int]
+insert :: Char -> [Char] -> [Char]
 insert = observe "insert" insert'
-insert' :: Int -> [Int] -> [Int]
+insert' :: Char -> [Char] -> [Char]
 insert' n []      = [n]
 insert' n (m:ms)
       | n <= m    = n : ms -- bug: `m' is missing in this case
       | otherwise = m : (insert n ms)
 
-main = printO $ isort [1,2]
+main = printO $ isort "bug"
