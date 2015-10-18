@@ -319,7 +319,9 @@ menuVertices compTreeRef currentVertexRef = do
   i   <- UI.liftIO $ readIORef currentVertexRef
   mcv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
   let cv = case mcv of (Just v) -> v; Nothing -> RootVertex
-  return $ filter (/= RootVertex) $ (preds t cv) ++ (cv : (succs t cv))
+      ps = preds t cv
+      sibl = if RootVertex `elem` ps then succs t RootVertex else []
+  return $ filter (/= RootVertex) $ ps ++ sibl ++ (succs t cv)
 
 lookupCurrentVertex :: IORef Int -> IORef CompTree -> IO (Maybe Vertex)
 lookupCurrentVertex currentVertexRef compTree = do
@@ -365,7 +367,18 @@ summarizeVertex fs v = shorten (ShorterThan 60) (noNewlines . show . vertexStmt 
 
 vertexGraphvizLabel :: [Vertex] -> Vertex -> String
 vertexGraphvizLabel fs v =
-  "<<TABLE BORDER=\"0\" CELLBORDER=\"0\"><TR><TD HEIGHT=\"30\" WIDTH=\"30\" FIXEDSIZE=\"true\"><IMG SCALE=\"true\" SRC=\"" ++ (vertexImg fs v) ++ "\"/></TD><TD><FONT POINT-SIZE=\"30\">" ++ (noNewlines . show . vertexStmt $ v) ++ "</FONT></TD></TR></TABLE>>"
+  "<<TABLE BORDER=\"0\" CELLBORDER=\"0\"><TR><TD HEIGHT=\"30\" WIDTH=\"30\" FIXEDSIZE=\"true\"><IMG SCALE=\"true\" SRC=\"" ++ (vertexImg fs v) ++ "\"/></TD><TD><FONT POINT-SIZE=\"30\">" ++ (htmlEscape . noNewlines . show . vertexStmt $ v) ++ "</FONT></TD></TR></TABLE>>"
+
+htmlEscape :: String -> String
+htmlEscape = foldr (\c acc -> replace c ++ acc) ""
+  where
+  replace :: Char -> String
+  replace '"'  = "&quot;"
+  replace '{'  = "&#123;"
+  replace '\\' = "&#92;"
+  replace '>'  = "&gt;"
+  replace '}'  = "&#125;"
+  replace c    = [c]
 
 vertexImg :: [Vertex] -> Vertex -> String
 vertexImg fs v = if v `elem` fs then ".Hoed/wwwroot/faulty.png" else case vertexJmt v of
@@ -415,13 +428,18 @@ redraw img imgCountRef compTreeRef mcv
 -- Selects current vertex, its predecessor and its successors
 summarize :: CompTree -> Maybe Vertex -> CompTree
 summarize tree Nothing   = tree
-summarize tree (Just cv) = Graph r vs as
+summarize tree (Just cv) = Graph r vs as'
   where 
   i    = vertexUID cv
+  ps   = preds tree cv
+  ps'  = if RootVertex `elem` ps then ps ++ (succs tree RootVertex) else ps
+  cs   = succs tree cv
+  vs   = nub (ps' ++ cv : cs)
   as   = filter (\a -> isCV (source a) || isCV (target a)) (arcs tree)
-  vs   = nub ((preds tree cv) ++ (cv : succs tree cv)) -- could be done more efficient
+  as'  = if RootVertex `elem` ps then nub (as ++ filter (\a -> isRV (source a)  || isRV (target a)) (arcs tree)) else as
   r    = if RootVertex `elem` vs then RootVertex else head vs
   isCV = (==i) . vertexUID
+  isRV = (==) RootVertex
 
 isCurrentVertex :: Maybe Vertex -> Vertex -> Bool
 isCurrentVertex mcv v = case v of
