@@ -12,6 +12,7 @@ import Debug.Hoed.Pure.Observe(Trace(..),UID,Event(..),Change(..),ourCatchAllIO,
 import Debug.Hoed.Pure.Render(CompStmt(..))
 import Debug.Hoed.Pure.CompTree(CompTree,Vertex(..),Graph(..),vertexUID)
 import Debug.Hoed.Pure.EventForest(EventForest,mkEventForest,dfsChildren)
+import Debug.Hoed.Pure.DemoGUI(noNewlines)
 import qualified Data.IntMap as M
 
 import qualified Debug.Trace as Debug -- MF TODO
@@ -114,23 +115,21 @@ judgeWithPropositions trc p v = do
 evalProposition :: Trace -> Vertex -> [Module] -> Proposition -> IO (Maybe Bool)
 evalProposition trc v ms prop = do
   createDirectoryIfMissing True ".Hoed/exe"
-  hPutStrLn stderr $ "Evaluating proposition " ++ propName prop ++ " with statement " ++ (shorten . stmtRes . vertexStmt) v
-
-  let args = map (\(n,s) -> "Argument " ++ show n ++ ": " ++ s) $ zip [0..] (generateArgs trc getEvent i)
+  hPutStrLn stderr $ "\nEvaluating proposition " ++ propName prop ++ " with statement " ++ (shorten . noNewlines . show) v
+  -- let args = map (\(n,s) -> "Argument " ++ show n ++ ": " ++ s) $ zip [0..] (generateArgs trc getEvent i)
   -- let args = map (\(n,s) -> "Argument " ++ show n ++ ": " ++ (shorten s)) $ zip [0..] (generateArgs trc getEvent i)
-  hPutStrLn stderr $ "Statement UID = " ++ show i
-  mapM (hPutStrLn stderr) args
-
+  -- hPutStrLn stderr $ "Statement UID = " ++ show i
+  -- mapM (hPutStrLn stderr) args
   clean
   generateCode
   compile
   exit' <- compile
-  hPutStrLn stderr $ "Exitted with " ++ show exit'
+  hPutStrLn stderr $ "Compilation exitted with " ++ show exit'
   exit  <- case exit' of (ExitFailure n) -> return (ExitFailure n)
                          ExitSuccess     -> evaluate
   out  <- readFile outFile
-  hPutStrLn stderr $ "Exitted with " ++ show exit
-  hPutStrLn stderr $ "Output is " ++ show out ++ "\n"
+  hPutStrLn stderr $ "Evaluation exitted with " ++ show exit
+  hPutStrLn stderr $ "Output is " ++ show out
   return $ case (exit, out) of
     (ExitFailure _, _)         -> Nothing -- TODO: Can we do better with a failing precondition?
     (ExitSuccess  , "True\n")  -> Just True

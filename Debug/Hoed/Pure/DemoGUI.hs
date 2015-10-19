@@ -3,7 +3,7 @@
 -- Copyright (c) Maarten Faddegon, 2014-2015
 {-# LANGUAGE CPP #-}
 
-module Debug.Hoed.Pure.DemoGUI (guiMain)
+module Debug.Hoed.Pure.DemoGUI (guiMain, noNewlines)
 where
 
 import qualified Prelude

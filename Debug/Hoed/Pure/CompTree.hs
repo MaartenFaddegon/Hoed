@@ -11,6 +11,10 @@ module Debug.Hoed.Pure.CompTree
 , vertexRes
 , getJudgement
 , setJudgement
+, isRight
+, isWrong
+, isUnassessed
+, isAssisted
 , leafs
 , ConstantValue(..)
 , getLocation
@@ -43,6 +47,11 @@ getJudgement v          = vertexJmt v
 setJudgement :: Vertex -> Judgement -> Vertex
 setJudgement RootVertex _ = RootVertex
 setJudgement v          j = v{vertexJmt=j}
+
+isRight v      = getJudgement v == Right
+isWrong v      = getJudgement v == Wrong
+isUnassessed v = getJudgement v == Unassessed
+isAssisted v   = case getJudgement v of (Assisted _) -> True; _ -> False
 
 vertexUID :: Vertex -> UID
 vertexUID RootVertex   = -1

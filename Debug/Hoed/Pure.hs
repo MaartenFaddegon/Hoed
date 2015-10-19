@@ -102,6 +102,7 @@ module Debug.Hoed.Pure
 
   -- * Property-based judging
   , runOwp
+  , testOwp
   , logOwp
   , Propositions(..)
   , PropType(..)
@@ -200,6 +201,10 @@ runO program = do
   debugSession trace traceInfo compTree frt
   return ()
 
+-- | Repeat and trace a failing testcase
+testO :: Show a => (a->Bool) -> a -> IO ()
+testO p x = runO $ putStrLn $ if (p x) then "Passed 1 test."
+                                       else " *** Failed! Falsifiable: " ++ show x
 
 -- | Use property based judging.
 
@@ -208,13 +213,23 @@ runOwp ps program = do
   (trace,traceInfo,compTree,frt) <- runO' program
   hPutStrLn stderr "\n=== Evaluating assigned properties ===\n"
   compTree' <- judge trace ps compTree
-  debugSession trace traceInfo compTree' frt
+
+  let vs = filter (/= RootVertex) (vertices compTree')
+      showLen p = show . length . (filter p) $ vs
+  hPutStrLn stderr "\n=== Evaluated assigned properties for all computation statements ==="
+  hPutStrLn stderr $ showLen isWrong    ++ " statements are now wrong because they fail a property."
+  hPutStrLn stderr $ showLen isAssisted ++ " statements satisfy some properties and violate no properties."
+  hPutStrLn stderr $ showLen isRight    ++ " statements are right because they satisfy their specification."
+  case (findFaulty_dag getJudgement compTree') of
+    []    -> do hPutStrLn stderr "\n=== Starting interactive debug session ===\n"
+                debugSession trace traceInfo compTree' frt
+    (v:_) -> hPutStrLn stderr $ "Fault detected in:\n\n" ++ show v
   return ()
 
 -- | Repeat and trace a failing testcase
-testO :: Show a => (a->Bool) -> a -> IO ()
-testO p x = runO $ putStrLn $ if (p x) then "Passed 1 test."
-                                       else " *** Failed! Falsifiable: " ++ show x
+testOwp :: Show a => [Propositions] -> (a->Bool) -> a -> IO ()
+testOwp ps p x = runOwp ps $ putStrLn $ if (p x) then "Passed 1 test."
+                                                 else " *** Failed! Falsifiable: " ++ show x
 
 -- | Short for @runO . print@.
 printO :: (Show a) => a -> IO ()
