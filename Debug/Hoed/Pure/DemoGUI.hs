@@ -176,7 +176,7 @@ updateRegEx currentVertexRef vs stmtDiv r = do
 guiAlgoDebug :: IORef CompTree -> IORef Int -> IORef String -> IORef Int -> UI UI.Element
 guiAlgoDebug compTreeRef currentVertexRef regexRef imgCountRef = do
 
-       -- Get a list of vertices from the computation graph
+       -- Get a list of vertices from the computation tree
        tree <- UI.liftIO $ readIORef compTreeRef
 
        -- Status
@@ -289,7 +289,9 @@ updateMenu :: UI.Element -> IORef CompTree -> IORef Int -> UI ()
 updateMenu menu compTreeRef currentVertexRef = do
        vs <- menuVertices compTreeRef currentVertexRef
        i  <- UI.liftIO $ readIORef currentVertexRef
-       let (Just j) = findIndex (\v -> vertexUID v == i) vs
+       let j = case findIndex (\v -> vertexUID v == i) vs of
+                 (Just j') -> j'
+                 Nothing   -> 0
        t  <- UI.liftIO $ readIORef compTreeRef
        let fs = faultyVertices t
        ops   <- mapM (\s->UI.option # set UI.text s) $ map (summarizeVertex fs) vs
@@ -427,7 +429,6 @@ redraw img imgCountRef compTreeRef mcv
 
 -- Selects current vertex, its predecessor and its successors
 summarize :: CompTree -> Maybe Vertex -> CompTree
-summarize tree Nothing   = tree
 summarize tree (Just cv) = Graph r vs as'
   where 
   i    = vertexUID cv
@@ -440,6 +441,7 @@ summarize tree (Just cv) = Graph r vs as'
   r    = if RootVertex `elem` vs then RootVertex else head vs
   isCV = (==i) . vertexUID
   isRV = (==) RootVertex
+summarize tree Nothing   = tree
 
 isCurrentVertex :: Maybe Vertex -> Vertex -> Bool
 isCurrentVertex mcv v = case v of
@@ -451,111 +453,3 @@ isCurrentVertex mcv v = case v of
 
 faultyVertices :: CompTree -> [Vertex]
 faultyVertices = findFaulty_dag getJudgement
-
-{-
-
---------------------------------------------------------------------------------
--- The page showing the list of events in the trace
-
-guiTrace :: Trace -> TraceInfo -> UI UI.Element
-guiTrace trace traceInfo = do
-  rows <- mapM (\e -> eventRow e traceInfo) (reverse trace)
-  tbl  <- UI.table #+ map return rows
-  UI.span #+ [return tbl]
-
-eventRow :: Event -> TraceInfo -> UI UI.Element
-eventRow e traceInfo = do
-  sign <- UI.td # set UI.text (let sym = case getLocation e traceInfo of True  -> "* "; False -> "o "
-                               in case change e of
-                                    Observe{} -> " "
-                                    Fun{}     -> " "
-                                    Enter{}   -> sym
-                                    Cons{}    -> sym)
-  evnt <- UI.td # set UI.text (show e)
-  msg <- UI.td # set UI.text (getMessage e traceInfo)
-  UI.tr #+ map return [sign,evnt,msg]
-
-getStk :: Event -> TraceInfo -> String
-getStk e traceInfo = case change e of
-  Enter{}  -> case IntMap.lookup (eventUID e) (storedStack traceInfo) of 
-              (Just stk) -> show stk
-              Nothing    -> ""
-  _        -> ""
-
-
-
-
---------------------------------------------------------------------------------
--- The data flow GUI
-
-guiDDT :: ConstantTree -> IORef Int -> EventForest -> IORef Int -> IORef CompTree -> UI UI.Element
-guiDDT ddt imgCountRef frt currentVertexRef compTreeRef = do
-  (Graph _ vs _) <- UI.liftIO $ readIORef compTreeRef
-  let idStmts = map (\(Vertex s _) -> (equIdentifier s, s)) . filter (not . isRootVertex) $ vs
-
-  -- The current computation statement
-  i  <- UI.liftIO $ readIORef currentVertexRef
-  stmtDiv <- UI.div # set UI.text (case lookup i idStmts of 
-        Nothing  -> "?"
-        (Just s) -> equRes s)
-
-  -- Menu to select constant (floating on the right of the page) 
-  let (Graph _ cs _) = ddt
-      cs_i = filter (\c -> case c of CVRoot -> False; _ -> valStmt c == i) cs
-  cSel   <- UI.select #+ map (\c -> UI.option # set UI.text (shwConst c)) cs_i
-  shwBut <- UI.button # set UI.text "Show me"
-  selDiv <- UI.div # set UI.style [("float","right")] #+ [return shwBut, UI.span # set UI.text " where ", return cSel, UI.span # set UI.text " comes from."]
-
-  -- The dynamic data dependency tree
-  img <- UI.img
-  drawDDT ddt img imgCountRef frt
-  centImg <- UI.center #+ [UI.element img]
-
-  UI.div #+ [return selDiv, return stmtDiv, UI.hr, return centImg]
-
-  where shwConst c = shwLoc c ++ "\"" ++ (case lookup (valMax c) es of (Just e) -> render frt e; Nothing -> "?") ++ "\""
-        shwLoc c = case (show . valLoc) c of "" -> ""; s -> s ++ ": "
-        es = eventsByUID frt
-
-updateStmt :: UI.Element -> IORef Int -> [CompStmt] -> Int -> UI ()
-updateStmt stmtDiv currentVertexRef ss pos = do
-  let s = ss !! pos
-  return stmtDiv # set UI.text (equRes s)
-  UI.liftIO $ writeIORef currentVertexRef (equIdentifier s)
-
-drawDDT :: ConstantTree -> UI.Element -> IORef Int -> EventForest -> UI ()
-drawDDT ddt img imgCountRef frt = do
-  UI.liftIO $ writeFile ".Hoed/dynData.dot" (shw ddt)
-  UI.liftIO $ system $ "dot -Tpng -Gsize=9,9 -Gdpi=100 .Hoed/dynData.dot > .Hoed/wwwroot/dynData.png"
-  i <- UI.liftIO $ readIORef imgCountRef
-  UI.liftIO $ writeIORef imgCountRef (i+1)
-  UI.element img # set UI.src ("static/dynData.png#" ++ show i)
-  return ()
-
-  where shw g = showWith g shwConst shwArc
-        shwConst c = ("Stmt-"++ (show . valStmt) c ++ "-" ++ (show . valLoc) c ++ ": " ++ case lookup (valMax c) es of (Just e) -> render frt e; Nothing -> "?","")
-        shwArc _   = ""
-        es = eventsByUID frt
-
-eventsByUID :: EventForest -> [(UID,Event)]
--- eventsByUID = map (\e -> (eventUID e, e)) . foldl (\acc1 (_,es_p) -> foldl (\acc2 (_,e) -> e : acc2) acc1 es_p) []
-eventsByUID = map (\e -> (eventUID e, e)) . map snd . concat . elems
-
-render :: EventForest -> Event -> String
-render frt r = dfsFold Infix pre post "" Trunk (Just r) frt
-  where pre Nothing  _ = (++" _")
-        pre (Just e) _ = case change e of
-          (Observe s _ _ _) -> (++s)
-          (Cons _ s)        -> (++" ("++s)
-          Enter             -> id
-          NoEnter           -> id
-          Fun               -> (++"{\\")
-        post Nothing  _ = id
-        post (Just e) _ = case change e of
-          (Observe s _ _ _) -> id
-          (Cons _ s)        -> (++")")
-          Enter             -> id
-          NoEnter           -> id
-          Fun               -> (++"}")
-
--}

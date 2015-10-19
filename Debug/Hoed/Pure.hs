@@ -96,6 +96,7 @@ module Debug.Hoed.Pure
   ( -- * Basic annotations
     observe
   , runO
+  , testO
   , printO
   , logO
 
@@ -209,6 +210,11 @@ runOwp ps program = do
   compTree' <- judge trace ps compTree
   debugSession trace traceInfo compTree' frt
   return ()
+
+-- | Repeat and trace a failing testcase
+testO :: Show a => (a->Bool) -> a -> IO ()
+testO p x = runO $ putStrLn $ if (p x) then "Passed 1 test."
+                                       else " *** Failed! Falsifiable: " ++ show x
 
 -- | Short for @runO . print@.
 printO :: (Show a) => a -> IO ()
