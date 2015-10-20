@@ -115,7 +115,7 @@ judgeWithPropositions trc p v = do
 evalProposition :: Trace -> Vertex -> [Module] -> Proposition -> IO (Maybe Bool)
 evalProposition trc v ms prop = do
   createDirectoryIfMissing True ".Hoed/exe"
-  hPutStrLn stderr $ "\nEvaluating proposition " ++ propName prop ++ " with statement " ++ (shorten . noNewlines . show) v
+  hPutStrLn stderr $ "\nEvaluating proposition " ++ propName prop ++ " with statement " ++ (shorten . noNewlines . show . vertexStmt) v
   -- let args = map (\(n,s) -> "Argument " ++ show n ++ ": " ++ s) $ zip [0..] (generateArgs trc getEvent i)
   -- let args = map (\(n,s) -> "Argument " ++ show n ++ ": " ++ (shorten s)) $ zip [0..] (generateArgs trc getEvent i)
   -- hPutStrLn stderr $ "Statement UID = " ++ show i
