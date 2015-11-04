@@ -223,7 +223,7 @@ runOwp ps program = do
   case (findFaulty_dag getJudgement compTree') of
     []    -> do hPutStrLn stderr "\n=== Starting interactive debug session ===\n"
                 debugSession trace traceInfo compTree' frt
-    (v:_) -> hPutStrLn stderr $ "Fault detected in:\n\n" ++ show v
+    (v:_) -> hPutStrLn stderr $ "Fault detected in:\n\n" ++ show (vertexStmt v)
   return ()
 
 -- | Repeat and trace a failing testcase
