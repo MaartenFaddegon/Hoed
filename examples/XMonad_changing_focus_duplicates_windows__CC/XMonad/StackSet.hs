@@ -228,7 +228,7 @@ new _ _ _ = abort "non-positive argument to StackSet.new"
 -- current.
 
 view :: (Eq s, Eq i, Show a, Observable a, Observable i, Observable l, Observable s, Observable sd) => i -> StackSet i l a s sd -> StackSet i l a s sd
-view = observe "view" view_
+view = observe "view" (\i s -> {-# SCC "view" #-} view_ i s)
 view_ i s
     | i == currentTag s = s  -- current
 
@@ -259,8 +259,7 @@ view_ i s
 -- swapped.
 
 greedyView :: (Eq s, Eq i, Show a, Observable a, Observable i, Observable l, Observable s, Observable sd) => i -> StackSet i l a s sd -> StackSet i l a s sd
-greedyView = greedyView' -- observe "greedyView" greedyView'
-greedyView' w ws
+greedyView w ws
      | any wTag (hidden ws) = view w ws
      | (Just s) <- L.find (wTag . workspace) (visible ws)
                             = ws { current = (current ws) { workspace = workspace s }
@@ -362,7 +361,7 @@ index = with [] integrate
 -- the current stack.
 --
 focusUp, focusUp_, focusDown, swapUp, swapDown :: (Show a, Observable a, Observable i, Observable l, Observable s, Observable sd) => StackSet i l a s sd -> StackSet i l a s sd
-focusUp    = observe "focusUp" focusUp_
+focusUp    = observe "focusUp" (\s -> {-# SCC "focusUp" #-} focusUp_ s)
 focusUp_   = modify' focusUp'
 focusDown  = modify' focusDown'
 
@@ -372,7 +371,7 @@ swapDown  = modify' (reverseStack . swapUp' . reverseStack)
 -- | Variants of 'focusUp' and 'focusDown' that work on a
 -- 'Stack' rather than an entire 'StackSet'.
 focusUp', focusDown' :: Observable a => Stack a -> Stack a
-focusUp' = observe "focusUp'" focusUp'_
+focusUp' = observe "focusUp'" (\s -> {-# SCC "focusUp'" #-} focusUp'_ s)
 focusUp'_ (Stack t (l:ls) rs) = Stack l ls (t:rs)
 focusUp'_ (Stack t []     rs) = Stack x xs [] where (x:xs) = reverse (t:rs)
 focusDown'                   = reverseStack . focusUp' . reverseStack
@@ -390,7 +389,7 @@ reverseStack (Stack t ls rs) = Stack t rs ls
 -- and set its workspace as current.
 --
 focusWindow :: (Eq s, Eq a, Eq i, Show a, Observable a, Observable i, Observable l, Observable s, Observable sd)=> a -> StackSet i l a s sd -> StackSet i l a s sd
-focusWindow = observe "focusWindow" focusWindow'
+focusWindow = observe "focusWindow" (\w s -> {-# SCC "focusWindow" #-} focusWindow' w s)
 focusWindow' w s | Just w == peek s = s
                 | otherwise        = fromMaybe s $ do
                     n <- findTag w s
@@ -447,14 +446,14 @@ mapLayout f (StackSet v vs hs m) = StackSet (fScreen v) (map fScreen vs) (map fW
 
 -- | /O(n)/. Is a window in the 'StackSet'?
 member :: (Eq a, Show a, Observable a, Observable i, Observable l, Observable s, Observable sd) => a -> StackSet i l a s sd -> Bool
-member = observe "member" member_
+member = observe "member" (\a s -> {-# SCC "member" #-} member_ a s) 
 member_ a s = isJust (findTag a s)
 
 -- | /O(1) on current window, O(n) in general/.
 -- Return 'Just' the workspace tag of the given window, or 'Nothing'
 -- if the window is not in the 'StackSet'.
 findTag :: (Eq a, Show a, Observable a, Observable i, Observable l, Observable s, Observable sd) => a -> StackSet i l a s sd -> Maybe i
-findTag = observe "findTag" findTag_
+findTag = observe "findTag" (\a s -> {-# SCC "findTag" #-} findTag_ a s)
 findTag_ a s = listToMaybe
     [ tag w | w <- workspaces s, has a (stack w) ]
     where has _ Nothing         = False
@@ -476,7 +475,7 @@ findTag_ a s = listToMaybe
 -- However, we choose to insert above, and move the focus.
 --
 insertUp :: (Eq a, Show a, Observable a, Observable i, Observable l, Observable s, Observable sd) => a -> StackSet i l a s sd -> StackSet i l a s sd
-insertUp = observe "insertUp" insertUp_
+insertUp = observe "insertUp" (\a s -> {-# SCC "insertUp" #-} insertUp_ a s)
 insertUp_ a s = if member a s then s else insert
   where insert = modify (Just $ Stack a [] []) (\(Stack t l r) -> Just $ Stack a l (t:r)) s
 
@@ -565,7 +564,7 @@ focusMaster = modify' $ \c -> case c of
 -- element on the current stack, the original stackSet is returned.
 --
 shift :: (Ord a, Eq s, Eq i, Show a, Observable a, Observable i, Observable l, Observable s, Observable sd) => i -> StackSet i l a s sd -> StackSet i l a s sd
-shift = observe "shift" shift_
+shift = observe "shift" (\n s -> {-# SCC "shift" #-} shift_ n s)
 shift_ n s = maybe s (\w -> shiftWin n w s) (peek s)
 
 -- | /O(n)/. shiftWin. Searches for the specified window 'w' on all workspaces
@@ -575,7 +574,7 @@ shift_ n s = maybe s (\w -> shiftWin n w s) (peek s)
 -- The actual focused workspace doesn't change. If the window is not
 -- found in the stackSet, the original stackSet is returned.
 shiftWin :: (Ord a, Eq a, Eq s, Eq i, Show a, Observable a, Observable i, Observable l, Observable s, Observable sd) => i -> a -> StackSet i l a s sd -> StackSet i l a s sd
-shiftWin = observe "shiftWin" shiftWin_
+shiftWin = observe "shiftWin" (\n w s -> {-# SCC "shiftWin" #-} shiftWin_ n w s)
 shiftWin_ n w s = case findTag w s of
                     Just from | n `tagMember` s && n /= from -> go from s
                     _                                        -> s
