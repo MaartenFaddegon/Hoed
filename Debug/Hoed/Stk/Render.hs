@@ -442,8 +442,6 @@ renderNamedFn name (args,res)
          )
 
 
--- This is where the call stacks are merged.
---
 -- MF TODO: It would be beneficial for performance if we would only save the
 -- stack once at the top as we already do in the paper and our semantics test code
 
@@ -452,9 +450,12 @@ findFn = foldr findFn' ([],[])
 
 findFn' (CDSFun _ arg res caller) (rest,_) =
     case findFn res of
-       ([(args',res')],caller') -> if caller' /= [] && caller' /= caller 
-                                   then error "found two different stacks!"
-                                   else ((arg : args', res') : rest, caller)
+       ([(args',res')],caller') -> -- is this sound?
+                                         ((arg : args', res') : rest, caller)
+                                   -- or should it be
+                                   --    if caller' /= [] && caller' /= caller 
+                                   --    then error "found two different stacks!"
+                                   --    else ((arg : args', res') : rest, caller)
        _                        -> (([arg], res) : rest,        caller)
 findFn' other (rest,caller)   =  (([],[other]) : rest,        caller)
 
