@@ -239,9 +239,7 @@ view_ i s
     | Just x <- L.find ((i==).tag)           (hidden  s) -- must be hidden then
     -- if it was hidden, it is raised on the xine screen currently used
     = s { current = (current s) { workspace = x }
-        , hidden = workspace (current s) : (hidden s) } -- DEFECT: we forget to delete the raised window from the set of hidden windows
-        -- , hidden = L.deleteBy (equating tag) x (hidden s) } -- alternative DEFECT: we forget to add the current window to the list of hidden windows
-        -- , hidden = workspace (current s) : L.deleteBy (equating tag) x (hidden s) }
+        , hidden = workspace (current s) : (hidden s) } -- DEFECT: we forget to delete the focussed workspace from the set of hidden workspaces
 
     | otherwise = s -- not a member of the stackset
 
@@ -374,8 +372,6 @@ swapDown  = modify' (reverseStack . swapUp' . reverseStack)
 -- | Variants of 'focusUp' and 'focusDown' that work on a
 -- 'Stack' rather than an entire 'StackSet'.
 focusUp', focusDown' :: Observable a => Stack a -> Stack a
-
--- focusUp' (Stack t (l:ls) rs) = Stack l ls (t:rs)
 focusUp' = observe "focusUp'" focusUp'_
 focusUp'_ (Stack t (l:ls) rs) = Stack l ls (t:rs)
 focusUp'_ (Stack t []     rs) = Stack x xs [] where (x:xs) = reverse (t:rs)
@@ -396,9 +392,9 @@ reverseStack (Stack t ls rs) = Stack t rs ls
 focusWindow :: (Eq s, Eq a, Eq i, Show a, Observable a, Observable i, Observable l, Observable s, Observable sd)=> a -> StackSet i l a s sd -> StackSet i l a s sd
 focusWindow = observe "focusWindow" focusWindow'
 focusWindow' w s | Just w == peek s = s
-                 | otherwise        = fromMaybe s $ do
-                     n <- findTag w s
-                     return $ until ((Just w ==) . peek) focusUp (view n s)
+                | otherwise        = fromMaybe s $ do
+                    n <- findTag w s
+                    return $ until ((Just w ==) . peek) focusUp (view n s)
 
 -- | Get a list of all screens in the 'StackSet'.
 screens :: StackSet i l a s sd -> [Screen i l a s sd]
@@ -462,7 +458,6 @@ findTag = observe "findTag" findTag_
 findTag_ a s = listToMaybe
     [ tag w | w <- workspaces s, has a (stack w) ]
     where has _ Nothing         = False
-          -- has x (Just s)        = x `elem` (up s) || x `elem` (down s) -- BUG: forgot about (focus s)
           has x (Just (Stack t l r)) = x `elem` (t : l ++ r)
 
 -- ---------------------------------------------------------------------
