@@ -94,6 +94,21 @@ Executable hoed-examples-FPretty_indents_too_much
   hs-source-dirs:      examples/FPretty
   default-language:    Haskell2010
 
+Executable hoed-examples-FPretty_indents_too_much__CC
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+                         , containers
+                         , deepseq
+                         , array
+  else
+    buildable: False
+  main-is:             Main.hs
+  hs-source-dirs:      examples/FPretty__CC
+  default-language:    Haskell2010
+
 -- Executable hoed-examples-FPretty_indents_too_much__with_properties
 --   if flag(buildExamples)
 --     build-depends:       base >= 4 && < 5
@@ -134,6 +149,19 @@ Executable hoed-examples-XMonad_changing_focus_duplicates_windows
     buildable: False
   main-is:             Main.hs
   hs-source-dirs:      examples/XMonad_changing_focus_duplicates_windows
+  default-language:    Haskell2010
+
+Executable hoed-examples-XMonad_changing_focus_duplicates_windows__CC
+  if flag(buildExamples)
+    build-depends:     base >= 4 && < 5, Hoed, 
+                       X11>=1.5 && < 1.7, mtl, unix,
+                       utf8-string,
+                       extensible-exceptions, random,
+                       containers, filepath, process, directory
+  else
+    buildable: False
+  main-is:             Main.hs
+  hs-source-dirs:      examples/XMonad_changing_focus_duplicates_windows__CC
   default-language:    Haskell2010
 
 Executable hoed-examples-XMonad_changing_focus_duplicates_windows__using_properties

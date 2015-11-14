@@ -59,7 +59,7 @@ demoGUI sliceDict treeRef window
        menu <- UI.select
        showStmt compStmt filteredVerticesRef currentVertexRef
        updateMenu menu treeRef currentVertexRef filteredVerticesRef
-       let selectVertex' = selectVertex compStmt filteredVerticesRef currentVertexRef                                           $ redrawWith img imgCountRef treeRef
+       let selectVertex' = selectVertex compStmt filteredVerticesRef currentVertexRef $ redrawWith img imgCountRef treeRef
        on UI.selectionChange menu selectVertex'
 
        -- Buttons for the various filters
@@ -81,20 +81,20 @@ demoGUI sliceDict treeRef window
        onClickFilter' showMatchBut ShowMatch
 
        -- Status
-       status <- UI.span
-       updateStatus status treeRef 
+       statusSpan <- UI.span
+       updateStatus statusSpan treeRef 
 
        -- Buttons to judge the current statement
        right <- UI.button # UI.set UI.text "right"
        wrong <- UI.button # UI.set UI.text "wrong"
-       let onJudge = onClick status menu img imgCountRef treeRef 
+       let onJudge = onClick statusSpan menu img imgCountRef treeRef 
                              currentVertexRef filteredVerticesRef
        onJudge right Right
        onJudge wrong Wrong
 
        -- Populate the main screen
        hr <- UI.hr
-       UI.getBody window #+ (map UI.element [filters, menu, right, wrong, status
+       UI.getBody window #+ (map UI.element [filters, menu, right, wrong, statusSpan
                                             , compStmt, hr,img'])
        return ()
 
@@ -125,17 +125,20 @@ vertexFilter f g cv r = filter (not . isRoot) $ case f of
 onClick :: UI.Element -> UI.Element -> UI.Element 
            -> IORef Int -> IORef CompGraph -> IORef Int -> IORef [Vertex]
            -> UI.Element -> Judgement-> UI ()
-onClick status menu img imgCountRef treeRef currentVertexRef filteredVerticesRef b j = do
+onClick statusSpan menu img imgCountRef treeRef currentVertexRef filteredVerticesRef b j = do
   on UI.click b $ \_ -> do
         (Just v) <- UI.liftIO $ lookupCurrentVertex currentVertexRef filteredVerticesRef
-        replaceFilteredVertex v (v{status=j})
+        replaceFilteredVertex v (newStatus v j)
         updateTree img imgCountRef treeRef (Just v) (\tree -> markNode tree v j)
         updateMenu menu treeRef currentVertexRef filteredVerticesRef
-        updateStatus status treeRef
+        updateStatus statusSpan treeRef
 
   where replaceFilteredVertex v w = do
           vs <- UI.liftIO $ readIORef filteredVerticesRef
           UI.liftIO $ writeIORef filteredVerticesRef $ map (\x -> if x == v then w else x) vs
+
+newStatus Root _ = Root
+newStatus v j    = v{status=j}
 
 lookupCurrentVertex :: IORef Int -> IORef [Vertex] -> IO (Maybe Vertex)
 lookupCurrentVertex currentVertexRef filteredVerticesRef = do
@@ -185,9 +188,10 @@ onClickFilter menu treeRef currentVertexRef filteredVerticesRef selectVertex' re
 markNode :: CompGraph -> Vertex -> Judgement -> CompGraph
 markNode g v s = mapGraph f g
   where f Root = Root
-        f v'   = if v' === v then v{status=s} else v'
+        f v'   = if v' === v then newStatus v s else v'
 
         (===) :: Vertex -> Vertex -> Bool
+        Root === v = v == Root
         v1 === v2 = (equations v1) == (equations v2)
 
 data MaxStringLength = ShorterThan Int | Unlimited
@@ -204,11 +208,13 @@ noNewlines :: String -> String
 noNewlines = filter (/= '\n')
 
 showCompStmts :: Vertex -> String
-showCompStmts = commas . map show . equations
-
+showCompStmts = commas . equations'
+  where equations' Root = ["Root"]
+        equations' v    = map show . equations $ v
+        
 summarizeVertex :: [Vertex] -> Vertex -> String
 summarizeVertex fs v = shorten (ShorterThan 27) (noNewlines $ showCompStmts v) ++ s
-  where s = if v `elem` fs then " !!" else case status v of
+  where s = if v `elem` fs then " !!" else case getStatus v of
               Unassessed     -> " ??"
               Wrong          -> " :("
               Right          -> " :)"
@@ -216,8 +222,9 @@ summarizeVertex fs v = shorten (ShorterThan 27) (noNewlines $ showCompStmts v) +
 updateStatus :: UI.Element -> IORef CompGraph -> UI ()
 updateStatus e compGraphRef = do
   g <- UI.liftIO $ readIORef compGraphRef
-  let getLabel   = commas . (map equLabel) . equations
-      isJudged v = status v /= Unassessed
+  let getLabel Root = "Root"
+      getLabel v = commas . (map equLabel) . equations $ v
+      isJudged v = getStatus v /= Unassessed
       slen       = show . length
       ns = filter (not . isRoot) (preorder g)
       js = filter isJudged ns
@@ -281,11 +288,12 @@ isCurrentVertex mcv v = case v of
                 (Just w)    -> equations v == equations w
 
 commas :: [String] -> String
+commas []  = error "commas: empty list"
 commas [e] = e
-commas es  = foldl (\acc e-> acc ++ e ++ ", ") "{" (init es) 
-                     ++ show (last es) ++ "}"
+commas es  = foldl (\acc e-> acc ++ e ++ ", ") "{" (init es) ++ (last es) ++ "}"
 
 faultyVertices :: CompGraph -> [Vertex]
 faultyVertices = findFaulty_dag getStatus
-  where getStatus Root = Right
-        getStatus v    = status v
+
+getStatus Root = Right
+getStatus v    = status v

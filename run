@@ -40,7 +40,8 @@ cd tmp
 #   kill -2 $! # send a "ctrl-C" signal to stop the hanging compiler...
 #   wait
 # else
-../dist/build/$EXE/$EXE +RTS -p -h -L80
+# ../dist/build/$EXE/$EXE +RTS -p -h -L80
 # fi
+eval ../dist/build/$EXE/$EXE
 
 
