@@ -316,7 +316,11 @@ type TreeCont = Position -> Dequeue.Seq (Position,OutGroup) -> Out
              -> String
 -}
 interpret :: Doc -> Width -> TreeCont -> TreeCont
-interpret = observe "interpret" (\d w tc -> {-# SCC "interpret" #-} interpret' d w tc)
+interpret = observe "interpret" interpret_cc
+
+interpret_cc :: Doc -> Width -> TreeCont -> TreeCont
+interpret_cc d w tc = {-# SCC "interpret" #-} interpret' d w tc
+
 interpret' Nil w tc p ds = tc p ds
 interpret' (Text l t) w tc p ds =
   extendFrontGroup id prune (outText l t) tc (p+l) ds

@@ -262,7 +262,8 @@ redraw img imgCountRef treeRef mcv
        return ()
 
   where shw g = showWith g (coloVertex $ faultyVertices g) showArc
-        coloVertex fs v = ( "\"" ++ summarizeVertex fs v ++ "\""
+        coloVertex _ Root = ("\".\"", "shape=none")
+        coloVertex fs v = ( "\"" ++ escape (summarizeVertex fs v) ++ "\""
                           , if isCurrentVertex mcv v then "style=filled fillcolor=yellow"
                                                      else ""
                           )
