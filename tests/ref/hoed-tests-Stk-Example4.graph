@@ -1,7 +1,6 @@
 diGraph G {
-v0[shape=none label="."]
-v1 [label="main  = 42
+v1 [label="main = 42
 with stack []"]
-v0[shape=none label="."]
+v0 [label=root]
 v0 -> v1 [label=""]
 }

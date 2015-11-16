@@ -1,10 +1,9 @@
 diGraph G {
-v0[shape=none label="."]
-v2 [label="g 2  = 1
+v2 [label="g 2 = 1
 with stack [\"f\"]"]
-v1 [label="{f 2  = 1, f 0  = 0, }
+v1 [label="{f 2 = 1, f 0 = 0, }
 with stack []"]
-v0[shape=none label="."]
+v0 [label=root]
 v1 -> v2 [label=""]
 v0 -> v1 [label=""]
 }

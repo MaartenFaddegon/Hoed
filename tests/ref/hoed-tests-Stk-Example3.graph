@@ -1,15 +1,14 @@
 diGraph G {
-v1[shape=none label="."]
-v5 [label="n 1  = 1
+v5 [label="n 1 = 1
 with stack [\"m\",\"l\",\"k\"]"]
-v4 [label="n 2  = 2
+v4 [label="n 2 = 2
 with stack [\"m\",\"k\"]"]
-v3 [label="m 2  = 2
+v3 [label="m 2 = 2
 with stack [\"k\"]"]
-v2 [label="k 1  = 3
+v2 [label="k 1 = 3
 with stack []"]
-v1[shape=none label="."]
-v0 [label="{l 1  = 1, m 1  = 1}
+v1 [label=root]
+v0 [label="{l 1 = 1, m 1 = 1}
 with stack [\"k\"]"]
 v2 -> v5 [label=""]
 v3 -> v0 [label=""]

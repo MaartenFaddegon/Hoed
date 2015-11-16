@@ -24,6 +24,7 @@ for t in $TESTS; do
     echo -en '\E[37;31m'"\033[1m!!\033[0m" # red "!!" on white background
     tput sgr0                              # reset colour
     echo "] $t"
+    cat $t.diff
   fi
 done
 
