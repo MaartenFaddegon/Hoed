@@ -16,7 +16,7 @@ copyright:           (c) 2000 Andy Gill, (c) 2010 University of Kansas, (c) 2013
 category:            Debug, Trace
 build-type:          Simple
 cabal-version:       >=1.10
-extra-source-files:  changelog, README.md
+extra-source-files:  changelog, README.md, configure.Demo, configure.Generic, configure.Profiling, configure.Prop, configure.Pure, configure.Stk, run, test.Generic, test.Pure, test.Stk
 data-files:          img/*.png
 
 flag buildExamples
