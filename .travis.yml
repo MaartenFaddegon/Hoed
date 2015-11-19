@@ -7,7 +7,6 @@ notifications:
 # test only against the last release in a major GHC version. Feel free to omit
 # lines listings versions you don't need/want testing for.
 env:
- - CABALVER=1.18 GHCVER=7.6.3
  - CABALVER=1.18 GHCVER=7.8.3
  - CABALVER=1.22 GHCVER=7.10.1
 
@@ -25,6 +24,7 @@ install:
 # Here starts the actual work to be performed for the package under test; any
 # command which exits with a non-zero exit code causes the build to fail.
 script:
+ - cabal update
  # Make sure our cabal specification is sound
  - cabal check
  # Install base library

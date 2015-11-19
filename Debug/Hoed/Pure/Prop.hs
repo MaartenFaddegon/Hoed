@@ -2,7 +2,7 @@
 --
 -- Copyright (c) Maarten Faddegon, 2015
 
-{-# LANGUAGE DefaultSignatures, TypeOperators, FlexibleContexts, FlexibleInstances #-}
+{-# LANGUAGE DefaultSignatures, TypeOperators, FlexibleContexts, FlexibleInstances, StandaloneDeriving, CPP #-}
 
 module Debug.Hoed.Pure.Prop where
 -- ( judge
