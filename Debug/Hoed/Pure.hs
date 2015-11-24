@@ -261,7 +261,7 @@ runO' program = do
       ct   = mkCompTree eqs ds
 
   writeFile ".Hoed/Events"     (unlines . map show . reverse $ events)
-  writeFile ".Hoed/Transcript" (getTranscript events ti)
+  -- writeFile ".Hoed/Transcript" (getTranscript events ti)
   
   hPutStrLn stderr "\n=== Statistics ===\n"
   let e  = length events

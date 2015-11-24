@@ -18,8 +18,8 @@ module Debug.Hoed.Pure.CompTree
 , leafs
 , ConstantValue(..)
 , getLocation
-, getMessage
-, getTranscript
+-- , getMessage
+-- , getTranscript
 , TraceInfo(..)
 , traceInfo
 , Graph(..) -- re-export from LibGraph
@@ -32,8 +32,8 @@ import Debug.Hoed.Pure.EventForest
 import Prelude hiding (Right)
 import Data.Graph.Libgraph
 import Data.List(nub,delete,(\\))
-import Data.IntMap (IntMap)
-import qualified Data.IntMap as IntMap
+import Data.IntMap.Strict (IntMap)
+import qualified Data.IntMap.Strict as IntMap
 import Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
 
@@ -126,8 +126,8 @@ data TraceInfo = TraceInfo
                    -- reference from parent UID and position to location
   , computations   :: Nesting
                    -- UIDs of active and paused computations of arguments/results of Fun events
-  , messages       :: IntMap String
-                   -- stored depth of the stack for every event
+  -- , messages       :: IntMap String
+  --                  -- stored depth of the stack for every event
   , storedStack    :: IntMap [UID]
                    -- reference from parent UID and position to previous stack
   , dependencies   :: [(UID,UID)]
@@ -135,7 +135,7 @@ data TraceInfo = TraceInfo
 
 
 ------------------------------------------------------------------------------------------------------------------------
-
+{-
 addMessage :: Event -> String -> TraceInfo -> TraceInfo
 addMessage e msg s = s{ messages = (flip $ IntMap.insert i) (messages s) $ case IntMap.lookup i (messages s) of
   Nothing     -> msg
@@ -159,9 +159,7 @@ getTranscript es t = foldl (\acc e -> (show e ++ m e) ++ "\n" ++ acc) "" es
           (Just msg) -> "\n  " ++ msg
         
         ms = messages t
-
-
-
+-}
 ------------------------------------------------------------------------------------------------------------------------
 
 getLocation :: Event -> TraceInfo -> Bool
@@ -224,26 +222,26 @@ isSpan :: UID -> Span -> Bool
 isSpan i s = i == getSpanUID s
 
 start :: Event -> TraceInfo -> TraceInfo
-start e s = m s{computations = cs}
+start e s = {- m -}  s{computations = cs}
 
   where i  = getTopLvlFun e s
         cs = Computing i : computations s
-        m  = addMessage e $ "Start computation " ++ show i ++ ": " ++ showCs cs
+        -- m  = addMessage e $ "Start computation " ++ show i ++ ": " ++ showCs cs
 
 
 stop :: Event -> TraceInfo -> TraceInfo
-stop e s = m s{computations = cs}
+stop e s = {- m -} s{computations = cs}
 
   where i  = getTopLvlFun e s
         cs = deleteFirst (computations s)
-        m  = addMessage e $ "Stop computation " ++ show i ++ ": " ++ showCs cs
+        -- m  = addMessage e $ "Stop computation " ++ show i ++ ": " ++ showCs cs
         deleteFirst [] = []
         deleteFirst (s:ss) | isSpan i s = ss
                            | otherwise  = s : deleteFirst ss
 
 
 pause :: Event -> TraceInfo -> TraceInfo
-pause e s = m s{computations=cs}
+pause e s = {- m -} s{computations=cs}
 
   where i  = getTopLvlFun e s
         cs = case cs_post of
@@ -252,10 +250,10 @@ pause e s = m s{computations=cs}
         (cs_pre,cs_post)           = break isComputingI (computations s)
         isComputingI (Computing j) = i == j
         isComputingI _             = False
-        m  = addMessage e $ "Pause computation " ++ show i ++ ": " ++ showCs cs
+        -- m  = addMessage e $ "Pause computation " ++ show i ++ ": " ++ showCs cs
 
 resume :: Event -> TraceInfo -> TraceInfo
-resume e s = m s{computations=cs}
+resume e s = {- m -} s{computations=cs}
 
   where i  = getTopLvlFun e s
         cs = case cs_post of
@@ -264,7 +262,7 @@ resume e s = m s{computations=cs}
         (cs_pre,cs_post)     = break isPausedI (computations s)
         isPausedI (Paused j) = i == j
         isPausedI _          = False
-        m = addMessage e $ "Resume computation " ++ show i ++ ": " ++ showCs cs
+        -- m = addMessage e $ "Resume computation " ++ show i ++ ": " ++ showCs cs
 
 activeComputations :: TraceInfo -> [UID]
 activeComputations s = map getSpanUID . filter isActive $ computations s
@@ -275,16 +273,16 @@ activeComputations s = map getSpanUID . filter isActive $ computations s
 ------------------------------------------------------------------------------------------------------------------------
 
 addDependency :: Event -> TraceInfo -> TraceInfo
-addDependency e s = m s{dependencies = case d of (Just d') -> d':dependencies s; Nothing -> dependencies s}
+addDependency e s = {- m -} s{dependencies = case d of (Just d') -> d':dependencies s; Nothing -> dependencies s}
 
   where d = case activeComputations s of
               []       -> Nothing
               [n]      -> Just (-1,n)  -- top-level function detected (may later add dependency from Root)
               (n:m:_)  -> Just (m,n)
 
-        m = case d of
-             Nothing   -> addMessage e ("does not add dependency")
-             (Just d') -> addMessage e ("adds dependency " ++ show (fst d') ++ " -> " ++ show (snd d'))
+        -- m = case d of
+        --      Nothing   -> addMessage e ("does not add dependency")
+        --      (Just d') -> addMessage e ("adds dependency " ++ show (fst d') ++ " -> " ++ show (snd d'))
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -313,7 +311,7 @@ traceInfo :: Trace -> TraceInfo
 traceInfo trc = foldl loop s0 trc
 
   where s0 :: TraceInfo
-        s0 = TraceInfo IntMap.empty IntMap.empty [] IntMap.empty IntMap.empty []
+        s0 = TraceInfo IntMap.empty IntMap.empty [] {- IntMap.empty -} IntMap.empty []
 
         cs :: ConsMap
         cs = mkConsMap trc
