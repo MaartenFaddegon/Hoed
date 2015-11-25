@@ -294,7 +294,7 @@ updateMenu menu compTreeRef currentVertexRef = do
                  Nothing   -> 0
        t  <- UI.liftIO $ readIORef compTreeRef
        let fs = faultyVertices t
-       ops   <- mapM (\s->UI.option # set UI.text s) $ map (summarizeVertex fs) vs
+       ops <- mapM (\s->UI.option # set UI.text s) $ map (summarizeVertex fs) vs
        (UI.element menu) # set UI.children []
        UI.element menu   #+ (map UI.element ops)
        (UI.element menu) # set UI.selection (Just j)
@@ -322,7 +322,7 @@ menuVertices compTreeRef currentVertexRef = do
   mcv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
   let cv = case mcv of (Just v) -> v; Nothing -> RootVertex
       ps = preds t cv
-      sibl = if RootVertex `elem` ps then succs t RootVertex else []
+      sibl = if RootVertex `elem` ps then succs t RootVertex else [cv]
   return $ filter (/= RootVertex) $ ps ++ sibl ++ (succs t cv)
 
 lookupCurrentVertex :: IORef Int -> IORef CompTree -> IO (Maybe Vertex)
@@ -352,6 +352,8 @@ shorten (ShorterThan l) s
           | l > 3        = take (l - 3) s ++ "..."
           | otherwise    = take l s
 
+shorterThan60 = shorten (ShorterThan 60)
+
 noNewlines :: String -> String
 noNewlines = noNewlines' False
 noNewlines' _ [] = []
@@ -361,7 +363,7 @@ noNewlines' w (s:ss)
  | otherwise                          = s   : noNewlines' False ss
 
 summarizeVertex :: [Vertex] -> Vertex -> String
-summarizeVertex fs v = shorten (ShorterThan 60) (noNewlines . show . vertexStmt $ v) ++ s
+summarizeVertex fs v = shorterThan60 (noNewlines . show . vertexStmt $ v) ++ s
   where s = if v `elem` fs then " !!" else case getJudgement v of
               Wrong          -> " :("
               Right          -> " :)"
@@ -369,7 +371,7 @@ summarizeVertex fs v = shorten (ShorterThan 60) (noNewlines . show . vertexStmt 
 
 vertexGraphvizLabel :: [Vertex] -> Vertex -> String
 vertexGraphvizLabel fs v =
-  "<<TABLE BORDER=\"0\" CELLBORDER=\"0\"><TR><TD HEIGHT=\"30\" WIDTH=\"30\" FIXEDSIZE=\"true\"><IMG SCALE=\"true\" SRC=\"" ++ (vertexImg fs v) ++ "\"/></TD><TD><FONT POINT-SIZE=\"30\">" ++ (htmlEscape . noNewlines . show . vertexStmt $ v) ++ "</FONT></TD></TR></TABLE>>"
+  "<<TABLE BORDER=\"0\" CELLBORDER=\"0\"><TR><TD HEIGHT=\"30\" WIDTH=\"30\" FIXEDSIZE=\"true\"><IMG SCALE=\"true\" SRC=\"" ++ (vertexImg fs v) ++ "\"/></TD><TD><FONT POINT-SIZE=\"30\">" ++ (htmlEscape . shorterThan60 . noNewlines . show . vertexStmt $ v) ++ "</FONT></TD></TR></TABLE>>"
 
 htmlEscape :: String -> String
 htmlEscape = foldr (\c acc -> replace c ++ acc) ""
@@ -379,6 +381,7 @@ htmlEscape = foldr (\c acc -> replace c ++ acc) ""
   replace '{'  = "&#123;"
   replace '\\' = "&#92;"
   replace '>'  = "&gt;"
+  replace '<'  = "&lt;"
   replace '}'  = "&#125;"
   replace c    = [c]
 
