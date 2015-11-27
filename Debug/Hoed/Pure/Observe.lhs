@@ -1187,7 +1187,8 @@ ourCatchAllIO :: IO a -> (SomeException -> IO a) -> IO a
 ourCatchAllIO = Exception.catch
 
 handleExc :: Parent -> SomeException -> IO a
-handleExc context exc = return (send "throw" (return throw << exc) context)
+-- handleExc context exc = return (send "throw" (return throw << exc) context)
+handleExc context exc = return (send (show exc) (return (throw exc)) context)
 \end{code}
 
 %************************************************************************

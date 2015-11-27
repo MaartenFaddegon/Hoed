@@ -69,7 +69,12 @@ library
                        , directory
                        , FPretty
   default-language:    Haskell2010
-  -- ghc-options:         -fwarn-unused-binds
+  -- Enable to get some extra warnings.
+  --   ghc-options:         -fwarn-unused-binds
+
+  -- Enable to create a file .Hoed/Transcript that lists all steps taken to construct a
+  -- computation tree from the list of events.
+  --   cpp-options:         -DTRANSCRIPT
 
 ---------------------------------------------------------------------------
 --
@@ -202,6 +207,20 @@ Executable hoed-examples-Simple_higher-order_function
   else
     buildable: False
   main-is:             SimpleHO.hs
+  hs-source-dirs:      examples/
+  default-language:    Haskell2010
+
+Executable hoed-examples-Exception
+  if flag(buildExamples)
+    build-depends:     base >= 4 && < 5, Hoed, 
+                       X11>=1.5 && < 1.7, mtl, unix,
+                       utf8-string,
+                       extensible-exceptions, random,
+                       containers, filepath, process, directory,
+                       array
+  else
+    buildable: False
+  main-is:             Exception.hs
   hs-source-dirs:      examples/
   default-language:    Haskell2010
 

@@ -92,6 +92,8 @@ Hoed.Pure is recommended over Hoed.Stk because to debug your program with Hoed.P
 I am keen to hear about your experience with Hoed: where did you find it useful and where would you like to see improvement? You can send me an e-mail at hoed@maartenfaddegon.nl, or use the github issue tracker <https://github.com/MaartenFaddegon/hoed/issues>.
 -}
 
+{-# LANGUAGE CPP #-}
+
 module Debug.Hoed.Pure
   ( -- * Basic annotations
     observe
@@ -261,7 +263,9 @@ runO' program = do
       ct   = mkCompTree eqs ds
 
   writeFile ".Hoed/Events"     (unlines . map show . reverse $ events)
-  -- writeFile ".Hoed/Transcript" (getTranscript events ti)
+#if defined(TRANSCRIPT)
+  writeFile ".Hoed/Transcript" (getTranscript events ti)
+#endif
   
   hPutStrLn stderr "\n=== Statistics ===\n"
   let e  = length events
