@@ -24,7 +24,7 @@ main = do
 -}
 
 main :: IO ()
-main = logOwp "hoed-tests-Prop-t4.graph" propositions $ do
+main = logOwp propVarError "hoed-tests-Prop-t4.graph" propositions $ do
   g <- newStdGen
   print . fromJust . ok . (generate 1 g) . evaluate $  prop_shift_win_I 1 'd' myStackSet
   where

@@ -45,9 +45,8 @@ script:
  - bash -x configure.Pure
  - cabal build
  - bash test.Pure
- # Disabled for now
- # # Test property-based judging
- # - cabal clean
- # - bash -x configure.Prop
- # - cabal build
- # - bash test.Prop
+ # Test property-based judging
+ - cabal clean
+ - bash -x configure.Prop
+ - cabal build
+ - bash test.Prop
