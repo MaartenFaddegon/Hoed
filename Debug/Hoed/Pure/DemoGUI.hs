@@ -3,7 +3,7 @@
 -- Copyright (c) Maarten Faddegon, 2014-2015
 {-# LANGUAGE CPP #-}
 
-module Debug.Hoed.Pure.DemoGUI (guiMain, noNewlines)
+module Debug.Hoed.Pure.DemoGUI (guiMain)
 where
 
 import qualified Prelude
@@ -12,6 +12,8 @@ import Debug.Hoed.Pure.Render
 import Debug.Hoed.Pure.CompTree
 import Debug.Hoed.Pure.EventForest
 import Debug.Hoed.Pure.Observe
+import qualified Debug.Hoed.Pure.Prop as Prop
+import Debug.Hoed.Pure.Prop(Propositions)
 import Paths_Hoed (version)
 import Data.Version (showVersion)
 import Data.Graph.Libgraph
@@ -40,8 +42,8 @@ sortOn' f = sortBy (\x y -> compare (f x) (f y))
 --------------------------------------------------------------------------------
 -- The tabbed layout from which we select the different views
 
-guiMain :: Trace -> TraceInfo -> IORef CompTree ->  EventForest -> Window -> UI ()
-guiMain trace traceInfo compTreeRef frt window
+guiMain :: Trace -> TraceInfo -> IORef CompTree -> EventForest -> [Propositions] -> Window -> UI ()
+guiMain trace traceInfo compTreeRef frt propositions window
   = do return window # set UI.title "Hoed debugging session"
 
        -- Get a list of vertices from the computation graph
@@ -57,12 +59,13 @@ guiMain trace traceInfo compTreeRef frt window
        tab1 <- UI.button # set UI.text "About Hoed"            # set UI.style activeTab
        tab2 <- UI.button # set UI.text "Observe"               # set UI.style otherTab
        tab3 <- UI.button # set UI.text "Algorithmic Debugging" # set UI.style otherTab
-       tab4 <- UI.button # set UI.text "Explore"               # set UI.style otherTab
+       tab4 <- UI.button # set UI.text "Assisted Debugging"    # set UI.style otherTab
+       tab5 <- UI.button # set UI.text "Explore"               # set UI.style otherTab
        -- tab5 <- UI.button # set UI.text "Events"                # set UI.style otherTab
        logo <- UI.img # set UI.src "static/hoed-logo.png"      # set UI.style [("float","right"), ("height","2.2em")]
-       tabs <- UI.div    # set UI.style [("background-color","#D3D3D3")]  #+ (map return [tab1,tab2,tab3,tab4{-,tab5-},logo])
+       tabs <- UI.div    # set UI.style [("background-color","#D3D3D3")]  #+ (map return [tab1,tab2,tab3,tab4,tab5,logo])
 
-       let coloActive tab = do mapM_ (\t -> (return t) # set UI.style otherTab) [tab1,tab2,tab3,tab4{-,tab5-}]; return tab # set UI.style activeTab
+       let coloActive tab = do mapM_ (\t -> (return t) # set UI.style otherTab) [tab1,tab2,tab3,tab4,tab5]; return tab # set UI.style activeTab
 
        help <- guiHelp # set UI.style [("margin-top","0.5em")]
        on UI.click tab1 $ \_ -> do
@@ -78,12 +81,12 @@ guiMain trace traceInfo compTreeRef frt window
             UI.getBody window # set UI.children [tabs,pane]
        on UI.click tab4 $ \_ -> do
             coloActive tab4
+            pane <- guiAssisted trace propositions compTreeRef currentVertexRef regexRef imgCountRef # set UI.style [("margin-top","0.5em")]
+            UI.getBody window # set UI.children [tabs,pane]
+       on UI.click tab5 $ \_ -> do
+            coloActive tab5
             pane <- guiExplore compTreeRef currentVertexRef regexRef imgCountRef # set UI.style [("margin-top","0.5em")]
             UI.getBody window # set UI.children [tabs,pane]
-       -- on UI.click tab5 $ \_ -> do
-       --   coloActive tab5
-       --   pane <- guiTrace trace traceInfo # set UI.style [("margin-top","0.5em")]
-       --   UI.getBody window # set UI.children [tabs,pane]
 
        UI.getBody window # set UI.style [("margin","0")] #+ (map return [tabs,help])
        return ()
@@ -169,6 +172,45 @@ updateRegEx currentVertexRef vs stmtDiv r = do
   checked v = do
     UI.liftIO $ writeIORef currentVertexRef (vertexUID v)
     drawR
+
+--------------------------------------------------------------------------------
+-- The Assisted Debugging GUI
+
+guiAssisted :: Trace -> [Propositions] -> IORef CompTree -> IORef Int -> IORef String -> IORef Int -> UI UI.Element
+guiAssisted trace ps compTreeRef currentVertexRef regexRef imgCountRef = do
+
+       -- Get a list of vertices from the computation tree
+       tree <- UI.liftIO $ readIORef compTreeRef
+
+       -- Status
+       status <- UI.span
+       updateStatus status compTreeRef 
+
+       -- Field to show current computation statement to the programmer
+       compStmt <- UI.pre # set UI.style [("margin","0 2em")]
+       showStmt compStmt compTreeRef currentVertexRef 
+
+       -- Buttons to judge the current statement
+       right <- UI.button # UI.set UI.text "right " #+ [UI.img # set UI.src "static/right.png" # set UI.height 30] # set UI.style [("margin-right","1em")]
+       wrong <- UI.button # set UI.text "wrong "    #+ [UI.img # set UI.src "static/wrong.png" # set UI.height 30] # set UI.style [("margin-right","1em")]
+       let j = judge AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
+       j right Right
+       j wrong Wrong
+       testB  <- UI.button # set UI.text "test"                                                # set UI.height 30 # set UI.style [("margin-right","1em")]
+       testAllB  <- UI.button # set UI.text "test all"                                         # set UI.height 30
+       on UI.click testAllB $ \_ -> testAll compTreeRef trace ps status
+
+       -- Populate the main screen
+       top <- UI.center #+ [return status, UI.br, return right, return wrong, return testB, return testAllB]
+       UI.div #+ [return top, UI.hr, return compStmt]
+
+testAll compTreeRef trace ps status = do
+  return status # UI.set UI.text "Evaluating propositions ..." #+ [UI.img # set UI.src "static/loading.gif" # set UI.height 30]
+  UI.liftIO $ do
+    compTree <- readIORef compTreeRef
+    compTree' <- Prop.judge Prop.propVarError trace ps compTree
+    writeIORef compTreeRef compTree'
+  updateStatus status compTreeRef 
 
 --------------------------------------------------------------------------------
 -- The Algorithmic Debugging GUI
@@ -280,7 +322,9 @@ showStmt e compTreeRef currentVertexRef = do
   mv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
   let s = case mv of
                 Nothing  -> "Select vertex above to show details."
-                (Just v) -> show . vertexStmt $ v
+                (Just v) -> let s = show . vertexStmt $ v in case getJudgement v of
+                              (Assisted s') -> s' ++ "<br/><br/>" ++ s
+                              _             -> s
   UI.element e # set UI.text s
   return ()
 
@@ -354,14 +398,6 @@ shorten (ShorterThan l) s
 
 shorterThan60 = shorten (ShorterThan 60)
 
-noNewlines :: String -> String
-noNewlines = noNewlines' False
-noNewlines' _ [] = []
-noNewlines' w (s:ss)
- | w       && (s == ' ' || s == '\n') =       noNewlines' True ss
- | (not w) && (s == ' ' || s == '\n') = ' ' : noNewlines' True ss
- | otherwise                          = s   : noNewlines' False ss
-
 summarizeVertex :: [Vertex] -> Vertex -> String
 summarizeVertex fs v = shorterThan60 (noNewlines . show . vertexStmt $ v) ++ s
   where s = if v `elem` fs then " !!" else case getJudgement v of
@@ -387,9 +423,10 @@ htmlEscape = foldr (\c acc -> replace c ++ acc) ""
 
 vertexImg :: [Vertex] -> Vertex -> String
 vertexImg fs v = if v `elem` fs then ".Hoed/wwwroot/faulty.png" else case vertexJmt v of
-              Unassessed     -> ".Hoed/wwwroot/unassessed.png"
-              Wrong          -> ".Hoed/wwwroot/wrong.png"
-              Right          -> ".Hoed/wwwroot/right.png"
+              Unassessed   -> ".Hoed/wwwroot/unassessed.png"
+              (Assisted _) -> ".Hoed/wwwroot/unassessed.png"
+              Wrong        -> ".Hoed/wwwroot/wrong.png"
+              Right        -> ".Hoed/wwwroot/right.png"
 
 
 updateStatus :: UI.Element -> IORef CompTree -> UI ()

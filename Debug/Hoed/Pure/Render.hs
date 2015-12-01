@@ -10,6 +10,7 @@ module Debug.Hoed.Pure.Render
 ,eventsToCDS
 ,rmEntrySet
 ,simplifyCDSSet
+,noNewlines
 ) where
 import Debug.Hoed.Pure.EventForest
 
@@ -53,6 +54,13 @@ instance Show CompStmt where
   show = stmtRes
   showList eqs eq = unlines (map show eqs) ++ eq
 
+noNewlines :: String -> String
+noNewlines = noNewlines' False
+noNewlines' _ [] = []
+noNewlines' w (s:ss)
+ | w       && (s == ' ' || s == '\n') =       noNewlines' True ss
+ | (not w) && (s == ' ' || s == '\n') = ' ' : noNewlines' True ss
+ | otherwise                          = s   : noNewlines' False ss
 
 ------------------------------------------------------------------------
 -- Render equations from CDS set

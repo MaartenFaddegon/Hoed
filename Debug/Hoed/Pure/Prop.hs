@@ -9,10 +9,9 @@ module Debug.Hoed.Pure.Prop where
 -- , Propositions(..)
 -- ) where
 import Debug.Hoed.Pure.Observe(Trace(..),UID,Event(..),Change(..),ourCatchAllIO,evaluate)
-import Debug.Hoed.Pure.Render(CompStmt(..))
+import Debug.Hoed.Pure.Render(CompStmt(..),noNewlines)
 import Debug.Hoed.Pure.CompTree(CompTree,Vertex(..),Graph(..),vertexUID)
 import Debug.Hoed.Pure.EventForest(EventForest,mkEventForest,dfsChildren)
-import Debug.Hoed.Pure.DemoGUI(noNewlines)
 import qualified Data.IntMap as M
 import Prelude hiding (Right)
 import Data.Graph.Libgraph(Judgement(..),mapGraph)

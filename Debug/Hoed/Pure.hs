@@ -202,7 +202,7 @@ debugO program =
 runO :: IO a -> IO ()
 runO program = do
   (trace,traceInfo,compTree,frt) <- runO' program
-  debugSession trace traceInfo compTree frt
+  debugSession trace traceInfo compTree frt []
   return ()
 
 -- | Repeat and trace a failing testcase
@@ -212,11 +212,13 @@ testO p x = runO $ putStrLn $ if (p x) then "Passed 1 test."
 
 -- | Use property based judging.
 
-runOwp :: PropVarGen String -> [Propositions] -> IO a -> IO ()
-runOwp unevalGen ps program = do
+runOwp :: [Propositions] -> IO a -> IO ()
+runOwp ps program = do
   (trace,traceInfo,compTree,frt) <- runO' program
+  let compTree' = compTree
+{-
   hPutStrLn stderr "\n=== Evaluating assigned properties ===\n"
-  compTree' <- judge unevalGen trace ps compTree
+  compTree' <- judge propVarError trace ps compTree
 
   let vs = filter (/= RootVertex) (vertices compTree')
       showLen p = show . length . (filter p) $ vs
@@ -228,11 +230,13 @@ runOwp unevalGen ps program = do
     []    -> do hPutStrLn stderr "\n=== Starting interactive debug session ===\n"
                 debugSession trace traceInfo compTree' frt
     (v:_) -> hPutStrLn stderr $ "Fault detected in:\n\n" ++ show (vertexStmt v)
+-}
+  debugSession trace traceInfo compTree' frt ps
   return ()
 
 -- | Repeat and trace a failing testcase
-testOwp :: Show a => PropVarGen String -> [Propositions] -> (a->Bool) -> a -> IO ()
-testOwp unevalGen ps p x = runOwp unevalGen ps $ putStrLn $ 
+testOwp :: Show a => [Propositions] -> (a->Bool) -> a -> IO ()
+testOwp ps p x = runOwp ps $ putStrLn $ 
   if (p x) then "Passed 1 test."
   else " *** Failed! Falsifiable: " ++ show x
 
@@ -315,13 +319,14 @@ logOwp unevalGen filePath properties program = do
 ------------------------------------------------------------------------
 -- Algorithmic Debugging
 
-debugSession :: Trace -> TraceInfo -> CompTree -> EventForest -> IO ()
-debugSession trace traceInfo tree frt
+debugSession :: Trace -> TraceInfo -> CompTree -> EventForest -> [Propositions] -> IO ()
+debugSession trace traceInfo tree frt ps
   = do createDirectoryIfMissing True ".Hoed/wwwroot/css"
        dataDir <- getDataDir
        system $ "cp " ++ dataDir ++ "/img/*png .Hoed/wwwroot/"
+       system $ "cp " ++ dataDir ++ "/img/*gif .Hoed/wwwroot/"
        treeRef <- newIORef tree
        startGUI defaultConfig
            { jsPort       = Just 10000
            , jsStatic     = Just "./.Hoed/wwwroot"
-           } (guiMain trace traceInfo treeRef frt)
+           } (guiMain trace traceInfo treeRef frt ps)
