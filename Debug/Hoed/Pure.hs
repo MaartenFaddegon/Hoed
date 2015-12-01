@@ -111,6 +111,8 @@ module Debug.Hoed.Pure
   , Proposition(..)
   , PropositionType(..)
   , Module(..)
+  , propVarError
+  , propVarFresh
 
     -- * Experimental annotations
   , traceOnly
@@ -210,11 +212,11 @@ testO p x = runO $ putStrLn $ if (p x) then "Passed 1 test."
 
 -- | Use property based judging.
 
-runOwp :: [Propositions] -> IO a -> IO ()
-runOwp ps program = do
+runOwp :: PropVarGen String -> [Propositions] -> IO a -> IO ()
+runOwp unevalGen ps program = do
   (trace,traceInfo,compTree,frt) <- runO' program
   hPutStrLn stderr "\n=== Evaluating assigned properties ===\n"
-  compTree' <- judge trace ps compTree
+  compTree' <- judge unevalGen trace ps compTree
 
   let vs = filter (/= RootVertex) (vertices compTree')
       showLen p = show . length . (filter p) $ vs
@@ -229,9 +231,10 @@ runOwp ps program = do
   return ()
 
 -- | Repeat and trace a failing testcase
-testOwp :: Show a => [Propositions] -> (a->Bool) -> a -> IO ()
-testOwp ps p x = runOwp ps $ putStrLn $ if (p x) then "Passed 1 test."
-                                                 else " *** Failed! Falsifiable: " ++ show x
+testOwp :: Show a => PropVarGen String -> [Propositions] -> (a->Bool) -> a -> IO ()
+testOwp unevalGen ps p x = runOwp unevalGen ps $ putStrLn $ 
+  if (p x) then "Passed 1 test."
+  else " *** Failed! Falsifiable: " ++ show x
 
 -- | Short for @runO . print@.
 printO :: (Show a) => a -> IO ()
@@ -295,11 +298,11 @@ logO filePath program = {- SCC "logO" -} do
         showCompStmt       = show . vertexStmt
 
 -- | As logO, but with property-based judging.
-logOwp :: FilePath -> [Propositions] -> IO a -> IO ()
-logOwp filePath properties program = do
+logOwp :: PropVarGen String -> FilePath -> [Propositions] -> IO a -> IO ()
+logOwp unevalGen filePath properties program = do
   (trace,traceInfo,compTree,frt) <- runO' program
   hPutStrLn stderr "\n=== Evaluating assigned properties ===\n"
-  compTree' <- judge trace properties compTree
+  compTree' <- judge unevalGen trace properties compTree
   writeFile filePath (showGraph compTree')
   return ()
 

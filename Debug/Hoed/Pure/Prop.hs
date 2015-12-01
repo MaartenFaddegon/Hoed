@@ -14,9 +14,6 @@ import Debug.Hoed.Pure.CompTree(CompTree,Vertex(..),Graph(..),vertexUID)
 import Debug.Hoed.Pure.EventForest(EventForest,mkEventForest,dfsChildren)
 import Debug.Hoed.Pure.DemoGUI(noNewlines)
 import qualified Data.IntMap as M
-
-import qualified Debug.Trace as Debug -- MF TODO
-
 import Prelude hiding (Right)
 import Data.Graph.Libgraph(Judgement(..),mapGraph)
 import System.Directory(createDirectoryIfMissing)
@@ -76,23 +73,23 @@ lookupWith f x ys = case filter (\y -> f y == x) ys of
 
 ------------------------------------------------------------------------------------------------------------------------
 
-judge :: Trace -> [Propositions] -> CompTree -> IO CompTree
-judge trc ps compTree = do
+judge :: PropVarGen String -> Trace -> [Propositions] -> CompTree -> IO CompTree
+judge unevalGen trc ps compTree = do
   ws <- mapM j vs
   return $ foldl updateTree compTree ws
   where 
   vs  = vertices compTree
   j v = case lookupPropositions ps v of 
     Nothing  -> return v
-    (Just p) -> judgeWithPropositions trc p v
+    (Just p) -> judgeWithPropositions unevalGen trc p v
   updateTree compTree w = mapGraph (\v -> if (vertexUID v) == (vertexUID w) then w else v) compTree
 
 
 -- Use a property to judge a vertex
-judgeWithPropositions :: Trace -> Propositions -> Vertex -> IO Vertex
-judgeWithPropositions _ _ RootVertex = return RootVertex
-judgeWithPropositions trc p v = do
-  mbs <- mapM (evalProposition trc v (extraModules p)) (propositions p)
+judgeWithPropositions :: PropVarGen String -> Trace -> Propositions -> Vertex -> IO Vertex
+judgeWithPropositions unevalGen _ _ RootVertex = return RootVertex
+judgeWithPropositions unevalGen trc p v = do
+  mbs <- mapM (evalProposition unevalGen trc v (extraModules p)) (propositions p)
   let j = case (propType p, any isNothing mbs) of
             (Specify,False) -> if any isJustFalse mbs then Wrong else Right
             _               -> if any isJustFalse mbs then Wrong else Unassessed
@@ -112,8 +109,8 @@ judgeWithPropositions trc p v = do
   commas = concat . (intersperse ", ")
 
 
-evalProposition :: Trace -> Vertex -> [Module] -> Proposition -> IO (Maybe Bool)
-evalProposition trc v ms prop = do
+evalProposition :: PropVarGen String -> Trace -> Vertex -> [Module] -> Proposition -> IO (Maybe Bool)
+evalProposition unevalGen trc v ms prop = do
   createDirectoryIfMissing True ".Hoed/exe"
   hPutStrLn stderr $ "\nEvaluating proposition " ++ propName prop ++ " with statement " ++ (shorten . noNewlines . show . vertexStmt) v
   -- let args = map (\(n,s) -> "Argument " ++ show n ++ ": " ++ s) $ zip [0..] (generateArgs trc getEvent i)
@@ -139,10 +136,10 @@ evalProposition trc v ms prop = do
     where
     clean        = system $ "rm -f " ++ sourceFile ++ " " ++ exeFile ++ " " ++ buildFiles
     generateCode = do -- Uncomment the next line to dump generated program on screen
-                      -- hPutStrLn stderr $ "Generated the following program ***\n" ++ prgm ++ "\n***" 
+                      hPutStrLn stderr $ "Generated the following program ***\n" ++ prgm ++ "\n***" 
                       writeFile sourceFile prgm
                       where prgm :: String
-                            prgm = (generate prop ms trc getEvent i)
+                            prgm = (generate unevalGen prop ms trc getEvent i)
     compile      = system $ "ghc  -i" ++ (searchPath . propModule) prop ++ " -o " ++ exeFile ++ " " ++ sourceFile
     evaluate     = system $ exeFile ++ " > " ++ outFile ++ " 2>&1"
     i            = (stmtIdentifier . vertexStmt) v
@@ -172,8 +169,45 @@ judge1_spec ExitSuccess     out j
 
 ------------------------------------------------------------------------------------------------------------------------
 
-generate :: Proposition -> [Module] -> Trace -> (UID->Event) -> UID -> String
-generate prop ms trc getEvent i = generateHeading prop ms ++ generateMain prop trc getEvent i
+type PropVars = ([String],[String]) -- A tuple of used variables, and a supply of fresh variables
+type PropVarGen a = PropVars -> (a,PropVars)
+
+comp :: PropVarGen a -> PropVarGen b -> (a -> b -> c) -> PropVarGen c
+comp x y f vs = let (x', vs')  = x vs
+                    (y', vs'') = y vs'
+                in  (f x' y', vs'')
+
+-- MF TODO: this is exactly like liftM2
+liftPV :: (a -> b -> c) -> PropVarGen a -> PropVarGen b -> PropVarGen c
+liftPV f x y = comp x y f
+
+propVars0 :: PropVars
+propVars0 = ([], map (('x':) . show)  [1..])
+
+propVarError :: PropVarGen String
+propVarError = propVarReturn "(error \"Request of value that was unevaluated in original program.\")"
+
+propVarFresh :: PropVarGen String
+propVarFresh (bvs,v:fvs) = (v, (bvs,fvs))
+
+propVarReturn :: String -> PropVarGen String
+propVarReturn s vs = (s,vs)
+
+propVarBind :: (String,PropVars) -> Proposition -> String
+propVarBind (propApp,([],_))  prop = generatePrint prop ++ " $ " ++ propApp
+propVarBind (propApp,(bvs,_)) prop = "quickCheck (\\" ++ bvs' ++ " -> " ++ propApp ++ ")"
+  where
+  bvs' = concat (intersperse " " bvs)
+
+generatePrint :: Proposition -> String
+generatePrint p = case propositionType p of
+  BoolProposition       -> "print"
+  QuickCheckProposition -> "do g <- newStdGen; print . fromJust . ok . (generate 1 g) . evaluate"
+
+------------------------------------------------------------------------------------------------------------------------
+
+generate :: PropVarGen String -> Proposition -> [Module] -> Trace -> (UID->Event) -> UID -> String
+generate unevalGen prop ms trc getEvent i = generateHeading prop ms ++ generateMain unevalGen prop trc getEvent i
 
 generateHeading :: Proposition -> [Module] -> String
 generateHeading prop ms =
@@ -184,51 +218,48 @@ generateHeading prop ms =
 generateImport :: Module -> String
 generateImport m =  "import " ++ (moduleName m) ++ "\n"
 
-generateMain :: Proposition -> Trace -> (UID->Event) -> UID -> String
-generateMain prop trc getEvent i =
-  foldl (\acc x -> acc ++ " " ++ getArg x) ("main = " ++ generatePrint prop ++ " $ " ++ propName prop ++ " ") (reverse . argMap $ prop) ++ "\n"
-  where 
-  getArg :: Int -> String
-  getArg x
-    | x < (length args) = args !! x
-    | otherwise         = __
+generateMain :: (PropVarGen String) -> Proposition -> Trace -> (UID->Event) -> UID -> String
+generateMain unevalGen prop trc getEvent i
+  = "main = " ++ propVarBind (foldl accArg ((propName prop),propVars0) (reverse . argMap $ prop)) prop ++ "\n"
+    where 
+    accArg :: (String,PropVars) -> Int -> (String,PropVars)
+    accArg (acc,propVars) x = let (s,propVars') = getArg x propVars in (acc ++ " " ++ s, propVars')
+    getArg :: Int -> PropVarGen String
+    getArg x
+      | x < (length args) = args !! x
+      | otherwise         = propVarError
 
-  args :: [String]
-  args = generateArgs trc getEvent i
+    args :: [PropVarGen String]
+    args = generateArgs unevalGen trc getEvent i
 
-generatePrint :: Proposition -> String
-generatePrint p = case propositionType p of
-  BoolProposition       -> "print"
-  QuickCheckProposition -> "do g <- newStdGen; print . fromJust . ok . (generate 1 g) . evaluate"
-
-generateArgs :: Trace -> (UID -> Event) -> UID -> [String]
-generateArgs trc getEvent i = case dfsChildren frt e of
-  [_,ma,_,mr]  -> generateExpr frt ma : moreArgs trc getEvent mr
+generateArgs :: (PropVarGen String) -> Trace -> (UID -> Event) -> UID -> [PropVarGen String]
+generateArgs unevalGen trc getEvent i = case dfsChildren frt e of
+  [_,ma,_,mr]  -> generateExpr unevalGen frt ma : moreArgs unevalGen trc getEvent mr
   xs           -> error ("generateArgs: dfsChildren (" ++ show e ++ ") = " ++ show xs)
+  where
+  frt = (mkEventForest trc)
+  e   = getEvent i -- (reverse trc) !! (i-1)
 
-  where frt = (mkEventForest trc)
-        e   = getEvent i -- (reverse trc) !! (i-1)
-
-moreArgs :: Trace -> (UID->Event) -> Maybe Event -> [String]
-moreArgs trc getEvent Nothing = []
-moreArgs trc getEvent (Just e)
-  | change e == Fun = generateArgs trc getEvent (eventUID e)
+moreArgs :: PropVarGen String -> Trace -> (UID->Event) -> Maybe Event -> [PropVarGen String]
+moreArgs _ trc getEvent Nothing = []
+moreArgs unevalGen trc getEvent (Just e)
+  | change e == Fun = generateArgs unevalGen trc getEvent (eventUID e)
   | otherwise       = []
 
-generateExpr :: EventForest -> Maybe Event -> String
-generateExpr _ Nothing    = __
-generateExpr frt (Just e) = -- uncomment next line to add events as comments to generated code: 
-                            -- "{- " ++ show e ++ " -}" ++
-                            case change e of
+generateExpr :: PropVarGen String -> EventForest -> Maybe Event -> PropVarGen String
+generateExpr unevalGen _ Nothing    = unevalGen
+generateExpr unevalGen frt (Just e) = case change e of
   (Cons _ s) -> let s' = if isAlpha (head s) then s else "(" ++ s ++ ")"
-                in foldl (\acc c -> acc ++ " " ++ c) ("(" ++ s') cs ++ ") "
-  Enter      -> ""
-  _          -> "error \"cannot represent\""
+                in liftPV (++) ( foldl (liftPV $ \acc c -> acc ++ " " ++ c)
+                                 (propVarReturn ("(" ++ s')) cs
+                               ) 
+                               ( propVarReturn ") "
+                               )
+  Enter      -> propVarReturn ""
+  _          -> propVarReturn "error \"cannot represent\""
 
-  where cs = map (generateExpr frt) (dfsChildren frt e)
-
-__ :: String
-__ = "(error \"Request of value that was unevaluated in original program.\")"
+  where cs :: [PropVarGen String]
+        cs = map (generateExpr unevalGen frt) (dfsChildren frt e)
 
 ------------------------------------------------------------------------------------------------------------------------
 
