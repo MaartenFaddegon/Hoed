@@ -13,7 +13,7 @@ import Debug.Hoed.Pure.CompTree
 import Debug.Hoed.Pure.EventForest
 import Debug.Hoed.Pure.Observe
 import qualified Debug.Hoed.Pure.Prop as Prop
-import Debug.Hoed.Pure.Prop(Propositions)
+import Debug.Hoed.Pure.Prop(Propositions,propVarError,lookupPropositions,judgeWithPropositions)
 import Paths_Hoed (version)
 import Data.Version (showVersion)
 import Data.Graph.Libgraph
@@ -199,6 +199,7 @@ guiAssisted trace ps compTreeRef currentVertexRef regexRef imgCountRef = do
        testB  <- UI.button # set UI.text "test"                                                # set UI.height 30 # set UI.style [("margin-right","1em")]
        testAllB  <- UI.button # set UI.text "test all"                                         # set UI.height 30
        on UI.click testAllB $ \_ -> testAll compTreeRef trace ps status
+       on UI.click testB $ \_ -> testCurrent compTreeRef trace ps status currentVertexRef compStmt
 
        -- Populate the main screen
        top <- UI.center #+ [return status, UI.br, return right, return wrong, return testB, return testAllB]
@@ -210,7 +211,27 @@ testAll compTreeRef trace ps status = do
     compTree <- readIORef compTreeRef
     compTree' <- Prop.judge Prop.propVarError trace ps compTree
     writeIORef compTreeRef compTree'
-  updateStatus status compTreeRef 
+  updateStatus status compTreeRef
+  -- MF TODO: Testing all propositions may judge some but not enough statements to localize the defect
+  -- we may want to show the next statement to the programmer here.
+
+testCurrent compTreeRef trace ps status currentVertexRef compStmt = do
+  return status # UI.set UI.text "Evaluating propositions ..." #+ [UI.img # set UI.src "static/loading.gif" # set UI.height 30]
+  mcv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
+  case mcv of
+    (Just cv) -> do
+      case lookupPropositions ps cv of 
+        Nothing  -> done
+        (Just p) -> do
+          cv' <- UI.liftIO $ judgeWithPropositions propVarError trace p cv 
+          compTree <- UI.liftIO $ readIORef compTreeRef
+          UI.liftIO $ writeIORef compTreeRef (replaceVertex compTree cv')
+          done
+          -- MF TODO: we may want to show the next statement to the programmer here.
+    Nothing -> done
+
+  where done = updateStatus status compTreeRef
+
 
 --------------------------------------------------------------------------------
 -- The Algorithmic Debugging GUI
@@ -386,6 +407,12 @@ markNode g v s = mapGraph f g
 
         (===) :: Vertex -> Vertex -> Bool
         v1 === v2 = (vertexUID v1) == (vertexUID v2)
+
+replaceVertex :: CompTree -> Vertex -> CompTree
+replaceVertex g v = mapGraph f g
+  where f RootVertex = RootVertex
+        f v' | (vertexUID v') == (vertexUID v) = v
+             | otherwise                       = v'
 
 data MaxStringLength = ShorterThan Int | Unlimited
 
