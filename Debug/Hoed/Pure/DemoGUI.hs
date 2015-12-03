@@ -201,8 +201,12 @@ guiAssisted trace ps compTreeRef currentVertexRef regexRef imgCountRef = do
        on UI.click testAllB $ \_ -> testAll compTreeRef trace ps status currentVertexRef compStmt
        on UI.click testB $ \_ -> testCurrent compTreeRef trace ps status currentVertexRef compStmt
 
+       -- Checkbox to indicate if we want to use quickcheck over unevaluated values
+       forall <- UI.input # set UI.type_ "checkbox" # set UI.checked False # set UI.style [("transform","scale(1.5)"),("-webkit-transform","scale(1.5)"),("margin-right","0.5em")]
+       forallDiv <- UI.div #+ [return forall, UI.span # set UI.text "Try to find counterexamples using randomly generated values for unevaluated parts of a computation statement."]
+
        -- Populate the main screen
-       top <- UI.center #+ [return status, UI.br, return right, return wrong, return testB, return testAllB]
+       top <- UI.center #+ [return status, UI.br, return right, return wrong, return testB, return testAllB, return forallDiv]
        UI.div #+ [return top, UI.hr, return compStmt]
 
 testAll compTreeRef trace ps status currentVertexRef compStmt = do
