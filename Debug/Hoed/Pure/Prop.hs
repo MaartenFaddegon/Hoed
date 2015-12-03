@@ -117,7 +117,7 @@ disproves Disproves = True
 disproves _         = False
 
 errorMessages :: [PropApp] -> String
-errorMessages = foldl (\msgs (Error msg) -> msgs ++ "\n" ++ msg) [] . filter (not . hasResult)
+errorMessages = foldl (\msgs (Error msg) -> msgs ++ "\n---\n" ++ msg) [] . filter (not . hasResult)
 
 evalProposition :: PropVarGen String -> Trace -> Vertex -> [Module] -> Proposition -> IO PropApp
 evalProposition unevalGen trc v ms prop = do
@@ -129,7 +129,7 @@ evalProposition unevalGen trc v ms prop = do
   -- hPutStrLn stderr $ "Statement UID = " ++ show i
   -- mapM (hPutStrLn stderr) args
   clean
-  generateCode
+  prgm <- generateCode
   compile
   exit' <- compile
   err  <- readFile errFile
@@ -137,7 +137,7 @@ evalProposition unevalGen trc v ms prop = do
   -- hPutStrLn stderr $ err
   -- hPutStrLn stderr $ "Compilation exitted with " ++ show exit'
   case exit' of 
-    (ExitFailure _) -> return $ Error $ "Compilation failed with:\n" ++ err
+    (ExitFailure _) -> return $ Error $ "Compilation of {{{\n" ++ prgm ++ "\n}}} failed with:\n" ++ err
     ExitSuccess     -> do 
       exit <- evaluate
       out  <- readFile outFile
@@ -154,9 +154,10 @@ evalProposition unevalGen trc v ms prop = do
     generateCode = do -- Uncomment the next line to dump generated program on screen
                       -- hPutStrLn stderr $ "Generated the following program ***\n" ++ prgm ++ "\n***" 
                       writeFile sourceFile prgm
+                      return prgm
                       where prgm :: String
                             prgm = (generate unevalGen prop ms trc getEvent i)
-    compile      = system $ "ghc  -i" ++ (searchPath . propModule) prop ++ " -o " ++ exeFile ++ " " ++ sourceFile ++ " 2>&1 > " ++ errFile
+    compile      = system $ "ghc  -i" ++ (searchPath . propModule) prop ++ " -o " ++ exeFile ++ " " ++ sourceFile ++ " > " ++ errFile ++ " 2>&1"
     evaluate     = system $ exeFile ++ " > " ++ outFile ++ " 2>&1"
     i            = (stmtIdentifier . vertexStmt) v
 

@@ -13,7 +13,7 @@ import Debug.Hoed.Pure.CompTree
 import Debug.Hoed.Pure.EventForest
 import Debug.Hoed.Pure.Observe
 import qualified Debug.Hoed.Pure.Prop as Prop
-import Debug.Hoed.Pure.Prop(Propositions,propVarError,lookupPropositions,judgeWithPropositions)
+import Debug.Hoed.Pure.Prop(Propositions,propVarError,propVarFresh,lookupPropositions,judgeWithPropositions,PropVarGen)
 import Paths_Hoed (version)
 import Data.Version (showVersion)
 import Data.Graph.Libgraph
@@ -179,6 +179,8 @@ updateRegEx currentVertexRef vs stmtDiv r = do
 guiAssisted :: Trace -> [Propositions] -> IORef CompTree -> IORef Int -> IORef String -> IORef Int -> UI UI.Element
 guiAssisted trace ps compTreeRef currentVertexRef regexRef imgCountRef = do
 
+       forallRef <- UI.liftIO $ newIORef (False :: Bool)
+
        -- Get a list of vertices from the computation tree
        tree <- UI.liftIO $ readIORef compTreeRef
 
@@ -198,26 +200,28 @@ guiAssisted trace ps compTreeRef currentVertexRef regexRef imgCountRef = do
        j wrong Wrong
        testB  <- UI.button # set UI.text "test"                                                # set UI.height 30 # set UI.style [("margin-right","1em")]
        testAllB  <- UI.button # set UI.text "test all"                                         # set UI.height 30
-       on UI.click testAllB $ \_ -> testAll compTreeRef trace ps status currentVertexRef compStmt
-       on UI.click testB $ \_ -> testCurrent compTreeRef trace ps status currentVertexRef compStmt
+       on UI.click testAllB $ \_ -> testAll compTreeRef trace ps status currentVertexRef compStmt forallRef
+       on UI.click testB $ \_ -> testCurrent compTreeRef trace ps status currentVertexRef compStmt forallRef
 
        -- Checkbox to indicate if we want to use quickcheck over unevaluated values
        forall <- UI.input # set UI.type_ "checkbox" # set UI.checked False # set UI.style [("transform","scale(1.5)"),("-webkit-transform","scale(1.5)"),("margin-right","0.5em")]
        forallDiv <- UI.div #+ [return forall, UI.span # set UI.text "Try to find counterexamples using randomly generated values for unevaluated parts of a computation statement."]
+       on UI.checkedChange forall $ \b -> UI.liftIO $ writeIORef forallRef b
 
        -- Populate the main screen
        top <- UI.center #+ [return status, UI.br, return right, return wrong, return testB, return testAllB, return forallDiv]
        UI.div #+ [return top, UI.hr, return compStmt]
 
-testAll compTreeRef trace ps status currentVertexRef compStmt = do
+testAll compTreeRef trace ps status currentVertexRef compStmt forallRef = do
   return status # UI.set UI.text "Evaluating propositions ..." #+ [UI.img # set UI.src "static/loading.gif" # set UI.height 30]
   UI.liftIO $ do
+    handler <- UI.liftIO $ unevalHandler forallRef
     compTree <- readIORef compTreeRef
-    compTree' <- Prop.judge Prop.propVarError trace ps compTree
+    compTree' <- Prop.judge handler trace ps compTree
     writeIORef compTreeRef compTree'
   advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
 
-testCurrent compTreeRef trace ps status currentVertexRef compStmt = do
+testCurrent compTreeRef trace ps status currentVertexRef compStmt forallRef = do
   return status # UI.set UI.text "Evaluating propositions ..." #+ [UI.img # set UI.src "static/loading.gif" # set UI.height 30]
   mcv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
   case mcv of
@@ -225,12 +229,17 @@ testCurrent compTreeRef trace ps status currentVertexRef compStmt = do
       case lookupPropositions ps cv of 
         Nothing  -> updateStatus status compTreeRef
         (Just p) -> do
-          cv' <- UI.liftIO $ judgeWithPropositions propVarError trace p cv 
+          handler <- UI.liftIO $ unevalHandler forallRef
+          cv' <- UI.liftIO $ judgeWithPropositions handler trace p cv 
           compTree <- UI.liftIO $ readIORef compTreeRef
           UI.liftIO $ writeIORef compTreeRef (replaceVertex compTree cv')
           advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
     Nothing -> updateStatus status compTreeRef
 
+unevalHandler :: IORef Bool -> IO (PropVarGen String)
+unevalHandler forallRef = do
+  forall <- readIORef forallRef
+  return $ if forall then propVarFresh else propVarError
 
 --------------------------------------------------------------------------------
 -- The Algorithmic Debugging GUI
@@ -355,7 +364,7 @@ showStmt e compTreeRef currentVertexRef = do
   let s = case mv of
                 Nothing  -> "No computation statement selected."
                 (Just v) -> let s = show . vertexStmt $ v in case getJudgement v of
-                              (Assisted s') -> "Results from testing computation statement:\n" ++ s' ++ "\n---\n" ++ s
+                              (Assisted s') -> "Results from testing computation statement:\n" ++ s' ++ "\n---\n\n" ++ s
                               _             -> s
   UI.element e # set UI.text s
   return ()
