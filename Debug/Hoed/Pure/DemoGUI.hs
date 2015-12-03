@@ -198,22 +198,20 @@ guiAssisted trace ps compTreeRef currentVertexRef regexRef imgCountRef = do
        j wrong Wrong
        testB  <- UI.button # set UI.text "test"                                                # set UI.height 30 # set UI.style [("margin-right","1em")]
        testAllB  <- UI.button # set UI.text "test all"                                         # set UI.height 30
-       on UI.click testAllB $ \_ -> testAll compTreeRef trace ps status
+       on UI.click testAllB $ \_ -> testAll compTreeRef trace ps status currentVertexRef compStmt
        on UI.click testB $ \_ -> testCurrent compTreeRef trace ps status currentVertexRef compStmt
 
        -- Populate the main screen
        top <- UI.center #+ [return status, UI.br, return right, return wrong, return testB, return testAllB]
        UI.div #+ [return top, UI.hr, return compStmt]
 
-testAll compTreeRef trace ps status = do
+testAll compTreeRef trace ps status currentVertexRef compStmt = do
   return status # UI.set UI.text "Evaluating propositions ..." #+ [UI.img # set UI.src "static/loading.gif" # set UI.height 30]
   UI.liftIO $ do
     compTree <- readIORef compTreeRef
     compTree' <- Prop.judge Prop.propVarError trace ps compTree
     writeIORef compTreeRef compTree'
-  updateStatus status compTreeRef
-  -- MF TODO: Testing all propositions may judge some but not enough statements to localize the defect
-  -- we may want to show the next statement to the programmer here.
+  advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
 
 testCurrent compTreeRef trace ps status currentVertexRef compStmt = do
   return status # UI.set UI.text "Evaluating propositions ..." #+ [UI.img # set UI.src "static/loading.gif" # set UI.height 30]
@@ -221,16 +219,13 @@ testCurrent compTreeRef trace ps status currentVertexRef compStmt = do
   case mcv of
     (Just cv) -> do
       case lookupPropositions ps cv of 
-        Nothing  -> done
+        Nothing  -> updateStatus status compTreeRef
         (Just p) -> do
           cv' <- UI.liftIO $ judgeWithPropositions propVarError trace p cv 
           compTree <- UI.liftIO $ readIORef compTreeRef
           UI.liftIO $ writeIORef compTreeRef (replaceVertex compTree cv')
-          done
-          -- MF TODO: we may want to show the next statement to the programmer here.
-    Nothing -> done
-
-  where done = updateStatus status compTreeRef
+          advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
+    Nothing -> updateStatus status compTreeRef
 
 
 --------------------------------------------------------------------------------
@@ -269,30 +264,38 @@ data Advance = AdvanceToNext | DoNotAdvance
 
 judge :: Advance -> UI.Element -> UI.Element -> Maybe UI.Element -> Maybe (UI.Element,IORef Int) 
          -> IORef UID -> IORef CompTree -> UI.Element -> Judgement  -> UI ()
-judge advance status compStmt mMenu mImg currentVertexRef compTreeRef b j = 
+judge adv status compStmt mMenu mImg currentVertexRef compTreeRef b j = 
   on UI.click b $ \_ -> do
     mv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
     case mv of
-      (Just v) -> judge' status compStmt b j v
+      (Just v) -> judge' v
       Nothing  -> return ()
   where 
-  judge' status compStmt b j v = do
+  judge' :: Vertex -> UI ()
+  judge' v = do
       t' <- UI.liftIO $ readIORef compTreeRef
-      let t  = markNode t' v j
-          v' = setJudgement v j
-          w = case (advance, next_step t getJudgement v') of
-                (DoNotAdvance,_)           -> v'
-                (AdvanceToNext,RootVertex) -> v'
+      UI.liftIO $ writeIORef compTreeRef (markNode t' v j)
+      advance adv status compStmt mMenu mImg currentVertexRef compTreeRef
+
+advance :: Advance -> UI.Element -> UI.Element -> Maybe UI.Element -> Maybe (UI.Element,IORef Int) 
+         -> IORef UID -> IORef CompTree -> UI ()
+advance adv status compStmt mMenu mImg currentVertexRef compTreeRef = do
+  mv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
+  case mv of
+    Nothing  -> return ()
+    (Just v) -> do
+      t <- UI.liftIO $ readIORef compTreeRef
+      let w = case (adv, next_step t getJudgement v) of
+                (DoNotAdvance,_)           -> v
+                (AdvanceToNext,RootVertex) -> v
                 (AdvanceToNext,w')         -> w'
       UI.liftIO $ writeIORef currentVertexRef (vertexUID w)
-      UI.liftIO $ writeIORef compTreeRef t
       UI.element compStmt # UI.set UI.text (show . vertexStmt $ w)
       updateStatus status compTreeRef 
       case mMenu of Nothing                  -> return ()
                     (Just menu)              -> updateMenu menu compTreeRef currentVertexRef 
       case mImg  of Nothing                  -> return ()
                     (Just (img,imgCountRef)) -> redraw img imgCountRef compTreeRef (Just w)
-        
 
 --------------------------------------------------------------------------------
 -- Explore the computation tree
