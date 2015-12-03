@@ -286,15 +286,19 @@ advance :: Advance -> UI.Element -> UI.Element -> Maybe UI.Element -> Maybe (UI.
 advance adv status compStmt mMenu mImg currentVertexRef compTreeRef = do
   mv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
   case mv of
-    Nothing  -> return ()
+    Nothing  -> do
+      return ()
     (Just v) -> do
       t <- UI.liftIO $ readIORef compTreeRef
       let w = case (adv, next_step t getJudgement v) of
                 (DoNotAdvance,_)           -> v
                 (AdvanceToNext,RootVertex) -> v
                 (AdvanceToNext,w')         -> w'
+          a = case getJudgement w of
+                (Assisted msg) -> msg
+                _              -> ""
       UI.liftIO $ writeIORef currentVertexRef (vertexUID w)
-      UI.element compStmt # UI.set UI.text (show . vertexStmt $ w)
+      showStmt compStmt compTreeRef currentVertexRef
       updateStatus status compTreeRef 
       case mMenu of Nothing                  -> return ()
                     (Just menu)              -> updateMenu menu compTreeRef currentVertexRef 
@@ -349,9 +353,9 @@ showStmt :: UI.Element -> IORef CompTree -> IORef Int -> UI ()
 showStmt e compTreeRef currentVertexRef = do 
   mv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
   let s = case mv of
-                Nothing  -> "Select vertex above to show details."
+                Nothing  -> "No computation statement selected."
                 (Just v) -> let s = show . vertexStmt $ v in case getJudgement v of
-                              (Assisted s') -> s' ++ "<br/><br/>" ++ s
+                              (Assisted s') -> "Results from testing computation statement:\n" ++ s' ++ "\n---\n" ++ s
                               _             -> s
   UI.element e # set UI.text s
   return ()
@@ -466,7 +470,10 @@ vertexImg fs v = if v `elem` fs then ".Hoed/wwwroot/faulty.png" else case vertex
 updateStatus :: UI.Element -> IORef CompTree -> UI ()
 updateStatus e compGraphRef = do
   g <- UI.liftIO $ readIORef compGraphRef
-  let isJudged v = getJudgement v /= Unassessed
+  let isJudged v = case getJudgement v of
+        Right -> True
+        Wrong -> True
+        _     -> False -- Assisted does not count as judged
       slen       = show . length
       ns = filter (not . isRootVertex) (preorder g)
       js = filter isJudged ns

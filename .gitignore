@@ -20,5 +20,9 @@ tests/Prop/t4/*.hi
 tests/Prop/t4/*.o
 tests/Prop/t4/*/*.hi
 tests/Prop/t4/*/*.o
+examples/afp02Exercises/Compiler__with_properties/*.o
+examples/afp02Exercises/Compiler__with_properties/*.hi
+examples/ExpressionSimplifier/*.o
+examples/ExpressionSimplifier/*.hi
 *.swp
 tmp/

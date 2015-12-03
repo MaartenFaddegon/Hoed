@@ -57,6 +57,7 @@ sourceFile = ".Hoed/exe/Main.hs"
 buildFiles = ".Hoed/exe/Main.o .Hoed/exe/Main.hi"
 exeFile    = ".Hoed/exe/Main"
 outFile    = ".Hoed/exe/Main.out"
+errFile    = ".Hoed/exe/Main.compilerMessages"
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -83,35 +84,46 @@ judge unevalGen trc ps compTree = do
     (Just p) -> judgeWithPropositions unevalGen trc p v
   updateTree compTree w = mapGraph (\v -> if (vertexUID v) == (vertexUID w) then w else v) compTree
 
-
 -- Use a property to judge a vertex
 judgeWithPropositions :: PropVarGen String -> Trace -> Propositions -> Vertex -> IO Vertex
 judgeWithPropositions unevalGen _ _ RootVertex = return RootVertex
 judgeWithPropositions unevalGen trc p v = do
-  mbs <- mapM (evalProposition unevalGen trc v (extraModules p)) (propositions p)
-  let j = case (propType p, any isNothing mbs) of
-            (Specify,False) -> if any isJustFalse mbs then Wrong else Right
-            _               -> if any isJustFalse mbs then Wrong else Unassessed
-      j' = case (j, (map snd) . (filter (isJustTrue . fst)) $ zip mbs (propositions p)) of
-             (Unassessed, []) -> Unassessed
-             (Unassessed, ps) -> Assisted $ "With passing properties: " ++ commas (map propName ps)
-             _                -> j
+  pas <- mapM (evalProposition unevalGen trc v (extraModules p)) (propositions p)
+  let j = case (propType p, all hasResult pas) of
+            (Specify,True) -> if any disproves pas then Wrong else Right
+            _              -> if any disproves pas then Wrong else Unassessed
+      j' = case (j, (map snd) . (filter (holds . fst)) $ zip pas (propositions p)) of
+             (Unassessed, []) -> Assisted (errorMessages pas)
+             (Unassessed, ps) -> Assisted $ "With passing properties: " ++ commas (map propName ps) ++ "\n" ++ (errorMessages pas)
+             _                -> Assisted (errorMessages pas)
   hPutStrLn stderr $ "Judgement was " ++ (show . vertexJmt) v ++ ", and is now " ++ show j'
   return v{vertexJmt=j'}
   where
-  isJustFalse (Just False) = True
-  isJustFalse _            = False
-  isJustTrue (Just True)   = True
-  isJustTrue _             = False
-
   commas :: [String] -> String
   commas = concat . (intersperse ", ")
 
+data PropApp = Error String | Holds | Disproves
 
-evalProposition :: PropVarGen String -> Trace -> Vertex -> [Module] -> Proposition -> IO (Maybe Bool)
+hasResult :: PropApp -> Bool
+hasResult (Error _) = False
+hasResult _         = True
+
+holds :: PropApp -> Bool
+holds Holds = True
+holds _     = False
+
+disproves :: PropApp -> Bool
+disproves Disproves = True
+disproves _         = False
+
+errorMessages :: [PropApp] -> String
+errorMessages = foldl (\msgs (Error msg) -> msgs ++ "\n" ++ msg) [] . filter (not . hasResult)
+
+evalProposition :: PropVarGen String -> Trace -> Vertex -> [Module] -> Proposition -> IO PropApp
 evalProposition unevalGen trc v ms prop = do
   createDirectoryIfMissing True ".Hoed/exe"
   hPutStrLn stderr $ "\nEvaluating proposition " ++ propName prop ++ " with statement " ++ (shorten . noNewlines . show . vertexStmt) v
+  -- Uncomment to print arguments in full.
   -- let args = map (\(n,s) -> "Argument " ++ show n ++ ": " ++ s) $ zip [0..] (generateArgs trc getEvent i)
   -- let args = map (\(n,s) -> "Argument " ++ show n ++ ": " ++ (shorten s)) $ zip [0..] (generateArgs trc getEvent i)
   -- hPutStrLn stderr $ "Statement UID = " ++ show i
@@ -120,26 +132,31 @@ evalProposition unevalGen trc v ms prop = do
   generateCode
   compile
   exit' <- compile
-  hPutStrLn stderr $ "Compilation exitted with " ++ show exit'
-  exit  <- case exit' of (ExitFailure n) -> return (ExitFailure n)
-                         ExitSuccess     -> evaluate
-  out  <- readFile outFile
-  hPutStrLn stderr $ "Evaluation exitted with " ++ show exit
-  hPutStrLn stderr $ "Output is " ++ show out
-  return $ case (exit, out) of
-    (ExitFailure _, _)         -> Nothing -- TODO: Can we do better with a failing precondition?
-    (ExitSuccess  , "True\n")  -> Just True
-    (ExitSuccess  , "False\n") -> Just False
-    (ExitSuccess  , _)         -> Nothing
+  err  <- readFile errFile
+  -- Uncomment to print compilation messages.
+  -- hPutStrLn stderr $ err
+  -- hPutStrLn stderr $ "Compilation exitted with " ++ show exit'
+  case exit' of 
+    (ExitFailure _) -> return $ Error $ "Compilation failed with:\n" ++ err
+    ExitSuccess     -> do 
+      exit <- evaluate
+      out  <- readFile outFile
+      -- hPutStrLn stderr $ out
+      -- hPutStrLn stderr $ "Evaluation exitted with " ++ show exit
+      return $ case (exit,out) of
+        (ExitFailure _, _)         -> Error out
+        (ExitSuccess  , "True\n")  -> Holds
+        (ExitSuccess  , "False\n") -> Disproves
+        (ExitSuccess  , _)         -> Error out
 
     where
     clean        = system $ "rm -f " ++ sourceFile ++ " " ++ exeFile ++ " " ++ buildFiles
     generateCode = do -- Uncomment the next line to dump generated program on screen
-                      hPutStrLn stderr $ "Generated the following program ***\n" ++ prgm ++ "\n***" 
+                      -- hPutStrLn stderr $ "Generated the following program ***\n" ++ prgm ++ "\n***" 
                       writeFile sourceFile prgm
                       where prgm :: String
                             prgm = (generate unevalGen prop ms trc getEvent i)
-    compile      = system $ "ghc  -i" ++ (searchPath . propModule) prop ++ " -o " ++ exeFile ++ " " ++ sourceFile
+    compile      = system $ "ghc  -i" ++ (searchPath . propModule) prop ++ " -o " ++ exeFile ++ " " ++ sourceFile ++ " 2>&1 > " ++ errFile
     evaluate     = system $ exeFile ++ " > " ++ outFile ++ " 2>&1"
     i            = (stmtIdentifier . vertexStmt) v
 
@@ -233,8 +250,9 @@ generateMain unevalGen prop trc getEvent i
 
 generateArgs :: (PropVarGen String) -> Trace -> (UID -> Event) -> UID -> [PropVarGen String]
 generateArgs unevalGen trc getEvent i = case dfsChildren frt e of
-  [_,ma,_,mr]  -> generateExpr unevalGen frt ma : moreArgs unevalGen trc getEvent mr
-  xs           -> error ("generateArgs: dfsChildren (" ++ show e ++ ") = " ++ show xs)
+  [_,ma,_,mr]    -> generateExpr unevalGen frt ma : moreArgs unevalGen trc getEvent mr
+  [Nothing,_,mr] -> unevalGen                     : moreArgs unevalGen trc getEvent mr
+  xs             -> error ("generateArgs: dfsChildren (" ++ show e ++ ") = " ++ show xs)
   where
   frt = (mkEventForest trc)
   e   = getEvent i -- (reverse trc) !! (i-1)
