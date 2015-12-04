@@ -24,5 +24,13 @@ examples/afp02Exercises/Compiler__with_properties/*.o
 examples/afp02Exercises/Compiler__with_properties/*.hi
 examples/ExpressionSimplifier/*.o
 examples/ExpressionSimplifier/*.hi
+examples/Digraph_not_data_invariant__with_properties/*.o
+examples/Digraph_not_data_invariant__with_properties/*.hi
+examples/XMonad_changing_focus_duplicates_windows/*.o
+examples/XMonad_changing_focus_duplicates_windows/*.hi
+examples/XMonad_changing_focus_duplicates_windows/Test/*.o
+examples/XMonad_changing_focus_duplicates_windows/Test/*.hi
+examples/XMonad_changing_focus_duplicates_windows/XMonad/*.hi
+examples/XMonad_changing_focus_duplicates_windows/XMonad/*.o
 *.swp
 tmp/
