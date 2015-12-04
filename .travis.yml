@@ -50,3 +50,7 @@ script:
  - bash -x configure.Prop
  - cabal build
  - bash test.Prop
+ # Test if we can build all demos
+ - cabal clean
+ - bash -x configure.Demo
+ - cabal build
