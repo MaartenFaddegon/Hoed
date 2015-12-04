@@ -35,9 +35,9 @@ data PropType     = Specify | PropertiesOf deriving Eq
 
 type Proposition  = (PropositionType,Module,String,[Int])
 
-data PropositionType = BoolProposition | QuickCheckProposition
+data PropositionType = BoolProposition | QuickCheckProposition deriving Show
 
-data Module       = Module {moduleName :: String, searchPath :: String}
+data Module       = Module {moduleName :: String, searchPath :: String} deriving Show
 
 propositionType :: Proposition -> PropositionType
 propositionType (x,_,_,_) = x
@@ -88,28 +88,24 @@ judge unevalGen trc ps compTree = do
 judgeWithPropositions :: PropVarGen String -> Trace -> Propositions -> Vertex -> IO Vertex
 judgeWithPropositions unevalGen _ _ RootVertex = return RootVertex
 judgeWithPropositions unevalGen trc p v = do
+  putStrLn $ "\n================\n"
   pas <- mapM (evalProposition unevalGen trc v (extraModules p)) (propositions p)
+  putStrLn $ "judgeWithPropositions: pas=" ++ show pas  
   let s = propType p == Specify
-      a = case (map snd) . (filter (holds . fst)) $ zip pas (propositions p) of
-            [] -> errorMessages pas
-            ps -> "With passing properties: " ++ commas (map propName ps) ++ "\n" ++ (errorMessages pas)
+      z = zip pas (propositions p)
+  let a = case (map snd) . (filter (holds . fst)) $ z of
+            [] -> errorMessages z
+            ps -> "With passing properties: " ++ commas (map propName ps) ++ "\n" ++ (errorMessages z)
       j | s && all hasResult pas = if any disproves pas then Wrong else Right
         | any hasResult pas      = if any disproves pas then Wrong else Assisted a
         | otherwise              = Assisted a
-  -- let j = case (propType p, any hasResult pas) of
-  --           (Specify,True) -> if any disproves pas then Wrong else Right -- MF TODO: all should have result to tell it's Right
-  --           _              -> if any disproves pas then Wrong else Unassessed
-  --     j' = case (j, (map snd) . (filter (holds . fst)) $ zip pas (propositions p)) of
-  --            (Unassessed, []) -> Assisted (errorMessages pas)
-  --            (Unassessed, ps) -> Assisted $ "With passing properties: " ++ commas (map propName ps) ++ "\n" ++ (errorMessages pas)
-  --            _                -> Assisted (errorMessages pas)
   hPutStrLn stderr $ "Judgement was " ++ (show . vertexJmt) v ++ ", and is now " ++ show j
   return v{vertexJmt=j}
   where
   commas :: [String] -> String
   commas = concat . (intersperse ", ")
 
-data PropApp = Error String | Holds | Disproves
+data PropApp = Error String | Holds | Disproves deriving Show
 
 hasResult :: PropApp -> Bool
 hasResult (Error _) = False
@@ -123,33 +119,27 @@ disproves :: PropApp -> Bool
 disproves Disproves = True
 disproves _         = False
 
-errorMessages :: [PropApp] -> String
-errorMessages = foldl (\msgs (Error msg) -> msgs ++ "\n---\n" ++ msg) [] . filter (not . hasResult)
+errorMessages :: [(PropApp,Proposition)] -> String
+errorMessages = foldl (\msgs (Error msg,p) -> msgs ++ "\n---\n" ++ propName p ++ " failed with:\n" ++ msg) [] . filter (not . hasResult . fst)
 
 evalProposition :: PropVarGen String -> Trace -> Vertex -> [Module] -> Proposition -> IO PropApp
 evalProposition unevalGen trc v ms prop = do
   createDirectoryIfMissing True ".Hoed/exe"
-  hPutStrLn stderr $ "\nEvaluating proposition " ++ propName prop ++ " with statement " ++ (shorten . noNewlines . show . vertexStmt) v
-  -- Uncomment to print arguments in full.
-  -- let args = map (\(n,s) -> "Argument " ++ show n ++ ": " ++ s) $ zip [0..] (generateArgs trc getEvent i)
-  -- let args = map (\(n,s) -> "Argument " ++ show n ++ ": " ++ (shorten s)) $ zip [0..] (generateArgs trc getEvent i)
-  -- hPutStrLn stderr $ "Statement UID = " ++ show i
-  -- mapM (hPutStrLn stderr) args
+  hPutStrLn stderr $ "Evaluating proposition " ++ propName prop ++ " with statement " ++ (shorten . noNewlines . show . vertexStmt) v
   clean
   prgm <- generateCode
   compile
   exit' <- compile
   err  <- readFile errFile
-  -- Uncomment to print compilation messages.
-  -- hPutStrLn stderr $ err
-  -- hPutStrLn stderr $ "Compilation exitted with " ++ show exit'
+  hPutStrLn stderr $ err
+  hPutStrLn stderr $ "Compilation exitted with " ++ show exit'
   case exit' of 
     (ExitFailure _) -> return $ Error $ "Compilation of {{{\n" ++ prgm ++ "\n}}} failed with:\n" ++ err
     ExitSuccess     -> do 
       exit <- evaluate
       out  <- readFile outFile
-      -- hPutStrLn stderr $ out
-      -- hPutStrLn stderr $ "Evaluation exitted with " ++ show exit
+      hPutStrLn stderr $ out
+      hPutStrLn stderr $ "Evaluation exitted with " ++ show exit
       return $ case (exit,out) of
         (ExitFailure _, _)         -> Error out
         (ExitSuccess  , "True\n")  -> Holds

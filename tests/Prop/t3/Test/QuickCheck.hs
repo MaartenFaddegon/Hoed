@@ -14,6 +14,7 @@
 -- This file represents work in progress, and might change at a later date.
 --
 -----------------------------------------------------------------------------
+{-# LANGUAGE CPP #-}
 
 module Test.QuickCheck
   -- testing functions
