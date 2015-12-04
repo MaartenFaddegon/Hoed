@@ -113,9 +113,11 @@ generate n rnd (Gen m) = m size rnd'
 instance Functor Gen where
   fmap f m = m >>= return . f
 
+#if __GLASGOW_HASKELL__ >= 710
 instance Applicative Gen where
     pure  = return
     (<*>) = ap
+#endif
 
 instance Monad Gen where
   return a    = Gen (\n r -> a)
