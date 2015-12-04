@@ -22,7 +22,7 @@ import System.IO(hPutStrLn,stderr)
 import System.IO.Unsafe(unsafePerformIO)
 import Data.Char(isAlpha)
 import Data.Maybe(isNothing,fromJust)
-import Data.List(intersperse)
+import Data.List(intersperse,isInfixOf)
 import GHC.Generics hiding (moduleName) --(Generic(..),Rep(..),from,(:+:)(..),(:*:)(..),U1(..),K1(..),M1(..))
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -31,7 +31,7 @@ data Propositions = Propositions { propositions :: [Proposition], propType :: Pr
                                  , extraModules :: [Module]
                                  } 
 
-data PropType     = Specify | PropertiesOf
+data PropType     = Specify | PropertiesOf deriving Eq
 
 type Proposition  = (PropositionType,Module,String,[Int])
 
@@ -89,15 +89,22 @@ judgeWithPropositions :: PropVarGen String -> Trace -> Propositions -> Vertex ->
 judgeWithPropositions unevalGen _ _ RootVertex = return RootVertex
 judgeWithPropositions unevalGen trc p v = do
   pas <- mapM (evalProposition unevalGen trc v (extraModules p)) (propositions p)
-  let j = case (propType p, all hasResult pas) of
-            (Specify,True) -> if any disproves pas then Wrong else Right
-            _              -> if any disproves pas then Wrong else Unassessed
-      j' = case (j, (map snd) . (filter (holds . fst)) $ zip pas (propositions p)) of
-             (Unassessed, []) -> Assisted (errorMessages pas)
-             (Unassessed, ps) -> Assisted $ "With passing properties: " ++ commas (map propName ps) ++ "\n" ++ (errorMessages pas)
-             _                -> Assisted (errorMessages pas)
-  hPutStrLn stderr $ "Judgement was " ++ (show . vertexJmt) v ++ ", and is now " ++ show j'
-  return v{vertexJmt=j'}
+  let s = propType p == Specify
+      a = case (map snd) . (filter (holds . fst)) $ zip pas (propositions p) of
+            [] -> errorMessages pas
+            ps -> "With passing properties: " ++ commas (map propName ps) ++ "\n" ++ (errorMessages pas)
+      j | s && all hasResult pas = if any disproves pas then Wrong else Right
+        | any hasResult pas      = if any disproves pas then Wrong else Assisted a
+        | otherwise              = Assisted a
+  -- let j = case (propType p, any hasResult pas) of
+  --           (Specify,True) -> if any disproves pas then Wrong else Right -- MF TODO: all should have result to tell it's Right
+  --           _              -> if any disproves pas then Wrong else Unassessed
+  --     j' = case (j, (map snd) . (filter (holds . fst)) $ zip pas (propositions p)) of
+  --            (Unassessed, []) -> Assisted (errorMessages pas)
+  --            (Unassessed, ps) -> Assisted $ "With passing properties: " ++ commas (map propName ps) ++ "\n" ++ (errorMessages pas)
+  --            _                -> Assisted (errorMessages pas)
+  hPutStrLn stderr $ "Judgement was " ++ (show . vertexJmt) v ++ ", and is now " ++ show j
+  return v{vertexJmt=j}
   where
   commas :: [String] -> String
   commas = concat . (intersperse ", ")
@@ -147,7 +154,9 @@ evalProposition unevalGen trc v ms prop = do
         (ExitFailure _, _)         -> Error out
         (ExitSuccess  , "True\n")  -> Holds
         (ExitSuccess  , "False\n") -> Disproves
-        (ExitSuccess  , _)         -> Error out
+        (ExitSuccess  , _)         -> if "Failed! Falsifiable" `isInfixOf` out
+                                        then Disproves
+                                        else Error out
 
     where
     clean        = system $ "rm -f " ++ sourceFile ++ " " ++ exeFile ++ " " ++ buildFiles
@@ -205,7 +214,7 @@ propVarError :: PropVarGen String
 propVarError = propVarReturn "(error \"Request of value that was unevaluated in original program.\")"
 
 propVarFresh :: PropVarGen String
-propVarFresh (bvs,v:fvs) = (v, (bvs,fvs))
+propVarFresh (bvs,v:fvs) = (v, (v:bvs,fvs))
 
 propVarReturn :: String -> PropVarGen String
 propVarReturn s vs = (s,vs)
