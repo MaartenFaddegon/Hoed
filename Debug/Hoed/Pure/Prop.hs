@@ -137,7 +137,8 @@ evalProposition unevalGen trc v ms prop = do
     (ExitFailure _) -> return $ Error $ "Compilation of {{{\n" ++ prgm ++ "\n}}} failed with:\n" ++ err
     ExitSuccess     -> do 
       exit <- evaluate
-      out <- readFile outFile
+      out' <- readFile outFile
+      let out = backspaces out'
       hPutStrLn stderr $ out
       hPutStrLn stderr $ "Evaluation exitted with " ++ show exit
       return $ case (exit,out) of
@@ -167,6 +168,17 @@ evalProposition unevalGen trc v ms prop = do
     getEvent :: UID -> Event
     getEvent j = fromJust $ M.lookup j m
       where m = M.fromList $ map (\e -> (eventUID e, e)) trc
+
+backspaces :: String -> String
+backspaces s = reverse (backspaces' [] s)
+  where
+  backspaces' s []    = s
+  backspaces' s (c:t)
+    | c == '\b'       = backspaces' (safeTail s) t
+    | otherwise       = backspaces' (c:s)        t
+
+  safeTail []    = []
+  safeTail (c:s) = s
 
 -- The actual logic that changes the judgement of a vertex.
 judge1' :: ExitCode -> String -> Judgement -> Judgement

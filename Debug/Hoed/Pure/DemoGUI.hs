@@ -299,7 +299,7 @@ advance adv status compStmt mMenu mImg currentVertexRef compTreeRef = do
       return ()
     (Just v) -> do
       t <- UI.liftIO $ readIORef compTreeRef
-      let w = case (adv, next_step t getJudgement v) of
+      let w = case (adv, next_step t getJudgement) of
                 (DoNotAdvance,_)           -> v
                 (AdvanceToNext,RootVertex) -> v
                 (AdvanceToNext,w')         -> w'

@@ -62,7 +62,7 @@ library
                        , process
                        , threepenny-gui == 0.6.*
                        , filepath
-                       , libgraph == 1.8
+                       , libgraph == 1.9
                        , RBTree == 0.0.5
                        , regex-posix
                        , mtl
