@@ -1,7 +1,7 @@
 CABAL_VER=`cabal --numeric-version | sed 's/\./ /g'`
 MAJOR=`echo $CABAL_VER | awk '{print $1}'`
 MINOR=`echo $CABAL_VER | awk '{print $2}'`
-FLAGS="validateStk validatePure validateProp"
+FLAGS="validateStk validatePure validateProp buildExamples"
 
 if [ "$MAJOR" -le "1" -a "$MINOR" -le "18" ]; then
   cabal install --only-dependencies --enable-library-profiling --flags="$FLAGS" 
