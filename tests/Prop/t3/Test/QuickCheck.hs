@@ -63,8 +63,8 @@ module Test.QuickCheck
   , Property      -- :: *
 
   -- For writing your own driver
-  , Result(..)	 -- :: data
-  , generate	 -- :: Int -> StdGen -> Gen a -> a
+  , Result(..)   -- :: data
+  , generate     -- :: Int -> StdGen -> Gen a -> a
   , evaluate     -- :: Testable a => a -> Gen Result
   )
  where
