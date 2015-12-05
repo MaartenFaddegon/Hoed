@@ -120,7 +120,7 @@ disproves Disproves = True
 disproves _         = False
 
 errorMessages :: [(PropApp,Proposition)] -> String
-errorMessages = foldl (\msgs (Error msg,p) -> msgs ++ "\n---\n\nApplying property " ++ propName p ++ " was inconclusive. Output was:\n\n" ++ msg) [] . filter (not . hasResult . fst)
+errorMessages = foldl (\msgs (Error msg,p) -> msgs ++ "\n---\n\nApplying property " ++ propName p ++ " gives inconclusive result:\n\n" ++ msg) [] . filter (not . hasResult . fst)
 
 evalProposition :: PropVarGen String -> Trace -> Vertex -> [Module] -> Proposition -> IO PropApp
 evalProposition unevalGen trc v ms prop = do
@@ -157,7 +157,7 @@ evalProposition unevalGen trc v ms prop = do
                       where prgm :: String
                             prgm = (generate unevalGen prop ms trc getEvent i)
     compile      = system $ "ghc  -i" ++ (searchPath . propModule) prop ++ " -o " ++ exeFile ++ " " ++ sourceFile ++ " > " ++ errFile ++ " 2>&1"
-    evaluate     = system $ exeFile ++ " 2>&1 > " ++ outFile
+    evaluate     = system $ exeFile ++ " > " ++ outFile ++ " 2>&1"
     i            = (stmtIdentifier . vertexStmt) v
 
     shorten s
