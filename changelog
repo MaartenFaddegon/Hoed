@@ -1,4 +1,16 @@
-0.2.2 Maarten Faddegon 14  2015
+0.3.2 Maarten Faddegon 6 Dec 2015
+
+  * Add experimental combinators for property-assisted algorithmic debugging.
+
+0.3.1 Maarten Faddegon 20 Nov 2015
+
+  * Some performance improvements in Debug.Hoed.Pure; add several extra examples.
+
+0.3.0 Maarten Faddegon 3 Sep 2015
+
+  * Add Debug.Hoed.Pure, allowing computation tree tracing with higher precision without depending on the cost centre stack extension.
+
+0.2.2 Maarten Faddegon 14 July 2015
 
   * Use a preprocessor to make the library work with GHC 7.10, but also for older versions of GHC. This is related to the "The Applicative Monad Proposal" and the changes to Template Haskell in GHC 7.10 that are not backward compatibility with earlier versions of GHC.
 
@@ -10,7 +22,6 @@
 
   * A threepenny-gui algorithmic debugger.
   * Construction of computation trees with just local annotations. Existing algorithmic debuggers for Haskell require a transformation of all modules in a program, even libraries that the user does not want to debug and which may use language features not supported by the debugger. This is a pity, because a promising approach to debugging is therefore not applicable to many real-world programs. We use the cost centre stack from the Glasgow Haskell Compiler profiling environment together with runtime value observations to collect enough information for algorithmic debugging.
-
 
 0.1.0.1 Maarten Faddegon 24 May 2014
 
