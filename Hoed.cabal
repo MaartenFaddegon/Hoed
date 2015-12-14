@@ -1,5 +1,5 @@
 name:                Hoed
-version:             0.3.2
+version:             0.3.3
 synopsis:            Lightweight algorithmic debugging.
 description:
     Hoed is a tracer and debugger for the programming language Haskell. You can trace a program by annotating functions in suspected modules and linking your program against standard profiling libraries.

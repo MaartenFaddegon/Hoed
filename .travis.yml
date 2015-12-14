@@ -54,3 +54,5 @@ script:
  - cabal clean
  - bash -x configure.Demo
  - cabal build
+ # Test if we can build documentation
+ - cabal haddock
