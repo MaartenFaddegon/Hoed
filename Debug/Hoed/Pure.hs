@@ -1,17 +1,17 @@
 {-|
 Module      : Debug.Hoed.Pure
-Description : Lighweight algorithmic debugging based on observing intermediate values and the cost centre stack.
+Description : Lighweight algorithmic debugging based on observing intermediate values.
 Copyright   : (c) 2000 Andy Gill, (c) 2010 University of Kansas, (c) 2013-2015 Maarten Faddegon
 License     : BSD3
 Maintainer  : hoed@maartenfaddegon.nl
 Stability   : experimental
 Portability : POSIX
 
-Hoed is a tracer and debugger for the programming language Haskell. You can
-trace a program by annotating functions in suspected modules and linking your
-program against standard profiling libraries.
+Hoed is a tracer and debugger for the programming language Haskell.
 
-To locate a defect with Hoed you annotate suspected functions and compile as usual. Then you run your program, information about the annotated functions is collected. Finally you connect to a debugging session using a webbrowser.
+Hoed.Pure is recommended over Hoed.Stk: in contrast to Hoed.Stk you can optimize your program and do not need to enable profiling when using Hoed.Pure.
+
+To locate a defect with Hoed.Pure you annotate suspected functions and compile as usual. Then you run your program, information about the annotated functions is collected. Finally you connect to a debugging session using a webbrowser.
 
 Let us consider the following program, a defective implementation of a parity function with a test property.
 
@@ -82,12 +82,11 @@ statements in the tree as 'right' or 'wrong' according to your intention. When
 enough statements are judged the debugger tells you the location of the fault
 in your code.
 
-<<http://www.cs.kent.ac.uk/people/rpg/mf357/hoedv2.0.0.png>>
+<<https://raw.githubusercontent.com/MaartenFaddegon/Hoed/master/screenshots/AlgorithmicDebugging.png>>
 
-I work on this debugger in the context of my Ph.D. research.
-Read more about the theory behind Hoed at <http://maartenfaddegon.nl/#pub>.
+Read more about Hoed on its project homepage <https://wiki.haskell.org/Hoed>.
 
-Hoed.Pure is recommended over Hoed.Stk because to debug your program with Hoed.Pure you can optimize your program and do not need to enable profiling.
+Papers on the theory behind Hoed can be obtained via <http://maartenfaddegon.nl/#pub>.
 
 I am keen to hear about your experience with Hoed: where did you find it useful and where would you like to see improvement? You can send me an e-mail at hoed@maartenfaddegon.nl, or use the github issue tracker <https://github.com/MaartenFaddegon/hoed/issues>.
 -}

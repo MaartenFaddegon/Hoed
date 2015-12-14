@@ -22,7 +22,7 @@ language debuggers.
 
 Copyright (c) Andy Gill, 1992-2000
 Copyright (c) The University of Kansas 2010
-Copyright (c) Maarten Faddegon, 2013-2014
+Copyright (c) Maarten Faddegon, 2013-2015
 
 All rights reserved. HOOD is distributed as free software under
 the license in the file "License", which available from the HOOD
