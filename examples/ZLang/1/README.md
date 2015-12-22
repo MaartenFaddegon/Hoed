@@ -1,0 +1,2 @@
+# Z
+Implementation of the Z programming language: A functional/imperative language with strong updates, type inference, structural subtyping, universal types, pattern matching on open sum types, first order functions and much more!

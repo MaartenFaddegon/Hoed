@@ -1,0 +1,7 @@
+diGraph G {
+v2 [label=<<TABLE BORDER="0" CELLBORDER="0"><TR><TD HEIGHT="30" WIDTH="30" FIXEDSIZE="true"><IMG SCALE="true" SRC=".Hoed/wwwroot/unassessed.png"/></TD><TD><FONT POINT-SIZE="30">instanceOf _ _ (BottomPattern _) = False</FONT></TD></TR></TABLE>>shape=none]
+v1 [label=<<TABLE BORDER="0" CELLBORDER="0"><TR><TD HEIGHT="30" WIDTH="30" FIXEDSIZE="true"><IMG SCALE="true" SRC=".Hoed/wwwroot/unassessed.png"/></TD><TD><FONT POINT-SIZE="30">instanceOf _ (RecordPattern ((&quot;a&quot;, TopPattern _) : ('b' :...</FONT></TD></TR></TABLE>>shape=none fontcolor=blue]
+v0 [label=<<TABLE BORDER="0" CELLBORDER="0"><TR><TD HEIGHT="30" WIDTH="30" FIXEDSIZE="true"><IMG SCALE="true" SRC=".Hoed/wwwroot/wrong.png"/></TD><TD><FONT POINT-SIZE="30">covering _ (RecordPattern ((&quot;a&quot;, BottomPattern _) : ('b' ...</FONT></TD></TR></TABLE>>shape=none]
+v0 -> v1 [label=""]
+v1 -> v2 [label=""]
+}
