@@ -8,7 +8,7 @@ description:
     .
     Hoed comes in two flavours: Hoed.Pure and Hoed.Stk. Hoed.Stk uses the cost-centre stacks of the GHC profiling environment to construct the information needed for debugging. Hoed.Pure is recommended over Hoed.Stk: to debug your program with Hoed.Pure you can optimize your program and do not need to enable profiling.
     .
-homepage:            http://maartenfaddegon.nl
+homepage:            https://wiki.haskell.org/Hoed
 license:             BSD3
 license-file:        LICENSE
 author:              Maarten Faddegon
