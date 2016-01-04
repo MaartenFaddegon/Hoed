@@ -3,6 +3,23 @@
 TESTS="0 1 2 3"
 FAIL=0
 
+
+echo "Testing parallel equality for Generic types"
+echo
+
+x=`./dist/build/hoed-tests-ParEq/hoed-tests-ParEq`
+echo "x is $x"
+if [ $x = "True" ]; then
+    echo -n "[OK"
+else
+  FAIL=1
+  echo -n "["
+  echo -en '\E[37;31m'"\033[1m!!\033[0m" # red "!!" on white background
+  tput sgr0                              # reset colour
+fi
+  echo "] Generic.ParEq"
+
+
 echo "Testing events produced for Observable derived for Generic types"
 echo
 

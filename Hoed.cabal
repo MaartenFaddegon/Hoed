@@ -174,7 +174,7 @@ Executable hoed-examples-ZLang_Defect-2
   hs-source-dirs:      examples/ZLang/2
   default-language:    Haskell2010
 
-Executable hoed-examples-ZLang_Defect3
+Executable hoed-examples-ZLang_Defect-3
   if flag(buildExamples)
     build-depends:     base >= 4 && < 5, Hoed, threepenny-gui, filepath, QuickCheck, mtl, monad-loops, transformers, containers, parsec, indents, adjunctions
   else
@@ -727,6 +727,31 @@ Executable hoed-tests-Prop-t4
 --   default-language:    Haskell2010
 
 ---------------------------------------------------------------------------
+-- Validate derivation of Observable and ParEq for Generic types
+--
+---------------------------------------------------------------------------
+
+
+Executable hoed-tests-ParEq
+  if flag(validateGeneric)
+    build-depends:       base >= 4 && <5
+                         , template-haskell
+                         , array, containers
+                         , process
+                         , threepenny-gui == 0.6.*
+                         , filepath
+                         , libgraph == 1.9
+                         , RBTree == 0.0.5
+                         , regex-posix
+                         , mtl
+                         , directory
+                         , FPretty
+  else
+    buildable: False
+  main-is:             Debug/Hoed/Pure/TestParEq.hs
+  default-language:    Haskell2010
+
+
 
 Executable hoed-tests-Generic-r0
   if flag(validateGeneric)
