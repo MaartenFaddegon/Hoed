@@ -54,8 +54,8 @@ prop_nubord'_idempotent :: Int -> [Int] -> Property
 prop_nubord'_idempotent x xs = unique xs && ordered (x:xs) ==> xs' == nubord' x xs'
   where xs' = nubord' x xs
 
-prop_nubord'_complete :: [Int] -> Int -> Property
-prop_nubord'_complete xs x = ordered xs  && x `elem` xs ==> x `elem` (nub xs)
+prop_nubord'_complete :: Int -> [Int] -> Property
+prop_nubord'_complete x xs = ordered xs  && x `elem` xs ==> x `elem` (nub xs)
 
 prop_nubord'_unique :: Int -> [Int] -> Property
 prop_nubord'_unique x xs = unique xs && ordered (x:xs) ==> unique (nubord' x xs)
