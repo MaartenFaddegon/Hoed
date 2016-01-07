@@ -199,9 +199,11 @@ guiAssisted trace ps compTreeRef currentVertexRef regexRef imgCountRef = do
        j right Right
        j wrong Wrong
        testB  <- UI.button # set UI.text "test"                                                # set UI.height 30 # set UI.style [("margin-right","1em")]
-       testAllB  <- UI.button # set UI.text "test all"                                         # set UI.height 30
+       testAllB  <- UI.button # set UI.text "test all"                                         # set UI.height 30 # set UI.style [("margin-right","1em")]
+       resetB <- UI.button # set UI.text "clear all judgements"                                # set UI.height 30
        on UI.click testAllB $ \_ -> testAll compTreeRef trace ps status currentVertexRef compStmt forallRef
        on UI.click testB $ \_ -> testCurrent compTreeRef trace ps status currentVertexRef compStmt forallRef
+       on UI.click resetB $ \_ -> resetTree compTreeRef ps status currentVertexRef compStmt
 
        -- Checkbox to indicate if we want to use quickcheck over unevaluated values
        forall <- UI.input # set UI.type_ "checkbox" # set UI.checked False # set UI.style [("transform","scale(1.5)"),("-webkit-transform","scale(1.5)"),("margin-right","0.5em")]
@@ -209,8 +211,14 @@ guiAssisted trace ps compTreeRef currentVertexRef regexRef imgCountRef = do
        on UI.checkedChange forall $ \b -> UI.liftIO $ writeIORef forallRef b
 
        -- Populate the main screen
-       top <- UI.center #+ [return status, UI.br, return right, return wrong, return testB, return testAllB, return forallDiv]
+       top <- UI.center #+ [return status, UI.br, return right, return wrong, return testB, return testAllB, return resetB, return forallDiv]
        UI.div #+ [return top, UI.hr, return compStmt]
+
+resetTree compTreeRef ps status currentVertexRef compStmt = do
+  t <- UI.liftIO $ readIORef compTreeRef
+  UI.liftIO $ writeIORef compTreeRef (mapGraph resetVertex t)
+  advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
+  where resetVertex = flip setJudgement Unassessed
 
 testAll compTreeRef trace ps status currentVertexRef compStmt forallRef = do
   return status # UI.set UI.text "Evaluating propositions ..." #+ [UI.img # set UI.src "static/loading.gif" # set UI.height 30]
@@ -491,6 +499,7 @@ updateStatus e compGraphRef = do
                              else " Judged " ++ slen js ++ "/" ++ slen ns
   UI.element e # set UI.text txt
   return ()
+
 
 redrawWith :: UI.Element -> IORef Int -> IORef CompTree -> IORef Int -> UI ()
 redrawWith img imgCountRef compTreeRef currentVertexRef = do
