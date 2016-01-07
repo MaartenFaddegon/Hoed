@@ -96,14 +96,23 @@ judgeWithPropositions unevalGen trc p v = do
   let a = case (map snd) . (filter (holds . fst)) $ z of
             [] -> errorMessages z
             ps -> "With passing properties: " ++ commas (map propName ps) ++ "\n" ++ (errorMessages z)
-      j | s && all hasResult pas = if any disproves pas then Wrong else Right
-        | any hasResult pas      = if any disproves pas then Wrong else Assisted a
-        | otherwise              = Assisted a
+      j' | s && all hasResult pas = if any disproves pas then Wrong else Right
+         | any hasResult pas      = if any disproves pas then Wrong else Assisted a
+         | otherwise              = Assisted a
+      j  | j' `moreInfo` (vertexJmt v) = j'
+         | otherwise                   = vertexJmt v
+
   hPutStrLn stderr $ "Judgement was " ++ (show . vertexJmt) v ++ ", and is now " ++ show j
   return v{vertexJmt=j}
   where
   commas :: [String] -> String
   commas = concat . (intersperse ", ")
+
+  moreInfo _          Unassessed   = True
+  moreInfo Unassessed (Assisted _) = False
+  moreInfo _          (Assisted _) = True
+  moreInfo _          Right        = False
+  moreInfo _          Wrong        = False
 
 data PropApp = Error String | Holds | Disproves deriving Show
 
@@ -259,7 +268,6 @@ generateHeading prop ms =
   qcImports'
     = generateImport (Module "System.Random" [])             -- newStdGen
       ++ generateImport (Module "Data.Maybe" [])             -- fromJust
-      ++ generateImport (Module "Control.Exception.Base" []) -- evaluate
 
 generateImport :: Module -> String
 generateImport m =  "import " ++ (moduleName m) ++ "\n"
