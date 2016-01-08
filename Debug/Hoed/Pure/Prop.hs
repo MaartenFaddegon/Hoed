@@ -92,14 +92,14 @@ judgeWithPropositions handler trc p v = do
   pas' <- mapM (evalProposition unevalGen trc v (extraModules p)) (propositions p)
   putStrLn $ "judgeWithPropositions: pas=" ++ show pas'
   let pas = if handler == TrustForall then trustWeak pas' else weaken pas'
-      s = propType p == Specify && (handler == TrustForall || noAssumption unevalGen)
       z = zip pas (propositions p)
       a = case (map snd) . (filter (holds . fst)) $ z of
             [] -> errorMessages z
             ps -> "With passing properties: " ++ commas (map propName ps) ++ "\n" ++ (errorMessages z)
-      j' | s && all hasResult pas = if any disproves pas then Wrong else Right
-         | any hasResult pas      = if any disproves pas then Wrong else Assisted a
-         | otherwise              = Assisted a
+      j' | propType p == Specify && all hasResult pas
+                                       = if any disproves pas then Wrong else Right
+         | any hasResult pas           = if any disproves pas then Wrong else Assisted a
+         | otherwise                   = Assisted a
       j  | j' `moreInfo` (vertexJmt v) = j'
          | otherwise                   = vertexJmt v
 
@@ -253,9 +253,6 @@ propVarFresh (bvs,v:fvs) = (v, (v:bvs,fvs))
 
 propVarReturn :: String -> PropVarGen String
 propVarReturn s vs = (s,vs)
-
-noAssumption :: PropVarGen a -> Bool
-noAssumption unevalGen = (fst . snd . unevalGen) propVars0 == []
 
 propVarBind :: (String,PropVars) -> Proposition -> String
 propVarBind (propApp,([],_))  prop = generatePrint prop ++ " $ " ++ propApp

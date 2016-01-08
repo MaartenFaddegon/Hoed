@@ -110,8 +110,7 @@ module Debug.Hoed.Pure
   , Proposition(..)
   , PropositionType(..)
   , Module(..)
-  , propVarError
-  , propVarFresh
+  , UnevalHandler(..)
 
     -- * Experimental annotations
   , traceOnly

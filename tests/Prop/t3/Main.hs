@@ -13,7 +13,7 @@ myStackSet = (StackSet {current = Screen {workspace = Workspace {tag = NonNegati
 
 
 main :: IO ()
-main = logOwp propVarError "hoed-tests-Prop-t3.graph" propositions $ do
+main = logOwp Abort "hoed-tests-Prop-t3.graph" propositions $ do
 -- main = do
 
 {- Running all tests

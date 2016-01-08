@@ -2,7 +2,7 @@
 module Types where
 import qualified Data.List as List
 import GHC.Generics
-import Debug.Hoed.Pure
+import Debug.Hoed.Pure hiding (Forall)
 import qualified Data.Functor.Rep as Rep
 import qualified Data.Map as Map
 

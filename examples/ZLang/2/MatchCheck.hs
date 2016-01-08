@@ -18,7 +18,7 @@ import Control.Monad.Loops
 import Control.Monad.Writer.Lazy
 import Control.Monad.State
 import GHC.Generics
-import Debug.Hoed.Pure
+import Debug.Hoed.Pure hiding (Forall)
 
 -- TODO: Deriving Generic for testing purposes
 data CoveringResult
