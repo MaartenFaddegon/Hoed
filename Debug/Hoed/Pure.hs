@@ -301,11 +301,11 @@ logO filePath program = {- SCC "logO" -} do
         showCompStmt       = show . vertexStmt
 
 -- | As logO, but with property-based judging.
-logOwp :: PropVarGen String -> FilePath -> [Propositions] -> IO a -> IO ()
-logOwp unevalGen filePath properties program = do
+logOwp :: UnevalHandler -> FilePath -> [Propositions] -> IO a -> IO ()
+logOwp handler filePath properties program = do
   (trace,traceInfo,compTree,frt) <- runO' program
   hPutStrLn stderr "\n=== Evaluating assigned properties ===\n"
-  compTree' <- judge unevalGen trace properties compTree
+  compTree' <- judge handler trace properties compTree
   writeFile filePath (showGraph compTree')
   return ()
 

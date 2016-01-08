@@ -73,27 +73,28 @@ lookupWith f x ys = case filter (\y -> f y == x) ys of
 
 ------------------------------------------------------------------------------------------------------------------------
 
-judge :: PropVarGen String -> Trace -> [Propositions] -> CompTree -> IO CompTree
-judge unevalGen trc ps compTree = do
+judge :: UnevalHandler -> Trace -> [Propositions] -> CompTree -> IO CompTree
+judge handler trc ps compTree = do
   ws <- mapM j vs
   return $ foldl updateTree compTree ws
   where 
   vs  = vertices compTree
   j v = case lookupPropositions ps v of 
     Nothing  -> return v
-    (Just p) -> judgeWithPropositions unevalGen trc p v
+    (Just p) -> judgeWithPropositions handler trc p v
   updateTree compTree w = mapGraph (\v -> if (vertexUID v) == (vertexUID w) then w else v) compTree
 
 -- Use a property to judge a vertex
-judgeWithPropositions :: PropVarGen String -> Trace -> Propositions -> Vertex -> IO Vertex
-judgeWithPropositions unevalGen _ _ RootVertex = return RootVertex
-judgeWithPropositions unevalGen trc p v = do
+judgeWithPropositions :: UnevalHandler -> Trace -> Propositions -> Vertex -> IO Vertex
+judgeWithPropositions _ _ _ RootVertex = return RootVertex
+judgeWithPropositions handler trc p v = do
   putStrLn $ "\n================\n"
-  pas <- mapM (evalProposition unevalGen trc v (extraModules p)) (propositions p)
-  putStrLn $ "judgeWithPropositions: pas=" ++ show pas  
-  let s = propType p == Specify && noAssumption unevalGen
+  pas' <- mapM (evalProposition unevalGen trc v (extraModules p)) (propositions p)
+  putStrLn $ "judgeWithPropositions: pas=" ++ show pas'
+  let pas = if handler == TrustForall then trustWeak pas' else weaken pas'
+      s = propType p == Specify && (handler == TrustForall || noAssumption unevalGen)
       z = zip pas (propositions p)
-  let a = case (map snd) . (filter (holds . fst)) $ z of
+      a = case (map snd) . (filter (holds . fst)) $ z of
             [] -> errorMessages z
             ps -> "With passing properties: " ++ commas (map propName ps) ++ "\n" ++ (errorMessages z)
       j' | s && all hasResult pas = if any disproves pas then Wrong else Right
@@ -105,6 +106,7 @@ judgeWithPropositions unevalGen trc p v = do
   hPutStrLn stderr $ "Judgement was " ++ (show . vertexJmt) v ++ ", and is now " ++ show j
   return v{vertexJmt=j}
   where
+  unevalGen = unevalHandler handler
   commas :: [String] -> String
   commas = concat . (intersperse ", ")
 
@@ -114,11 +116,32 @@ judgeWithPropositions unevalGen trc p v = do
   moreInfo _          Right        = False
   moreInfo _          Wrong        = False
 
-data PropApp = Error String | Holds | Disproves deriving Show
+data UnevalHandler = Abort | Forall | TrustForall deriving (Eq, Show)
+
+unevalHandler :: UnevalHandler -> PropVarGen String
+unevalHandler Abort = propVarError
+unevalHandler _     = propVarFresh
+
+data PropApp = Error String | Holds | HoldsWeak | Disproves deriving Show
+
+trustWeak :: [PropApp] -> [PropApp]
+trustWeak = map f
+  where f HoldsWeak = Holds -- A possible unsafe assumption
+        f p         = p
+
+weaken :: [PropApp] -> [PropApp]
+weaken = map f
+  where f HoldsWeak = Error "Holds for all randomly generated values we tried."
+        f p         = p
 
 hasResult :: PropApp -> Bool
 hasResult (Error _) = False
+hasResult HoldsWeak = False
 hasResult _         = True
+
+hasWeakResult :: PropApp -> Bool
+hasWeakResult (Error _)     = False
+hasWeakResult _             = True
 
 holds :: PropApp -> Bool
 holds Holds = True
@@ -153,6 +176,7 @@ evalProposition unevalGen trc v ms prop = do
       return $ case (exit,out) of
         (ExitFailure _, _)         -> Error out
         (ExitSuccess  , "True\n")  -> Holds
+        (ExitSuccess  , "+++ OK, passed 100 tests.\n") -> HoldsWeak
         (ExitSuccess  , "False\n") -> Disproves
         (ExitSuccess  , _)         -> if "Failed! Falsifiable" `isInfixOf` out
                                         then Disproves
