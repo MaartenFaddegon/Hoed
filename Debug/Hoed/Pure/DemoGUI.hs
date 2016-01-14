@@ -12,6 +12,7 @@ import Debug.Hoed.Pure.Render
 import Debug.Hoed.Pure.CompTree
 import Debug.Hoed.Pure.EventForest
 import Debug.Hoed.Pure.Observe
+import Debug.Hoed.Pure.Serialize
 import qualified Debug.Hoed.Pure.Prop as Prop
 import Debug.Hoed.Pure.Prop(Propositions,lookupPropositions,judgeWithPropositions,UnevalHandler(..))
 import Paths_Hoed (version)
@@ -56,16 +57,16 @@ guiMain trace traceInfo compTreeRef frt propositions window
        imgCountRef         <- UI.liftIO $ newIORef (0 :: Int)
 
        -- Tabs to select which pane to display
-       tab1 <- UI.button # set UI.text "About Hoed"            # set UI.style activeTab
+       tab1 <- UI.button # set UI.text "About"                 # set UI.style activeTab
        tab2 <- UI.button # set UI.text "Observe"               # set UI.style otherTab
        tab3 <- UI.button # set UI.text "Algorithmic Debugging" # set UI.style otherTab
        tab4 <- UI.button # set UI.text "Assisted Debugging"    # set UI.style otherTab
        tab5 <- UI.button # set UI.text "Explore"               # set UI.style otherTab
-       -- tab5 <- UI.button # set UI.text "Events"                # set UI.style otherTab
+       tab6 <- UI.button # set UI.text "Stats"                 # set UI.style otherTab
        logo <- UI.img # set UI.src "static/hoed-logo.png"      # set UI.style [("float","right"), ("height","2.2em")]
-       tabs <- UI.div    # set UI.style [("background-color","#D3D3D3")]  #+ (map return [tab1,tab2,tab3,tab4,tab5,logo])
+       tabs <- UI.div    # set UI.style [("background-color","#D3D3D3")]  #+ (map return [tab1,tab2,tab3,tab4,tab5,tab6,logo])
 
-       let coloActive tab = do mapM_ (\t -> (return t) # set UI.style otherTab) [tab1,tab2,tab3,tab4,tab5]; return tab # set UI.style activeTab
+       let coloActive tab = do mapM_ (\t -> (return t) # set UI.style otherTab) [tab1,tab2,tab3,tab4,tab5,tab6]; return tab # set UI.style activeTab
 
        help <- guiHelp # set UI.style [("margin-top","0.5em")]
        on UI.click tab1 $ \_ -> do
@@ -86,6 +87,10 @@ guiMain trace traceInfo compTreeRef frt propositions window
        on UI.click tab5 $ \_ -> do
             coloActive tab5
             pane <- guiExplore compTreeRef currentVertexRef regexRef imgCountRef # set UI.style [("margin-top","0.5em")]
+            UI.getBody window # set UI.children [tabs,pane]
+       on UI.click tab6 $ \_ -> do
+            coloActive tab6
+            pane <- guiStats compTreeRef
             UI.getBody window # set UI.children [tabs,pane]
 
        UI.getBody window # set UI.style [("margin","0")] #+ (map return [tabs,help])
@@ -110,6 +115,21 @@ guiHelp = UI.div # set UI.style [("margin-left", "20%"),("margin-right", "20%")]
   , UI.h2 # set UI.text "Explore"
   , UI.p # set UI.text "The trace is translated into a tree of computation statements for the algorithmic debugging view. In the explore view you can freely browse this tree to get a better understanding of your program. You can decide yourself in which order you want to judge statements. When enough statements are judged the debugger tells you the location of the fault in your code."
   ] 
+
+--------------------------------------------------------------------------------
+-- The statistics GUI
+
+guiStats :: IORef CompTree -> UI UI.Element
+guiStats compTreeRef = do
+  (Graph _ vs as) <- UI.liftIO $ readIORef compTreeRef
+
+  sec1   <- UI.h3 # set UI.text "Computation Tree Statistics"
+  -- Minus 1 for the root node
+  vcount <- UI.div # set UI.text (show ((length vs) - 1) ++ " computation statements")
+  -- TODO: Should we subtract the dependencies from the root node?
+  acount <- UI.div # set UI.text (show (length as) ++ " dependencies")
+
+  UI.div # set UI.style [("margin-left", "20%"),("margin-right", "20%")] #+ (map return [sec1,vcount,acount])
 
 --------------------------------------------------------------------------------
 -- The observe GUI
@@ -346,7 +366,7 @@ guiExplore compTreeRef currentVertexRef regexRef imgCountRef = do
        compStmt <- UI.pre
 
        -- Menu to select which statement to show
-       menu <- UI.select
+       menu <- UI.select # set UI.style [("margin-right","1em")]
        showStmt compStmt compTreeRef currentVertexRef
        updateMenu menu compTreeRef currentVertexRef 
        let selectVertex' = selectVertex compStmt menu compTreeRef currentVertexRef (redrawWith img imgCountRef compTreeRef)
@@ -357,17 +377,40 @@ guiExplore compTreeRef currentVertexRef regexRef imgCountRef = do
        updateStatus status compTreeRef 
 
        -- Buttons to judge the current statement
-       right <- UI.button # UI.set UI.text "right " #+ [UI.img # set UI.src "static/right.png" # set UI.height 20]
-       wrong <- UI.button # set UI.text "wrong "    #+ [UI.img # set UI.src "static/wrong.png" # set UI.height 20]
+       right <- UI.button # UI.set UI.text "right " #+ [UI.img # set UI.src "static/right.png" # set UI.height 20] # set UI.style [("margin-right","1em")]
+       wrong <- UI.button # set UI.text "wrong "    #+ [UI.img # set UI.src "static/wrong.png" # set UI.height 20] # set UI.style [("margin-right","1em")]
+
        let j = judge DoNotAdvance status compStmt (Just menu) (Just (img, imgCountRef)) currentVertexRef compTreeRef
        j right Right
        j wrong Wrong
 
+       -- Store and restore buttons
+       storeb   <- UI.button # UI.set UI.text "store" # set UI.style [("margin-right","1em")]
+       restoreb <- UI.button # UI.set UI.text "restore" 
+       on UI.click storeb $ \_ -> UI.liftIO $ store compTreeRef
+       on UI.click restoreb $ \_ -> do UI.liftIO $ restore compTreeRef
+                                       updateStatus status compTreeRef
+                                       v <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
+                                       redraw img imgCountRef compTreeRef v
+
        -- Populate the main screen
        hr <- UI.hr
        br <- UI.br
-       UI.div #+ (map UI.element [menu, right, wrong, br, img', br, status, hr, compStmt])
+       UI.div #+ (map UI.element [menu, right, wrong, storeb, restoreb, br, hr, img', br, status, hr, compStmt])
 
+treeFilePath :: FilePath
+treeFilePath = ".Hoed/savedCompTree"
+
+store :: IORef CompTree -> IO ()
+store compTreeRef = do
+  t <- readIORef compTreeRef
+  storeJudgements treeFilePath t
+
+restore :: IORef CompTree -> IO ()
+restore compTreeRef = do
+  t  <- readIORef compTreeRef
+  t' <- restoreJudgements treeFilePath t
+  writeIORef compTreeRef t'
 
 preorder :: CompTree -> [Vertex]
 preorder = getPreorder . getDfs
