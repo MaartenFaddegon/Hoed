@@ -129,7 +129,17 @@ guiStats compTreeRef = do
   -- TODO: Should we subtract the dependencies from the root node?
   acount <- UI.div # set UI.text (show (length as) ++ " dependencies")
 
-  UI.div # set UI.style [("margin-left", "20%"),("margin-right", "20%")] #+ (map return [sec1,vcount,acount])
+  sec2   <- UI.h3 # set UI.text "Judgements"
+  -- Minus 1 for the root node that is always considered as right
+  rightCount <- UI.div # set UI.text ((show $ (length . filter isRight $ vs) - 1) ++ " Right")
+  wrongCount <- UI.div # set UI.text ((show . length . filter isWrong      $ vs) ++ " Wrong")
+  assCount   <- UI.div # set UI.text ((show . length . filter isAssisted   $ vs) ++ " Assisted")
+  incon      <- UI.div # set UI.text ((show . length . filter isInconclusive $ vs) ++ " Inconclusive") # set UI.style [("margin-left","2em")]
+
+  passing    <- UI.div # set UI.text ((show . length . filter isPassing $ vs) ++ " Passing") # set UI.style [("margin-left","2em")]
+  unassCount <- UI.div # set UI.text ((show . length . filter isUnassessed $ vs) ++ " Unassessed")
+
+  UI.div # set UI.style [("margin-left", "20%"),("margin-right", "20%")] #+ (map return [sec1,vcount,acount, sec2, rightCount, wrongCount, assCount, incon, passing, unassCount])
 
 --------------------------------------------------------------------------------
 -- The observe GUI
@@ -186,8 +196,12 @@ updateRegEx currentVertexRef vs stmtDiv r = do
     i <- UI.liftIO $ readIORef currentVertexRef
     s <- UI.span # set UI.text (vertexRes v)
     r <- UI.input # set UI.type_ "radio" # set UI.checked (i == vertexUID v)
+    let src | isRight v = "static/right.png"
+            | isWrong v = "static/wrong.png"
+            | otherwise = "static/unassessed.png"
+    j <- UI.img # set UI.src src # set UI.height 20 # set UI.style [("margin-left","1em")]
     on UI.checkedChange r $ \_ -> checked v
-    UI.div #+ [return r, return s]
+    UI.div #+ map return [r,s,j]
 
   checked v = do
     UI.liftIO $ writeIORef currentVertexRef (vertexUID v)
@@ -337,9 +351,6 @@ advance adv status compStmt mMenu mImg currentVertexRef compTreeRef = do
                 (DoNotAdvance,_)           -> v
                 (AdvanceToNext,RootVertex) -> v
                 (AdvanceToNext,w')         -> w'
-          a = case getJudgement w of
-                (Assisted msg) -> msg
-                _              -> ""
       UI.liftIO $ writeIORef currentVertexRef (vertexUID w)
       showStmt compStmt compTreeRef currentVertexRef
       updateStatus status compTreeRef 
@@ -421,10 +432,15 @@ showStmt e compTreeRef currentVertexRef = do
   let s = case mv of
                 Nothing  -> "No computation statement selected."
                 (Just v) -> let s = show . vertexStmt $ v in case getJudgement v of
-                              (Assisted s') -> "Results from testing computation statement:\n" ++ s' ++ "\n---\n\n" ++ s
+                              (Assisted s') -> "Results from testing computation statement:\n" ++ (getMessage s') ++ "\n---\n\n" ++ s
                               _             -> s
   UI.element e # set UI.text s
   return ()
+
+getMessage :: [AssistedMessage] -> String
+getMessage = foldl (\acc m -> acc ++ getMessage' m) ""
+getMessage' (InconclusiveProperty msg) = msg
+getMessage' (PassingProperty msg) = msg
 
 -- populate the exploration menu with the current vertex, its predecessor and its successors
 updateMenu :: UI.Element -> IORef CompTree -> IORef Int -> UI ()

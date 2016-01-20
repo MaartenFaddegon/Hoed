@@ -14,7 +14,7 @@ import Debug.Hoed.Pure.CompTree(CompTree,Vertex(..),Graph(..),vertexUID)
 import Debug.Hoed.Pure.EventForest(EventForest,mkEventForest,dfsChildren)
 import qualified Data.IntMap as M
 import Prelude hiding (Right)
-import Data.Graph.Libgraph(Judgement(..),mapGraph)
+import Data.Graph.Libgraph(Judgement(..),AssistedMessage(..),mapGraph)
 import System.Directory(createDirectoryIfMissing)
 import System.Process(system)
 import System.Exit(ExitCode(..))
@@ -95,7 +95,8 @@ judgeWithPropositions handler trc p v = do
       z = zip pas (propositions p)
       a = case (map snd) . (filter (holds . fst)) $ z of
             [] -> errorMessages z
-            ps -> "With passing properties: " ++ commas (map propName ps) ++ "\n" ++ (errorMessages z)
+            ps -> PassingProperty ("With passing properties: " ++ commas (map propName ps))
+                  : errorMessages z
       j' | propType p == Specify && all hasResult pas
                                        = if any disproves pas then Wrong else Right
          | any hasResult pas           = if any disproves pas then Wrong else Assisted a
@@ -151,8 +152,8 @@ disproves :: PropApp -> Bool
 disproves Disproves = True
 disproves _         = False
 
-errorMessages :: [(PropApp,Proposition)] -> String
-errorMessages = foldl (\msgs (Error msg,p) -> msgs ++ "\n---\n\nApplying property " ++ propName p ++ " gives inconclusive result:\n\n" ++ msg) [] . filter (not . hasResult . fst)
+errorMessages :: [(PropApp,Proposition)] -> [AssistedMessage]
+errorMessages = foldl (\acc (Error msg,p) -> InconclusiveProperty ("\n---\n\nApplying property " ++ propName p ++ " gives inconclusive result:\n\n" ++ msg) : acc) [] . filter (not . hasResult . fst)
 
 evalProposition :: PropVarGen String -> Trace -> Vertex -> [Module] -> Proposition -> IO PropApp
 evalProposition unevalGen trc v ms prop = do
@@ -280,7 +281,7 @@ generateHeading prop ms =
 
   where
   qcImports = case propositionType prop of
-        BoolProposition -> []
+        BoolProposition -> generateImport (Module "Test.QuickCheck" [])
         LegacyQuickCheckProposition -> qcImports'
         QuickCheckProposition -> qcImports'
                                  ++ generateImport (Module "Test.QuickCheck.Property" [])

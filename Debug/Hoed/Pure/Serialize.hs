@@ -14,7 +14,7 @@ import Data.Serialize
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import GHC.Generics
-import Data.Graph.Libgraph(Judgement(..),mapGraph)
+import Data.Graph.Libgraph(Judgement(..),AssistedMessage(..),mapGraph)
 
 --------------------------------------------------------------------------------
 
@@ -40,6 +40,7 @@ restore db v = case lookup db v of
 data DB = DB [(String, Judgement)] deriving (Generic)
 instance Serialize DB
 instance Serialize Judgement
+instance Serialize AssistedMessage
 
 empty :: DB
 empty = DB []

@@ -17,6 +17,8 @@ module Debug.Hoed.Pure.CompTree
 , isWrong
 , isUnassessed
 , isAssisted
+, isInconclusive
+, isPassing
 , leafs
 , ConstantValue(..)
 , getLocation
@@ -55,6 +57,18 @@ isRight v      = getJudgement v == Right
 isWrong v      = getJudgement v == Wrong
 isUnassessed v = getJudgement v == Unassessed
 isAssisted v   = case getJudgement v of (Assisted _) -> True; _ -> False
+
+isInconclusive v = case getJudgement v of
+  (Assisted ms) -> any isInconclusive' ms
+  _             -> False
+isInconclusive' (InconclusiveProperty _) = True
+isInconclusive' _                        = False
+
+isPassing v = case getJudgement v of
+  (Assisted ms) -> any isPassing' ms
+  _             -> False
+isPassing' (PassingProperty _) = True
+isPassing' _                        = False
 
 vertexUID :: Vertex -> UID
 vertexUID RootVertex   = -1
