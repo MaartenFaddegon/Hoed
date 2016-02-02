@@ -151,13 +151,12 @@ runO' program = {- SCC "runO" -} do
   hPutStrLn stderr "\n=== Statistics ===\n"
   let e  = length events
       n  = length eqs
-      d  = treeDepth ct
       b  = fromIntegral (length . arcs $ ct ) / fromIntegral ((length . vertices $ ct) - (length . leafs $ ct))
-  hPutStrLn stderr $ "e = " ++ show e
-  hPutStrLn stderr $ "n = " ++ show n
-  hPutStrLn stderr $ "arc = " ++ show (length . arcs $ ct)
-  hPutStrLn stderr $ "d = " ++ show d
-  hPutStrLn stderr $ "b = " ++ show b
+  hPutStrLn stderr $ show e ++ " events"
+  hPutStrLn stderr $ show n ++ " computation statements"
+  hPutStrLn stderr $ show ((length . vertices $ ct) - 1) ++ " nodes + 1 virtual root node in the computation tree"
+  hPutStrLn stderr $ show (length . arcs $ ct) ++ " edges in computation tree"
+  hPutStrLn stderr $ "computation tree has a branch factor of " ++ show b ++ "(i.e the average number of children of non-leaf nodes)"
 
   hPutStrLn stderr "\n=== Debug session === \n"
   -- hPutStrLn stderr (showWithStack eqs)
