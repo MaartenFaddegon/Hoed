@@ -69,5 +69,3 @@ prop_negin_correct p = prop_negin_sound p && prop_negin_complete p
 
 eg :: Prop
 eg  =  N (O (A (V 'p') (N (V 'q'))) (V 'r'))
-
-
