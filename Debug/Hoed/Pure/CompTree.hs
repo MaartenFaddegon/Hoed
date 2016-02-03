@@ -2,7 +2,7 @@
 --
 -- Copyright (c) Maarten Faddegon, 2015
 
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP, DeriveGeneric #-}
 
 module Debug.Hoed.Pure.CompTree
 ( CompTree
@@ -41,9 +41,10 @@ import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap
 import Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
+import GHC.Generics
 
 data Vertex = RootVertex | Vertex {vertexStmt :: CompStmt, vertexJmt :: Judgement}
-  deriving (Eq,Show,Ord)
+  deriving (Eq,Show,Ord,Generic)
 
 getJudgement :: Vertex -> Judgement
 getJudgement RootVertex = Right

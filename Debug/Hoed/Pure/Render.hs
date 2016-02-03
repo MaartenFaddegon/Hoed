@@ -1,7 +1,7 @@
 -- This file is part of the Haskell debugger Hoed.
 --
 -- Copyright (c) Maarten Faddegon, 2014
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP, DeriveGeneric #-}
 
 module Debug.Hoed.Pure.Render
 (CompStmt(..)
@@ -25,6 +25,7 @@ import Data.List(sort,sortBy,partition,nub
 import Data.Graph.Libgraph
 import Data.Array as Array
 import Data.Char(isAlpha)
+import GHC.Generics
 
 #if __GLASGOW_HASKELL__ < 710
 sortOn :: Ord b => (a -> b) -> [a] -> [a]
@@ -48,7 +49,7 @@ data CompStmt = CompStmt { stmtLabel      :: String
                          , stmtIdentifier :: UID
                          , stmtRes        :: String
                          }
-                deriving (Eq, Ord)
+                deriving (Eq,Ord,Generic)
 
 instance Show CompStmt where
   show = stmtRes

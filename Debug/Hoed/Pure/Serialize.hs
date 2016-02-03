@@ -6,17 +6,44 @@
 module Debug.Hoed.Pure.Serialize
 ( storeJudgements
 , restoreJudgements
+, storeTree
+, restoreTree
 ) where
 import Prelude hiding (lookup,Right)
 import qualified Prelude as Prelude
 import Debug.Hoed.Pure.CompTree
+import Debug.Hoed.Pure.Render(CompStmt(..))
 import Data.Serialize
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import GHC.Generics
-import Data.Graph.Libgraph(Judgement(..),AssistedMessage(..),mapGraph)
+import Data.Graph.Libgraph(Judgement(..),AssistedMessage(..),mapGraph,Graph(..),Arc(..))
 
 --------------------------------------------------------------------------------
+-- Derive Serialize instances
+
+instance (Serialize a, Serialize b) => Serialize (Graph a b)
+instance (Serialize a, Serialize b) => Serialize (Arc a b)
+instance Serialize Vertex
+instance Serialize Judgement
+instance Serialize AssistedMessage
+instance Serialize CompStmt
+
+--------------------------------------------------------------------------------
+-- Tree
+
+storeTree :: FilePath -> CompTree -> IO ()
+storeTree fp = (BS.writeFile fp) . encode
+
+restoreTree :: FilePath -> IO (Maybe CompTree)
+restoreTree fp = do
+        bs <- BS.readFile fp
+        case decode bs of
+          (Prelude.Left _)   -> return Nothing
+          (Prelude.Right ct) -> return (Just ct)
+
+--------------------------------------------------------------------------------
+-- Judgements
 
 storeJudgements :: FilePath -> CompTree -> IO ()
 storeJudgements fp = (BS.writeFile fp) . encode . (foldl insert empty) . vertices
@@ -34,13 +61,8 @@ restore db v = case lookup db v of
   (Just Wrong) -> setJudgement v Wrong
   _            -> v
 
---------------------------------------------------------------------------------
--- The database
-
 data DB = DB [(String, Judgement)] deriving (Generic)
 instance Serialize DB
-instance Serialize Judgement
-instance Serialize AssistedMessage
 
 empty :: DB
 empty = DB []

@@ -3,7 +3,7 @@
 -- Copyright (c) Maarten Faddegon, 2014-2015
 {-# LANGUAGE CPP #-}
 
-module Debug.Hoed.Pure.DemoGUI (guiMain)
+module Debug.Hoed.Pure.DemoGUI (guiMain,treeFilePath)
 where
 
 import qualified Prelude
@@ -409,18 +409,24 @@ guiExplore compTreeRef currentVertexRef regexRef imgCountRef = do
        br <- UI.br
        UI.div #+ (map UI.element [menu, right, wrong, storeb, restoreb, br, hr, img', br, status, hr, compStmt])
 
+judgementFilePath :: FilePath
+judgementFilePath = ".Hoed/savedJudgements"
+
 treeFilePath :: FilePath
 treeFilePath = ".Hoed/savedCompTree"
+
+tree'FilePath :: FilePath
+tree'FilePath = ".Hoed/exe/" ++ treeFilePath
 
 store :: IORef CompTree -> IO ()
 store compTreeRef = do
   t <- readIORef compTreeRef
-  storeJudgements treeFilePath t
+  storeJudgements judgementFilePath t
 
 restore :: IORef CompTree -> IO ()
 restore compTreeRef = do
   t  <- readIORef compTreeRef
-  t' <- restoreJudgements treeFilePath t
+  t' <- restoreJudgements judgementFilePath t
   writeIORef compTreeRef t'
 
 preorder :: CompTree -> [Vertex]

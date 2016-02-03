@@ -102,6 +102,7 @@ module Debug.Hoed.Pure
   , logO
 
   -- * Property-based judging
+  , runOstore
   , runOwp
   , testOwp
   , logOwp
@@ -142,6 +143,7 @@ import Debug.Hoed.Pure.EventForest
 import Debug.Hoed.Pure.CompTree
 import Debug.Hoed.Pure.DemoGUI
 import Debug.Hoed.Pure.Prop
+import Debug.Hoed.Pure.Serialize
 import Paths_Hoed(getDataDir)
 
 import Prelude hiding (Right)
@@ -202,6 +204,13 @@ runO program = do
   (trace,traceInfo,compTree,frt) <- runO' program
   debugSession trace traceInfo compTree frt []
   return ()
+
+
+-- | Hoed internal function that stores a serialized version of the tree on disk (assisted debugging spawns new instances of Hoed).
+runOstore :: IO a -> IO ()
+runOstore program = do 
+  (trace,traceInfo,compTree,frt) <- runO' program
+  storeTree treeFilePath compTree
 
 -- | Repeat and trace a failing testcase
 testO :: Show a => (a->Bool) -> a -> IO ()
