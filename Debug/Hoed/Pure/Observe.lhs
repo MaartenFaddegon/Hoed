@@ -144,19 +144,38 @@ class Observable a where
         default observer :: (Generic a, GObservable (Rep a)) => a -> Parent -> a
         observer x c = to (gdmobserver (from x) c)
 
+        constrain :: a -> a -> a
+        default constrain :: (Generic a, GConstrain (Rep a)) => a -> a -> a
+        constrain x c = to (gconstrain (from x) (from c))
+
 class GObservable f where
         gdmobserver :: f a -> Parent -> f a
         gdmObserveChildren :: f a -> ObserverM (f a)
         gdmShallowShow :: f a -> String
+
+constrainBase :: Eq a => a -> a -> a
+constrainBase x c | x == c = x
 \end{code}
 
-Creating a shallow representation for types of the Data class.
+A type generic definition of constrain
 
 \begin{code}
-
--- shallowShow :: Constructor c => t c (f :: * -> *) a -> [Char]
--- shallowShow = conName
-
+class GConstrain f where gconstrain :: f a -> f a -> f a
+instance (GConstrain a, GConstrain b) => GConstrain (a :+: b) where
+  gconstrain (L1 x) (L1 c) = L1 (gconstrain x c)
+  gconstrain (R1 x) (R1 c) = R1 (gconstrain x c)
+instance (GConstrain a, GConstrain b) => GConstrain (a :*: b) where
+  gconstrain (x :*: y) (c :*: d) = (gconstrain x c) :*: (gconstrain y d)
+instance GConstrain U1 where
+  gconstrain x c = x
+instance (Observable a) => GConstrain (K1 i a) where
+  gconstrain (K1 x) (K1 c) = K1 (constrain x c)
+instance (GConstrain a) => GConstrain (M1 D d a) where
+  gconstrain (M1 x) (M1 c) = M1 (gconstrain x c)
+instance (GConstrain a, Selector s) => GConstrain (M1 S s a) where
+  gconstrain m@(M1 x) n@(M1 c) | selName m ==  selName n = M1 (gconstrain x c)
+instance (GConstrain a, Constructor c) => GConstrain (M1 C c a) where
+  gconstrain m@(M1 x) n@(M1 c) | conName m == conName n = M1 (gconstrain x c)
 \end{code}
 
 Observing the children of Data types of kind *.
@@ -222,6 +241,7 @@ this type.
 \begin{code}
 instance (Observable a,Observable b) => Observable (a -> b) where
   observer fn cxt arg = gdmFunObserver cxt fn arg
+  constrain = error "how to constrain the function type?"
 \end{code}
 
 Observing the children of Data types of kind *->*.
@@ -715,14 +735,20 @@ tvname (KindedTV name _) = VarT name
  The Haskell Base types
 
 \begin{code}
-instance Observable Int         where { observer = observeBase }
-instance Observable Bool        where { observer = observeBase }
-instance Observable Integer     where { observer = observeBase }
-instance Observable Float       where { observer = observeBase }
-instance Observable Double      where { observer = observeBase }
-instance Observable Char        where { observer = observeBase }
-
-instance Observable ()          where { observer = observeOpaque "()" }
+instance Observable Int     where observer  = observeBase 
+                                  constrain = constrainBase
+instance Observable Bool    where observer  = observeBase
+                                  constrain = constrainBase
+instance Observable Integer where observer  = observeBase
+                                  constrain = constrainBase
+instance Observable Float   where observer  = observeBase
+                                  constrain = constrainBase
+instance Observable Double  where observer  = observeBase
+                                  constrain = constrainBase
+instance Observable Char    where observer  = observeBase
+                                  constrain = constrainBase
+instance Observable ()      where observer  = observeOpaque "()"
+                                  constrain = constrainBase
 
 -- utilities for base types.
 -- The strictness (by using seq) is the same 
@@ -773,6 +799,7 @@ instance (Ix a,Observable a,Observable b) => Observable (Array.Array a b) where
   observer arr = send "array" (return Array.array << Array.bounds arr 
                                                   << Array.assocs arr
                               )
+  constrain = undefined
 \end{code}
 
 IO monad.
@@ -782,6 +809,7 @@ instance (Observable a) => Observable (IO a) where
   observer fn cxt = 
         do res <- fn
            send "<IO>" (return return << res) cxt
+  constrain = undefined
 \end{code}
 
 
@@ -791,12 +819,15 @@ The Exception *datatype* (not exceptions themselves!).
 \begin{code}
 instance Observable SomeException where
   observer e = send ("<Exception> " ++ show e) (return e)
+  constrain = undefined
 
 -- instance Observable ErrorCall where
 --   observer (ErrorCall a)        = send "ErrorCall"   (return ErrorCall << a)
 
 
-instance Observable Dynamic where { observer = observeOpaque "<Dynamic>" }
+instance Observable Dynamic where
+  observer = observeOpaque "<Dynamic>"
+  constrain = undefined
 \end{code}
 
 

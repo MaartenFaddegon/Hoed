@@ -145,6 +145,7 @@ instance (Observable a, Observable b, Observable c, Show c, Observable d,  Obser
 -- MF TODO: this whole declaration is a bit of a hack "fromList" is used instead of a data constructor to generate a new map, and then we actually observe a list produced by toList
 instance (Show k, Show a) => Observable (M.Map k a) where 
   observer m = send ("M.fromList " ++ show (M.toList m)) (return m) -- MF TODO: could this violate strictness?
+  constrain = undefined
 
 -- | Visible workspaces, and their Xinerama screens.
 data Screen i l a sid sd = Screen { workspace :: !(Workspace i l a)
@@ -168,7 +169,9 @@ data RationalRect = RationalRect Rational Rational Rational Rational
 
 instance Observable RationalRect
 
-instance Observable Rational where observer = observeBase
+instance Observable Rational where
+  observer = observeBase
+  constrain = undefined
 
 -- |
 -- A stack is a cursor onto a window list.

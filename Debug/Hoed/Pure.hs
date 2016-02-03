@@ -102,7 +102,6 @@ module Debug.Hoed.Pure
   , logO
 
   -- * Property-based judging
-  , runOstore
   , runOwp
   , testOwp
   , logOwp
@@ -119,8 +118,10 @@ module Debug.Hoed.Pure
   , observedTypes
   , observeCC
 
-   -- * Parallel equality
-  , ParEq(..)
+   -- * For use by Hoed-generated programs that test some property ...
+  , ParEq(..) -- MF TODO: this should become part of Observable
+  , runOstore
+  , conAp
 
    -- * The Observable class
   , Observer(..)

@@ -27,6 +27,7 @@ instance Observable Type
 
 instance (Show k, Show v) => Observable (Map.Map k v) where
   observer m = send ("Map.fromList " ++ show (Map.toList m)) (return m)
+  constrain = undefined
 
 {-instance Show Type where
   show IntType = "Int"

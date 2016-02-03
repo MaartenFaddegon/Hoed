@@ -8,7 +8,7 @@ module Debug.Hoed.Pure.Prop where
 -- ( judge
 -- , Propositions(..)
 -- ) where
-import Debug.Hoed.Pure.Observe(Trace(..),UID,Event(..),Change(..),ourCatchAllIO,evaluate)
+import Debug.Hoed.Pure.Observe(Observable(..),Trace(..),UID,Event(..),Change(..),ourCatchAllIO,evaluate)
 import Debug.Hoed.Pure.Render(CompStmt(..),noNewlines)
 import Debug.Hoed.Pure.CompTree(CompTree,Vertex(..),Graph(..),vertexUID)
 import Debug.Hoed.Pure.EventForest(EventForest,mkEventForest,dfsChildren)
@@ -338,7 +338,14 @@ generateExpr unevalGen frt (Just e) = case change e of
   where cs :: [PropVarGen String]
         cs = map (generateExpr unevalGen frt) (dfsChildren frt e)
 
+
 ------------------------------------------------------------------------------------------------------------------------
+
+conAp :: Observable b => (a -> b) -> b -> a -> b
+conAp f r x = constrain (f x) r
+
+------------------------------------------------------------------------------------------------------------------------
+-- MF TODO: this should probably be part of the Observable class ...
 
 class ParEq a where
   (===) :: a -> a -> Maybe Bool
