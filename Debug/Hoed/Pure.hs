@@ -178,10 +178,22 @@ import System.Directory(createDirectoryIfMissing)
 
 -- Run the observe ridden code.
 
+
+runOnce :: IO ()
+runOnce = do
+  f <- readIORef firstRun
+  case f of True  -> writeIORef firstRun False
+            False -> error "It is best not to run Hoed more that once (maybe you want to restart GHCI?)"
+
+firstRun :: IORef Bool
+firstRun = unsafePerformIO $ newIORef True
+
+
 -- | run some code and return the Trace
 debugO :: IO a -> IO Trace
 debugO program =
-     do { initUniq
+     do { runOnce
+        ; initUniq
         ; startEventStream
         ; let errorMsg e = "[Escaping Exception in Code : " ++ show e ++ "]"
         ; ourCatchAllIO (do { program ; return () })
@@ -202,7 +214,7 @@ debugO program =
 
 runO :: IO a -> IO ()
 runO program = do
-  (trace,traceInfo,compTree,frt) <- runO' program
+  (trace,traceInfo,compTree,frt) <- runO' Verbose program
   debugSession trace traceInfo compTree frt []
   return ()
 
@@ -210,7 +222,7 @@ runO program = do
 -- | Hoed internal function that stores a serialized version of the tree on disk (assisted debugging spawns new instances of Hoed).
 runOstore :: IO a -> IO ()
 runOstore program = do 
-  (trace,traceInfo,compTree,frt) <- runO' program
+  (trace,traceInfo,compTree,frt) <- runO' Silent program
   storeTree treeFilePath compTree
 
 -- | Repeat and trace a failing testcase
@@ -222,7 +234,7 @@ testO p x = runO $ putStrLn $ if (p x) then "Passed 1 test."
 
 runOwp :: [Propositions] -> IO a -> IO ()
 runOwp ps program = do
-  (trace,traceInfo,compTree,frt) <- runO' program
+  (trace,traceInfo,compTree,frt) <- runO' Verbose program
   let compTree' = compTree
 {-
   hPutStrLn stderr "\n=== Evaluating assigned properties ===\n"
@@ -259,13 +271,20 @@ traceOnly program = do
   return ()
 
 
-runO' :: IO a -> IO (Trace,TraceInfo,CompTree,EventForest)
-runO' program = do
+data Verbosity = Verbose | Silent
+
+condPutStrLn :: Verbosity -> String -> IO ()
+condPutStrLn Silent _  = return ()
+condPutStrLn Verbose msg = hPutStrLn stderr msg
+
+
+runO' :: Verbosity -> IO a -> IO (Trace,TraceInfo,CompTree,EventForest)
+runO' verbose program = do
   createDirectoryIfMissing True ".Hoed/"
-  putStrLn "=== program output ===\n"
+  condPutStrLn verbose "=== program output ===\n"
   events <- debugO program
-  putStrLn "\n=== program terminated ==="
-  putStrLn "Please wait while the computation tree is constructed..."
+  condPutStrLn verbose"\n=== program terminated ==="
+  condPutStrLn verbose"Please wait while the computation tree is constructed..."
 
   let cdss = eventsToCDS events
   let cdss1 = rmEntrySet cdss
@@ -282,23 +301,23 @@ runO' program = do
   writeFile ".Hoed/Transcript" (getTranscript events ti)
 #endif
   
-  hPutStrLn stderr "\n=== Statistics ===\n"
+  condPutStrLn verbose "\n=== Statistics ===\n"
   let e  = length events
       n  = length eqs
       b  = fromIntegral (length . arcs $ ct ) / fromIntegral ((length . vertices $ ct) - (length . leafs $ ct))
-  hPutStrLn stderr $ show e ++ " events"
-  hPutStrLn stderr $ show n ++ " computation statements"
-  hPutStrLn stderr $ show ((length . vertices $ ct) - 1) ++ " nodes + 1 virtual root node in the computation tree"
-  hPutStrLn stderr $ show (length . arcs $ ct) ++ " edges in computation tree"
-  hPutStrLn stderr $ "computation tree has a branch factor of " ++ show b ++ "(i.e the average number of children of non-leaf nodes)"
+  condPutStrLn verbose $ show e ++ " events"
+  condPutStrLn verbose $ show n ++ " computation statements"
+  condPutStrLn verbose $ show ((length . vertices $ ct) - 1) ++ " nodes + 1 virtual root node in the computation tree"
+  condPutStrLn verbose $ show (length . arcs $ ct) ++ " edges in computation tree"
+  condPutStrLn verbose $ "computation tree has a branch factor of " ++ show b ++ "(i.e the average number of children of non-leaf nodes)"
 
-  hPutStrLn stderr "\n=== Debug Session ===\n"
+  condPutStrLn verbose "\n=== Debug Session ===\n"
   return (events, ti, ct, frt)
 
 -- | Trace and write computation tree to file. Useful for regression testing.
 logO :: FilePath -> IO a -> IO ()
 logO filePath program = {- SCC "logO" -} do
-  (_,_,compTree,_) <- runO' program
+  (_,_,compTree,_) <- runO' Verbose program
   writeFile filePath (showGraph compTree)
   return ()
 
@@ -311,7 +330,7 @@ logO filePath program = {- SCC "logO" -} do
 -- | As logO, but with property-based judging.
 logOwp :: UnevalHandler -> FilePath -> [Propositions] -> IO a -> IO ()
 logOwp handler filePath properties program = do
-  (trace,traceInfo,compTree,frt) <- runO' program
+  (trace,traceInfo,compTree,frt) <- runO' Verbose program
   hPutStrLn stderr "\n=== Evaluating assigned properties ===\n"
   compTree' <- judge handler trace properties compTree
   writeFile filePath (showGraph compTree')
