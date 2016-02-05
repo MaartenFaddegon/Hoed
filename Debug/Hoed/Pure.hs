@@ -220,10 +220,10 @@ runO program = do
 
 
 -- | Hoed internal function that stores a serialized version of the tree on disk (assisted debugging spawns new instances of Hoed).
-runOstore :: IO a -> IO ()
-runOstore program = do 
+runOstore :: String -> IO a -> IO ()
+runOstore tag program = do 
   (trace,traceInfo,compTree,frt) <- runO' Silent program
-  storeTree treeFilePath compTree
+  storeTree (treeFilePath ++ tag) compTree
 
 -- | Repeat and trace a failing testcase
 testO :: Show a => (a->Bool) -> a -> IO ()

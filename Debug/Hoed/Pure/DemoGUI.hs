@@ -285,9 +285,24 @@ testCurrent compTreeRef trace ps status currentVertexRef compStmt handlerRef = d
           handler <- UI.liftIO $ readIORef handlerRef
           cv' <- UI.liftIO $ judgeWithPropositions handler trace p cv 
           compTree <- UI.liftIO $ readIORef compTreeRef
-          UI.liftIO $ writeIORef compTreeRef (replaceVertex compTree cv')
-          advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
+          case (handler,getJudgement cv') of
+            (Abort,_) -> do
+              UI.liftIO $ writeIORef compTreeRef (replaceVertex compTree cv')
+              advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
+            (_,Wrong) -> switchIfSimpler compTree compTreeRef status currentVertexRef compStmt
     Nothing -> updateStatus status compTreeRef
+
+switchIfSimpler compTree compTreeRef status currentVertexRef compStmt = do
+  mct <- UI.liftIO $ restoreTree treeFilePath
+  case mct of
+    Nothing          -> error "Failed to load tree from disk!"
+    (Just compTree') -> if compTree' `simpler` compTree
+                        then do UI.liftIO $ putStrLn "SWITCHED TO NEW COMPUTATION TREE"
+                                UI.liftIO $ writeIORef compTreeRef compTree'
+                        else return ()
+  advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
+
+  where simpler compTree' compTree = True  
 
 --------------------------------------------------------------------------------
 -- The Algorithmic Debugging GUI

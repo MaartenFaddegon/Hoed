@@ -54,18 +54,18 @@ negin' (O p q)      =  O (negin p) (negin q)
 negin' (A p q)      =  A (negin p) (negin q)
 -- negin' p            =  p
 
-prop_negin_complete :: Prop -> Bool
-prop_negin_complete p  =  not (anywhere negout (negin p))
+prop_negin_complete :: (Prop->Prop) -> Prop -> Bool
+prop_negin_complete n p  =  not (anywhere negout (n p))
   where
   negout (N (V _))  =  False
   negout (N _)      =  True
   negout _          =  False
 
-prop_negin_sound :: Prop -> Bool
-prop_negin_sound p  =  equiv (negin p) p
+prop_negin_sound :: (Prop->Prop) -> Prop -> Bool
+prop_negin_sound n p =  equiv (n p) p
 
-prop_negin_correct :: Prop -> Bool
-prop_negin_correct p = prop_negin_sound p && prop_negin_complete p
+prop_negin_correct :: (Prop->Prop) -> Prop -> Bool
+prop_negin_correct n p = prop_negin_sound n p && prop_negin_complete n p
 
 eg :: Prop
 eg  =  N (O (A (V 'p') (N (V 'q'))) (V 'r'))
