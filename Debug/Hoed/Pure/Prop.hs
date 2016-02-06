@@ -12,6 +12,7 @@ import Debug.Hoed.Pure.Observe(Observable(..),Trace(..),UID,Event(..),Change(..)
 import Debug.Hoed.Pure.Render(CompStmt(..),noNewlines)
 import Debug.Hoed.Pure.CompTree(CompTree,Vertex(..),Graph(..),vertexUID)
 import Debug.Hoed.Pure.EventForest(EventForest,mkEventForest,dfsChildren)
+import Debug.Hoed.Pure.Serialize
 import qualified Data.IntMap as M
 import Prelude hiding (Right)
 import Data.Graph.Libgraph(Judgement(..),AssistedMessage(..),mapGraph)
@@ -24,6 +25,7 @@ import Data.Char(isAlpha)
 import Data.Maybe(isNothing,fromJust)
 import Data.List(intersperse,isInfixOf)
 import GHC.Generics hiding (moduleName) --(Generic(..),Rep(..),from,(:+:)(..),(:*:)(..),U1(..),K1(..),M1(..))
+import Control.Monad(foldM)
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -53,11 +55,12 @@ propModule (_,x,_,_) = x
 
 ------------------------------------------------------------------------------------------------------------------------
 
-sourceFile = ".Hoed/exe/Main.hs"
-buildFiles = ".Hoed/exe/Main.o .Hoed/exe/Main.hi"
-exeFile    = ".Hoed/exe/Main"
-outFile    = ".Hoed/exe/Main.out"
-errFile    = ".Hoed/exe/Main.compilerMessages"
+sourceFile   = ".Hoed/exe/Main.hs"
+buildFiles   = ".Hoed/exe/Main.o .Hoed/exe/Main.hi"
+exeFile      = ".Hoed/exe/Main"
+outFile      = ".Hoed/exe/Main.out"
+errFile      = ".Hoed/exe/Main.compilerMessages"
+treeFilePath = ".Hoed/savedCompTree."
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -73,17 +76,79 @@ lookupWith f x ys = case filter (\y -> f y == x) ys of
 
 ------------------------------------------------------------------------------------------------------------------------
 
-judge :: UnevalHandler -> Trace -> [Propositions] -> CompTree -> IO CompTree
-judge handler trc ps compTree = do
-  ws <- mapM j vs
-  return $ foldl updateTree compTree ws
-  where 
-  vs  = vertices compTree
-  j v = case lookupPropositions ps v of 
-    Nothing  -> return v
-    (Just p) -> judgeWithPropositions handler trc p v
-  updateTree compTree w = mapGraph (\v -> if (vertexUID v) == (vertexUID w) then w else v) compTree
+judgeAll :: UnevalHandler -> Trace -> [Propositions] -> CompTree -> IO CompTree
+judgeAll handler trc ps compTree = undefined
 
+evalProps :: UnevalHandler -> Trace -> Propositions -> Vertex -> IO [PropApp]
+evalProps _ _ _ RootVertex = return []
+evalProps handler trc p v = mapM (evalProposition handler trc v (extraModules p)) (propositions p)
+
+data Judge = Judge Judgement | AlternativeTree CompTree
+
+-- First tries restricted and bottom for unevaluated expressions,
+-- then unrestricted and random values for unevaluated expressions.
+-- MF TODO: in between try unrestricted with bottom for unevaluated expressions (still need to switch trees if Wrong!)
+judge :: Trace -> Propositions -> Vertex -> (CompTree -> Int) -> CompTree -> IO Judge
+judge trc p v complexity curTree = do
+  putStrLn "PHASE 1"
+  pas <- evalProps Bottom trc p v
+  let j | propType p == Specify && all holds pas  = return (Judge Right)
+        | any disproves pas                       = return (Judge Wrong)
+        | otherwise                               = do
+            putStrLn "PHASE 2"
+            pas' <- evalProps Forall trc p v
+            let j' | propType p == Specify && all holds pas'  = return (Judge Right)
+                   | any disproves pas'                       = do 
+                       let curComplexity = complexity curTree
+                       (bestComplexity,bestTree) <- simplestTree complexity pas' (curComplexity,curTree)
+                       if bestComplexity == curComplexity
+                         then return $ Judge $ Assisted $ [InconclusiveProperty $ "We found values for the unevaluated"
+                                                           ++ " expressions in the current statement, however the resulting"
+                                                           ++ " tree is more complex."]
+                         else return (AlternativeTree bestTree)
+                   | otherwise                                = return (advice pas')
+            j'
+  j
+
+holds :: PropApp -> Bool
+holds (Hold _) = True
+holds (HoldWeak _) = True
+holds _         = False
+
+disproves :: PropApp -> Bool
+disproves (Disprove _)     = True
+disproves (DisproveBy _ _) = True
+disproves _                = False
+
+simplestTree :: (CompTree -> Int) -> [PropApp] -> (Int,CompTree) -> IO (Int,CompTree)
+simplestTree complexity pas cur = foldM (simTree complexity) cur pas
+
+simTree :: (CompTree -> Int) -> (Int,CompTree) -> PropApp -> IO (Int,CompTree)
+simTree complexity (curComplexity,curTree) pa = do
+  maybeCandTree <- restoreTree $ treeFilePath ++ (getTag pa)
+  case maybeCandTree of
+    Nothing         -> return (curComplexity,curTree)
+    (Just candTree) -> do 
+      let candComplexity = complexity candTree
+      return $ if candComplexity < curComplexity 
+                 then (candComplexity,candTree)
+                 else (curComplexity,curTree)
+
+advice :: [PropApp] -> Judge
+advice pas = case filter holds pas of
+  [] -> Judge $ Assisted $ errorMessages pas
+  ps -> Judge $ Assisted $ PassingProperty (commas (map getTag ps)) : errorMessages pas
+
+commas :: [String] -> String
+commas = concat . (intersperse ", ")
+
+errorMessages :: [PropApp] -> [AssistedMessage]
+errorMessages = foldl (\acc (Error tag msg) -> InconclusiveProperty ("\n---\n\nApplying property " ++ tag ++ " gives inconclusive result:\n\n" ++ msg) : acc) [] . filter isError
+
+isError (Error _ _) = True
+isError _           = False
+
+{-
 -- Use a property to judge a vertex
 judgeWithPropositions :: UnevalHandler -> Trace -> Propositions -> Vertex -> IO Vertex
 judgeWithPropositions _ _ _ RootVertex = return RootVertex
@@ -115,49 +180,52 @@ judgeWithPropositions handler trc p v = do
   moreInfo _          (Assisted _) = True
   moreInfo _          Right        = False
   moreInfo _          Wrong        = False
+-}
 
-data UnevalHandler = Abort | Forall | TrustForall deriving (Eq, Show)
+data UnevalHandler = Bottom | Forall deriving (Eq, Show)
 
 unevalHandler :: UnevalHandler -> PropVarGen String
-unevalHandler Abort = propVarError
-unevalHandler _     = propVarFresh
+unevalHandler Bottom = propVarError
+unevalHandler Forall = propVarFresh
 
-data PropApp = Error String | Holds | HoldsWeak | Disproves deriving Show
 
-trustWeak :: [PropApp] -> [PropApp]
-trustWeak = map f
-  where f HoldsWeak = Holds -- A possible unsafe assumption
-        f p         = p
+type Tag = String
 
-weaken :: [PropApp] -> [PropApp]
-weaken = map f
-  where f HoldsWeak = Error "Holds for all randomly generated values we tried."
-        f p         = p
+data PropApp = Error Tag String | Hold Tag | HoldWeak Tag | Disprove Tag | DisproveBy Tag [String] deriving Show
 
-hasResult :: PropApp -> Bool
-hasResult (Error _) = False
-hasResult HoldsWeak = False
-hasResult _         = True
+getTag :: PropApp -> Tag
+getTag (Error t _)      = t
+getTag (Hold t)         = t
+getTag (HoldWeak t)     = t
+getTag (Disprove t)     = t
+getTag (DisproveBy t _) = t
 
-hasWeakResult :: PropApp -> Bool
-hasWeakResult (Error _)     = False
-hasWeakResult _             = True
+-- trustWeak :: [PropApp] -> [PropApp]
+-- trustWeak = map f
+--   where f (HoldsWeak tag) = Holds tag
+--         f p               = p
 
-holds :: PropApp -> Bool
-holds Holds = True
-holds _     = False
+-- weaken :: [PropApp] -> [PropApp]
+-- weaken = map f
+--   where f (HoldsWeak tag) = Error tag "Holds for all randomly generated values we tried."
+--         f p               = p
 
-disproves :: PropApp -> Bool
-disproves Disproves = True
-disproves _         = False
+-- hasResult :: PropApp -> Bool
+-- hasResult (Error _ _)   = False
+-- hasResult (HoldsWeak _) = False
+-- hasResult _             = True
+-- 
+-- hasWeakResult :: PropApp -> Bool
+-- hasWeakResult (Error _ _) = False
+-- hasWeakResult _           = True
 
-errorMessages :: [(PropApp,Proposition)] -> [AssistedMessage]
-errorMessages = foldl (\acc (Error msg,p) -> InconclusiveProperty ("\n---\n\nApplying property " ++ propName p ++ " gives inconclusive result:\n\n" ++ msg) : acc) [] . filter (not . hasResult . fst)
+
 
 evalProposition :: UnevalHandler -> Trace -> Vertex -> [Module] -> Proposition -> IO PropApp
 evalProposition handler trc v ms prop = do
   createDirectoryIfMissing True ".Hoed/exe"
-  hPutStrLn stderr $ "Evaluating proposition " ++ propName prop ++ " with statement " ++ (shorten . noNewlines . show . vertexStmt) v
+  let tag = propName prop
+  hPutStrLn stderr $ "Evaluating proposition " ++ tag ++ " with statement " ++ (shorten . noNewlines . show . vertexStmt) v
   clean
   prgm <- generateCode
   compile
@@ -166,7 +234,7 @@ evalProposition handler trc v ms prop = do
   hPutStrLn stderr $ err
   hPutStrLn stderr $ "Compilation exitted with " ++ show exit'
   case exit' of 
-    (ExitFailure _) -> return $ Error $ "Compilation of {{{\n" ++ prgm ++ "\n}}} failed with:\n" ++ err
+    (ExitFailure _) -> return $ Error tag $ "Compilation of {{{\n" ++ prgm ++ "\n}}} failed with:\n" ++ err
     ExitSuccess     -> do 
       exit <- evaluate
       out' <- readFile outFile
@@ -174,13 +242,13 @@ evalProposition handler trc v ms prop = do
       hPutStrLn stderr $ out
       hPutStrLn stderr $ "Evaluation exitted with " ++ show exit
       return $ case (exit,out) of
-        (ExitFailure _, _)         -> Error out
-        (ExitSuccess  , "True\n")  -> Holds
-        (ExitSuccess  , "+++ OK, passed 100 tests.\n") -> HoldsWeak
-        (ExitSuccess  , "False\n") -> Disproves
+        (ExitFailure _, _)         -> Error tag out
+        (ExitSuccess  , "True\n")  -> Hold tag
+        (ExitSuccess  , "+++ OK, passed 100 tests.\n") -> HoldWeak tag
+        (ExitSuccess  , "False\n") -> Disprove tag
         (ExitSuccess  , _)         -> if "Failed! Falsifiable" `isInfixOf` out
-                                        then Disproves
-                                        else Error out
+                                        then DisproveBy tag (tail . lines $ out)
+                                        else Error tag out
 
     where
     clean        = system $ "rm -f " ++ sourceFile ++ " " ++ exeFile ++ " " ++ buildFiles
@@ -313,7 +381,7 @@ generateMain handler prop trc getEvent i f
     args = generateArgs (unevalHandler handler) trc getEvent i
 
     cf :: PropVarGen String
-    cf | handler == Abort = foldl1 (liftPV $ \acc c -> acc ++ " " ++ c)
+    cf | handler == Bottom = foldl1 (liftPV $ \acc c -> acc ++ " " ++ c)
                             [ propVarReturn $ "(" ++ genConAp (length args) f
                             , generateRes (unevalHandler handler) trc getEvent i
                             , propVarReturn $ ")"
@@ -322,8 +390,8 @@ generateMain handler prop trc getEvent i f
 
 generateRes :: (PropVarGen String) -> Trace -> (UID -> Event) -> UID -> PropVarGen String
 generateRes unevalGen trc getEvent i = case dfsChildren frt e of
-  [_,_,_,mr]      -> generateRes' unevalGen trc getEvent mr
   [_,_,_,Nothing] -> unevalGen
+  [_,_,_,mr]      -> generateRes' unevalGen trc getEvent mr
   where
   frt = (mkEventForest trc)
   e   = getEvent i

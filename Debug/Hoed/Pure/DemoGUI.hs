@@ -14,7 +14,7 @@ import Debug.Hoed.Pure.EventForest
 import Debug.Hoed.Pure.Observe
 import Debug.Hoed.Pure.Serialize
 import qualified Debug.Hoed.Pure.Prop as Prop
-import Debug.Hoed.Pure.Prop(Propositions,lookupPropositions,judgeWithPropositions,UnevalHandler(..))
+import Debug.Hoed.Pure.Prop(Propositions,lookupPropositions,evalProps,UnevalHandler(..),Judge(..),treeFilePath)
 import Paths_Hoed (version)
 import Data.Version (showVersion)
 import Data.Graph.Libgraph
@@ -213,7 +213,7 @@ updateRegEx currentVertexRef vs stmtDiv r = do
 guiAssisted :: Trace -> [Propositions] -> IORef CompTree -> IORef Int -> IORef String -> IORef Int -> UI UI.Element
 guiAssisted trace ps compTreeRef currentVertexRef regexRef imgCountRef = do
 
-       handlerRef <- UI.liftIO $ newIORef Abort
+       handlerRef <- UI.liftIO $ newIORef Bottom
 
        -- Get a list of vertices from the computation tree
        tree <- UI.liftIO $ readIORef compTreeRef
@@ -239,6 +239,7 @@ guiAssisted trace ps compTreeRef currentVertexRef regexRef imgCountRef = do
        on UI.click testB $ \_ -> testCurrent compTreeRef trace ps status currentVertexRef compStmt handlerRef
        on UI.click resetB $ \_ -> resetTree compTreeRef ps status currentVertexRef compStmt
 
+       -- MF TODO: remove radio buttons !?
        -- Radio buttons to indicate how unevaluated expressions are handled
        r1 <- UI.input # set UI.type_ "radio" # set UI.checked True
        r2 <- UI.input # set UI.type_ "radio" # set UI.checked False
@@ -251,9 +252,9 @@ guiAssisted trace ps compTreeRef currentVertexRef regexRef imgCountRef = do
             UI.liftIO $ writeIORef handlerRef h
             return a # set UI.checked False
             return b # set UI.checked False
-       onCheck r1 r2 r3 Abort
+       onCheck r1 r2 r3 Bottom
        onCheck r2 r1 r3 Forall
-       onCheck r3 r1 r2 TrustForall
+       -- onCheck r3 r1 r2 TrustForall
 
        -- Populate the main screen
        top <- UI.center #+ [return status, UI.br, return right, return wrong, return testB, return testAllB, return resetB]
@@ -266,6 +267,8 @@ resetTree compTreeRef ps status currentVertexRef compStmt = do
   where resetVertex = flip setJudgement Unassessed
 
 testAll compTreeRef trace ps status currentVertexRef compStmt handlerRef = do
+  advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef -- NOP, MF TODO: re-enable in some way?
+{-
   return status # UI.set UI.text "Evaluating propositions ..." #+ [UI.img # set UI.src "static/loading.gif" # set UI.height 30]
   UI.liftIO $ do
     handler <- UI.liftIO $ readIORef handlerRef
@@ -273,6 +276,7 @@ testAll compTreeRef trace ps status currentVertexRef compStmt handlerRef = do
     compTree' <- Prop.judge handler trace ps compTree
     writeIORef compTreeRef compTree'
   advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
+-}
 
 testCurrent compTreeRef trace ps status currentVertexRef compStmt handlerRef = do
   return status # UI.set UI.text "Evaluating propositions ..." #+ [UI.img # set UI.src "static/loading.gif" # set UI.height 30]
@@ -282,27 +286,16 @@ testCurrent compTreeRef trace ps status currentVertexRef compStmt handlerRef = d
       case lookupPropositions ps cv of 
         Nothing  -> updateStatus status compTreeRef
         (Just p) -> do
-          handler <- UI.liftIO $ readIORef handlerRef
-          cv' <- UI.liftIO $ judgeWithPropositions handler trace p cv 
           compTree <- UI.liftIO $ readIORef compTreeRef
-          case (handler,getJudgement cv') of
-            (Abort,_) -> do
-              UI.liftIO $ writeIORef compTreeRef (replaceVertex compTree cv')
-              advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
-            (_,Wrong) -> switchIfSimpler compTree compTreeRef status currentVertexRef compStmt
+          j <- UI.liftIO $ Prop.judge trace p cv unjudgedCharacterCount compTree
+          case j of 
+            (Judge jmt) -> 
+              UI.liftIO $ writeIORef compTreeRef (replaceVertex compTree (setJudgement cv jmt))
+            (AlternativeTree compTree') -> do
+              UI.liftIO $ writeIORef compTreeRef compTree'
+              UI.liftIO $ putStrLn $ "Switched to a simpler computation tree!" -- MF TODO: need to properly tell (or better: ask) user
+          advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
     Nothing -> updateStatus status compTreeRef
-
-switchIfSimpler compTree compTreeRef status currentVertexRef compStmt = do
-  mct <- UI.liftIO $ restoreTree treeFilePath
-  case mct of
-    Nothing          -> error "Failed to load tree from disk!"
-    (Just compTree') -> if compTree' `simpler` compTree
-                        then do UI.liftIO $ putStrLn "SWITCHED TO NEW COMPUTATION TREE"
-                                UI.liftIO $ writeIORef compTreeRef compTree'
-                        else return ()
-  advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
-
-  where simpler compTree' compTree = True  
 
 --------------------------------------------------------------------------------
 -- The Algorithmic Debugging GUI
@@ -426,12 +419,6 @@ guiExplore compTreeRef currentVertexRef regexRef imgCountRef = do
 
 judgementFilePath :: FilePath
 judgementFilePath = ".Hoed/savedJudgements"
-
-treeFilePath :: FilePath
-treeFilePath = ".Hoed/savedCompTree"
-
-tree'FilePath :: FilePath
-tree'FilePath = ".Hoed/exe/" ++ treeFilePath
 
 store :: IORef CompTree -> IO ()
 store compTreeRef = do

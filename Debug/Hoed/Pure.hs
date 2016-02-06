@@ -332,7 +332,7 @@ logOwp :: UnevalHandler -> FilePath -> [Propositions] -> IO a -> IO ()
 logOwp handler filePath properties program = do
   (trace,traceInfo,compTree,frt) <- runO' Verbose program
   hPutStrLn stderr "\n=== Evaluating assigned properties ===\n"
-  compTree' <- judge handler trace properties compTree
+  compTree' <- judgeAll handler trace properties compTree
   writeFile filePath (showGraph compTree')
   return ()
 

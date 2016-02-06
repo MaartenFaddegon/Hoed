@@ -22,6 +22,7 @@ module Debug.Hoed.Pure.CompTree
 , leafs
 , ConstantValue(..)
 , getLocation
+, unjudgedCharacterCount
 #if defined(TRANSCRIPT)
 , getTranscript
 #endif
@@ -87,6 +88,13 @@ isRootVertex _          = False
 
 leafs :: CompTree -> [Vertex]
 leafs g = filter (\v -> succs g v == []) (vertices g)
+
+unjudgedCharacterCount :: CompTree -> Int
+unjudgedCharacterCount = sum . (map characterCount) . (filter unjudged) . vertices
+  where characterCount = length . stmtLabel . vertexStmt
+
+unjudged = not . judged
+judged v = (isRight v || isWrong v)
 
 --------------------------------------------------------------------------------
 -- Computation Tree
