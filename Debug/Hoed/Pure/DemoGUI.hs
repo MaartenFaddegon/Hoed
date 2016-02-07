@@ -14,7 +14,7 @@ import Debug.Hoed.Pure.EventForest
 import Debug.Hoed.Pure.Observe
 import Debug.Hoed.Pure.Serialize
 import qualified Debug.Hoed.Pure.Prop as Prop
-import Debug.Hoed.Pure.Prop(Propositions,lookupPropositions,evalProps,UnevalHandler(..),Judge(..),treeFilePath)
+import Debug.Hoed.Pure.Prop(Propositions,lookupPropositions,UnevalHandler(..),Judge(..),treeFilePath)
 import Paths_Hoed (version)
 import Data.Version (showVersion)
 import Data.Graph.Libgraph

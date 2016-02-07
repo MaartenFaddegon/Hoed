@@ -41,6 +41,8 @@ data PropositionType = IOProposition | BoolProposition | LegacyQuickCheckProposi
 
 data Module       = Module {moduleName :: String, searchPath :: String} deriving Show
 
+data PropRes = Error Proposition String | Hold Proposition | HoldWeak Proposition | Disprove Proposition | DisproveBy Proposition [String] deriving Show
+
 propositionType :: Proposition -> PropositionType
 propositionType (x,_,_,_) = x
 
@@ -79,10 +81,6 @@ lookupWith f x ys = case filter (\y -> f y == x) ys of
 judgeAll :: UnevalHandler -> Trace -> [Propositions] -> CompTree -> IO CompTree
 judgeAll handler trc ps compTree = undefined
 
-evalProps :: UnevalHandler -> Trace -> Propositions -> Vertex -> IO [PropApp]
-evalProps _ _ _ RootVertex = return []
-evalProps handler trc p v = mapM (evalProposition handler trc v (extraModules p)) (propositions p)
-
 data Judge = Judge Judgement | AlternativeTree CompTree
 
 -- First tries restricted and bottom for unevaluated expressions,
@@ -90,17 +88,15 @@ data Judge = Judge Judgement | AlternativeTree CompTree
 -- MF TODO: in between try unrestricted with bottom for unevaluated expressions (still need to switch trees if Wrong!)
 judge :: Trace -> Propositions -> Vertex -> (CompTree -> Int) -> CompTree -> IO Judge
 judge trc p v complexity curTree = do
-  putStrLn "PHASE 1"
-  pas <- evalProps Bottom trc p v
+  pas <- evalPropositions Bottom trc p v
   let j | propType p == Specify && all holds pas  = return (Judge Right)
         | any disproves pas                       = return (Judge Wrong)
         | otherwise                               = do
-            putStrLn "PHASE 2"
-            pas' <- evalProps Forall trc p v
+            pas' <- evalPropositions Forall trc p v
             let j' | propType p == Specify && all holds pas'  = return (Judge Right)
                    | any disproves pas'                       = do 
                        let curComplexity = complexity curTree
-                       (bestComplexity,bestTree) <- simplestTree complexity pas' (curComplexity,curTree)
+                       (bestComplexity,bestTree) <- simplestTree complexity (extraModules p) pas' (curComplexity,curTree) trc v
                        if bestComplexity == curComplexity
                          then return $ Judge $ Assisted $ [InconclusiveProperty $ "We found values for the unevaluated"
                                                            ++ " expressions in the current statement, however the resulting"
@@ -110,22 +106,30 @@ judge trc p v complexity curTree = do
             j'
   j
 
-holds :: PropApp -> Bool
+holds :: PropRes -> Bool
 holds (Hold _) = True
 holds (HoldWeak _) = True
 holds _         = False
 
-disproves :: PropApp -> Bool
+disproves :: PropRes -> Bool
 disproves (Disprove _)     = True
 disproves (DisproveBy _ _) = True
 disproves _                = False
 
-simplestTree :: (CompTree -> Int) -> [PropApp] -> (Int,CompTree) -> IO (Int,CompTree)
-simplestTree complexity pas cur = foldM (simTree complexity) cur pas
+-- Using the given complexity function, compare the computation trees of the list of
+-- property results and select the simplest tree.
+simplestTree :: (CompTree -> Int) -> [Module] -> [PropRes] -> (Int,CompTree) -> Trace -> Vertex -> IO (Int,CompTree)
+simplestTree complexity ms rs cur trc v = foldM (simple2 complexity trc v ms) cur rs
 
-simTree :: (CompTree -> Int) -> (Int,CompTree) -> PropApp -> IO (Int,CompTree)
-simTree complexity (curComplexity,curTree) pa = do
-  maybeCandTree <- restoreTree $ treeFilePath ++ (getTag pa)
+-- Using the given complexity function, read the computation tree of the given property
+-- into memory and compare its complexity with the complexity of the currently best tree.
+-- Return whichever of these two trees is simplest.
+simple2 :: (CompTree -> Int)  -> Trace -> Vertex -> [Module] -> (Int,CompTree) -> PropRes -> IO (Int,CompTree)
+simple2 complexity trc v ms (curComplexity,curTree) propRes = do
+  putStrLn "RE-EVALUATE START"
+  (Disprove _) <- reEvalProposition propRes trc v ms
+  putStrLn "RE-EVALUATE STOP"
+  maybeCandTree <- restoreTree $ treeFilePath ++ resOf propRes
   case maybeCandTree of
     Nothing         -> return (curComplexity,curTree)
     (Just candTree) -> do 
@@ -134,142 +138,99 @@ simTree complexity (curComplexity,curTree) pa = do
                  then (candComplexity,candTree)
                  else (curComplexity,curTree)
 
-advice :: [PropApp] -> Judge
-advice pas = case filter holds pas of
-  [] -> Judge $ Assisted $ errorMessages pas
-  ps -> Judge $ Assisted $ PassingProperty (commas (map getTag ps)) : errorMessages pas
+advice :: [PropRes] -> Judge
+advice rs' = case filter holds rs' of
+  [] -> Judge $ Assisted $ errorMessages rs'
+  rs -> Judge $ Assisted $ PassingProperty (commas (map resOf rs)) : errorMessages rs'
 
 commas :: [String] -> String
 commas = concat . (intersperse ", ")
 
-errorMessages :: [PropApp] -> [AssistedMessage]
-errorMessages = foldl (\acc (Error tag msg) -> InconclusiveProperty ("\n---\n\nApplying property " ++ tag ++ " gives inconclusive result:\n\n" ++ msg) : acc) [] . filter isError
+errorMessages :: [PropRes] -> [AssistedMessage]
+errorMessages = foldl (\acc (Error prop msg) -> InconclusiveProperty ("\n---\n\nApplying property " ++ propName prop ++ " gives inconclusive result:\n\n" ++ msg) : acc) [] . filter isError
 
 isError (Error _ _) = True
 isError _           = False
 
-{-
--- Use a property to judge a vertex
-judgeWithPropositions :: UnevalHandler -> Trace -> Propositions -> Vertex -> IO Vertex
-judgeWithPropositions _ _ _ RootVertex = return RootVertex
-judgeWithPropositions handler trc p v = do
-  putStrLn $ "\n================\n"
-  pas' <- mapM (evalProposition handler trc v (extraModules p)) (propositions p)
-  putStrLn $ "judgeWithPropositions: pas=" ++ show pas'
-  let pas = if handler == TrustForall then trustWeak pas' else weaken pas'
-      z = zip pas (propositions p)
-      a = case (map snd) . (filter (holds . fst)) $ z of
-            [] -> errorMessages z
-            ps -> PassingProperty ("With passing properties: " ++ commas (map propName ps))
-                  : errorMessages z
-      j' | propType p == Specify && all hasResult pas
-                                       = if any disproves pas then Wrong else Right
-         | any hasResult pas           = if any disproves pas then Wrong else Assisted a
-         | otherwise                   = Assisted a
-      j  | j' `moreInfo` (vertexJmt v) = j'
-         | otherwise                   = vertexJmt v
-
-  hPutStrLn stderr $ "Judgement was " ++ (show . vertexJmt) v ++ ", and is now " ++ show j
-  return v{vertexJmt=j}
-  where
-  commas :: [String] -> String
-  commas = concat . (intersperse ", ")
-
-  moreInfo _          Unassessed   = True
-  moreInfo Unassessed (Assisted _) = False
-  moreInfo _          (Assisted _) = True
-  moreInfo _          Right        = False
-  moreInfo _          Wrong        = False
--}
-
-data UnevalHandler = Bottom | Forall deriving (Eq, Show)
+data UnevalHandler = Bottom | Forall | FromList [String] deriving (Eq, Show)
 
 unevalHandler :: UnevalHandler -> PropVarGen String
-unevalHandler Bottom = propVarError
-unevalHandler Forall = propVarFresh
+unevalHandler Bottom       = propVarError
+unevalHandler Forall       = propVarFresh
+unevalHandler (FromList _) = propVarFresh
 
+unevalState :: UnevalHandler -> PropVars
+unevalState Bottom            = propVars0
+unevalState Forall            = propVars0
+unevalState (FromList values) = ([],values)
 
-type Tag = String
+resOf :: PropRes -> String
+resOf (Error p _)      = propName p
+resOf (Hold p)         = propName p
+resOf (HoldWeak p)     = propName p
+resOf (Disprove p)     = propName p
+resOf (DisproveBy p _) = propName p
 
-data PropApp = Error Tag String | Hold Tag | HoldWeak Tag | Disprove Tag | DisproveBy Tag [String] deriving Show
+evalPropositions :: UnevalHandler -> Trace -> Propositions -> Vertex -> IO [PropRes]
+evalPropositions _ _ _ RootVertex = return []
+evalPropositions handler trc p v = mapM (evalProposition handler trc v (extraModules p)) (propositions p)
 
-getTag :: PropApp -> Tag
-getTag (Error t _)      = t
-getTag (Hold t)         = t
-getTag (HoldWeak t)     = t
-getTag (Disprove t)     = t
-getTag (DisproveBy t _) = t
-
--- trustWeak :: [PropApp] -> [PropApp]
--- trustWeak = map f
---   where f (HoldsWeak tag) = Holds tag
---         f p               = p
-
--- weaken :: [PropApp] -> [PropApp]
--- weaken = map f
---   where f (HoldsWeak tag) = Error tag "Holds for all randomly generated values we tried."
---         f p               = p
-
--- hasResult :: PropApp -> Bool
--- hasResult (Error _ _)   = False
--- hasResult (HoldsWeak _) = False
--- hasResult _             = True
--- 
--- hasWeakResult :: PropApp -> Bool
--- hasWeakResult (Error _ _) = False
--- hasWeakResult _           = True
-
-
-
-evalProposition :: UnevalHandler -> Trace -> Vertex -> [Module] -> Proposition -> IO PropApp
+evalProposition :: UnevalHandler -> Trace -> Vertex -> [Module] -> Proposition -> IO PropRes
 evalProposition handler trc v ms prop = do
   createDirectoryIfMissing True ".Hoed/exe"
-  let tag = propName prop
-  hPutStrLn stderr $ "Evaluating proposition " ++ tag ++ " with statement " ++ (shorten . noNewlines . show . vertexStmt) v
   clean
-  prgm <- generateCode
-  compile
-  exit' <- compile
-  err  <- readFile errFile
-  hPutStrLn stderr $ err
-  hPutStrLn stderr $ "Compilation exitted with " ++ show exit'
-  case exit' of 
-    (ExitFailure _) -> return $ Error tag $ "Compilation of {{{\n" ++ prgm ++ "\n}}} failed with:\n" ++ err
+  prgm <- generateCode handler trc v prop ms
+  compile prop
+  exit <- compile prop
+  case exit of 
+    (ExitFailure _) -> do
+        err  <- readFile errFile
+        putStrLn $ "failed to compile: " ++ err
+        return $ Error prop $ "Compilation of {{{\n" ++ prgm ++ "\n}}} failed with:\n" ++ err
     ExitSuccess     -> do 
-      exit <- evaluate
-      out' <- readFile outFile
-      let out = backspaces out'
-      hPutStrLn stderr $ out
-      hPutStrLn stderr $ "Evaluation exitted with " ++ show exit
-      return $ case (exit,out) of
-        (ExitFailure _, _)         -> Error tag out
-        (ExitSuccess  , "True\n")  -> Hold tag
-        (ExitSuccess  , "+++ OK, passed 100 tests.\n") -> HoldWeak tag
-        (ExitSuccess  , "False\n") -> Disprove tag
-        (ExitSuccess  , _)         -> if "Failed! Falsifiable" `isInfixOf` out
-                                        then DisproveBy tag (tail . lines $ out)
-                                        else Error tag out
+      exit <- run
+      out <- readFile outFile
+      putStrLn $ "evaluated to: " ++ out
+      return $ mkPropRes prop exit (backspaces out)
 
-    where
-    clean        = system $ "rm -f " ++ sourceFile ++ " " ++ exeFile ++ " " ++ buildFiles
-    generateCode = do -- Uncomment the next line to dump generated program on screen
-                      -- hPutStrLn stderr $ "Generated the following program ***\n" ++ prgm ++ "\n***" 
-                      writeFile sourceFile prgm
-                      return prgm
-                      where prgm :: String
-                            prgm = (generate handler prop ms trc getEvent i f)
-    compile      = system $ "ghc  -i" ++ (searchPath . propModule) prop ++ " -o " ++ exeFile ++ " " ++ sourceFile ++ " > " ++ errFile ++ " 2>&1"
-    evaluate     = system $ exeFile ++ " > " ++ outFile ++ " 2>&1"
-    i            = (stmtIdentifier . vertexStmt) v
-    f            = (stmtLabel . vertexStmt) v
 
-    shorten s
-      | length s < 120 = s
-      | otherwise    = (take 117 s) ++ "..."
+reEvalProposition :: PropRes -> Trace -> Vertex -> [Module] -> IO PropRes
+reEvalProposition (DisproveBy prop values) trc v ms = evalProposition (FromList values) trc v ms prop
 
-    getEvent :: UID -> Event
-    getEvent j = fromJust $ M.lookup j m
-      where m = M.fromList $ map (\e -> (eventUID e, e)) trc
+clean = system $ "rm -f " ++ sourceFile ++ " " ++ exeFile ++ " " ++ buildFiles
+
+compile prop = system $ "ghc  -i" ++ (searchPath . propModule) prop ++ " -o " ++ exeFile ++ " " ++ sourceFile ++ " > " ++ errFile ++ " 2>&1"
+
+run = system $ exeFile ++ " > " ++ outFile ++ " 2>&1"
+
+generateCode :: UnevalHandler -> Trace -> Vertex -> Proposition -> [Module] -> IO String
+generateCode handler trc v prop ms = do 
+  -- Uncomment the next line to dump generated program on screen
+  -- hPutStrLn stderr $ "Generated the following program ***\n" ++ prgm ++ "\n***" 
+  writeFile sourceFile prgm
+  return prgm
+  where 
+  prgm = generate handler prop ms trc (getEventFromMap $ eventMap trc) i f
+  i    = (stmtIdentifier . vertexStmt) v
+  f    = (stmtLabel . vertexStmt) v
+
+
+getEventFromMap m j = fromJust $ M.lookup j m
+
+eventMap trc = M.fromList $ map (\e -> (eventUID e, e)) trc
+
+mkPropRes :: Proposition -> ExitCode -> String -> PropRes
+mkPropRes prop (ExitFailure _) out        = Error prop out
+mkPropRes prop ExitSuccess out
+  | out == "True\n"                       = Hold prop
+  | out == "+++ OK, passed 100 tests.\n"  = HoldWeak prop
+  | out == "False\n"                      = Disprove prop
+  | "Failed! Falsifiable" `isInfixOf` out = DisproveBy prop (tail . lines $ out)
+  | otherwise                             = Error prop out
+
+shorten s
+  | length s < 120 = s
+  | otherwise    = (take 117 s) ++ "..."
 
 backspaces :: String -> String
 backspaces s = reverse (backspaces' [] s)
@@ -281,21 +242,6 @@ backspaces s = reverse (backspaces' [] s)
 
   safeTail []    = []
   safeTail (c:s) = s
-
--- The actual logic that changes the judgement of a vertex.
-judge1' :: ExitCode -> String -> Judgement -> Judgement
-judge1' (ExitFailure _) _   j = j
-judge1' ExitSuccess     out j
-  | out == "False\n" = Wrong
-  | out == "True\n"  = j
-  | otherwise     = j
-
-judge1_spec :: ExitCode -> String -> Judgement -> Judgement
-judge1_spec (ExitFailure _) _   j = j
-judge1_spec ExitSuccess     out j
-  | out == "False\n" = Wrong
-  | out == "True\n"  = Right
-  | otherwise     = j
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -323,9 +269,10 @@ propVarFresh (bvs,v:fvs) = (v, (v:bvs,fvs))
 propVarReturn :: String -> PropVarGen String
 propVarReturn s vs = (s,vs)
 
-propVarBind :: (String,PropVars) -> Proposition -> String
-propVarBind (propApp,([],_))  prop = generatePrint prop ++ propApp
-propVarBind (propApp,(bvs,_)) prop = "quickCheck (\\" ++ bvs' ++ " -> " ++ propApp ++ ")"
+propVarBind :: UnevalHandler -> (String,PropVars) -> Proposition -> String
+propVarBind (FromList _) (propApp,_)       prop = generatePrint prop ++ propApp
+propVarBind _            (propApp,([],_))  prop = generatePrint prop ++ propApp
+propVarBind _            (propApp,(bvs,_)) prop = "quickCheck (\\" ++ bvs' ++ " -> " ++ propApp ++ ")"
   where
   bvs' = concat (intersperse " " bvs)
 
@@ -338,7 +285,7 @@ generatePrint p = case propositionType p of
 
 ------------------------------------------------------------------------------------------------------------------------
 
-generate :: UnevalHandler -> Proposition -> [Module] -> Trace -> (UID->Event) -> UID -> String -> String
+generate :: UnevalHandler -> Proposition -> [Module ] -> Trace -> (UID->Event) -> UID -> String -> String
 generate handler prop ms trc getEvent i f = generateHeading prop ms ++ generateMain handler prop trc getEvent i f
 
 generateHeading :: Proposition -> [Module] -> String
@@ -348,7 +295,6 @@ generateHeading prop ms =
   ++ generateImport (Module "qualified Debug.Hoed.Pure as Hoed" [])
   ++ qcImports
   ++ foldl (\acc m -> acc ++ generateImport m) "" ms
-
   where
   qcImports = case propositionType prop of
         BoolProposition -> generateImport (Module "Test.QuickCheck" [])
@@ -367,7 +313,7 @@ generateImport m =  "import " ++ (moduleName m) ++ "\n"
 
 generateMain :: UnevalHandler -> Proposition -> Trace -> (UID->Event) -> UID -> String -> String
 generateMain handler prop trc getEvent i f
-  = "main = Hoed.runOstore \"" ++ (propName prop) ++"\" $ " ++ propVarBind (foldl accArg ((propName prop)++ " ",propVars0) (argMap prop)) prop ++ "\n" -- was reverse . argMap $ prop
+  = "main = Hoed.runOstore \"" ++ (propName prop) ++"\" $ " ++ propVarBind handler (foldl accArg ((propName prop)++ " ",unevalState handler) (argMap prop)) prop ++ "\n" -- was reverse . argMap $ prop
     where 
     accArg :: (String,PropVars) -> Int -> (String,PropVars)
     accArg (acc,propVars) x = let (s,propVars') = getArg x propVars in (acc ++ " " ++ s, propVars')
