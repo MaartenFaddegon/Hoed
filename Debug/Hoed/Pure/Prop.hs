@@ -10,7 +10,7 @@ module Debug.Hoed.Pure.Prop where
 -- ) where
 import Debug.Hoed.Pure.Observe(Observable(..),Trace(..),UID,Event(..),Change(..),ourCatchAllIO,evaluate)
 import Debug.Hoed.Pure.Render(CompStmt(..),noNewlines)
-import Debug.Hoed.Pure.CompTree(CompTree,Vertex(..),Graph(..),vertexUID)
+import Debug.Hoed.Pure.CompTree(CompTree,Vertex(..),Graph(..),vertexUID,vertexRes)
 import Debug.Hoed.Pure.EventForest(EventForest,mkEventForest,dfsChildren)
 import Debug.Hoed.Pure.Serialize
 import qualified Data.IntMap as M
@@ -88,6 +88,7 @@ data Judge = Judge Judgement | AlternativeTree CompTree
 -- MF TODO: in between try unrestricted with bottom for unevaluated expressions (still need to switch trees if Wrong!)
 judge :: Trace -> Propositions -> Vertex -> (CompTree -> Int) -> CompTree -> IO Judge
 judge trc p v complexity curTree = do
+  putStrLn $ "Evaluating properties to judge statement <<" ++ vertexRes v ++ ">>"
   pas <- evalPropositions Bottom trc p v
   let j | propType p == Specify && all holds pas  = return (Judge Right)
         | any disproves pas                       = return (Judge Wrong)
