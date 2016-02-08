@@ -110,7 +110,8 @@ module Debug.Hoed.Pure
   , Proposition(..)
   , PropositionType(..)
   , Module(..)
-  , UnevalHandler(..)
+  , UnevalHandler(..) -- MF TODO: no need to export this?
+  , Signature(..)
 
     -- * Experimental annotations
   , traceOnly

@@ -31,17 +31,35 @@ import Control.Monad(foldM)
 
 data Propositions = Propositions { propositions :: [Proposition], propType :: PropType, funName :: String
                                  , extraModules :: [Module]
-                                 } 
+                                 }
 
-data PropType     = Specify | PropertiesOf deriving Eq
+data PropType = Specify | PropertiesOf deriving Eq
 
-type Proposition  = (PropositionType,Module,String,[Int])
+data Signature 
+  = Argument Int
+  | SubjectFunction
+  | Random
+  deriving Show
 
-data PropositionType = IOProposition | BoolProposition | LegacyQuickCheckProposition | QuickCheckProposition deriving Show
+type Proposition = (PropositionType,Module,String,[Signature])
 
-data Module       = Module {moduleName :: String, searchPath :: String} deriving Show
+data PropositionType 
+  = IOProposition
+  | BoolProposition
+  | LegacyQuickCheckProposition
+  | QuickCheckProposition 
+  deriving Show
 
-data PropRes = Error Proposition String | Hold Proposition | HoldWeak Proposition | Disprove Proposition | DisproveBy Proposition [String] deriving Show
+data Module = Module {moduleName :: String, searchPath :: String} 
+  deriving Show
+
+data PropRes 
+  = Error Proposition String 
+  | Hold Proposition 
+  | HoldWeak Proposition
+  | Disprove Proposition
+  | DisproveBy Proposition [String] 
+  deriving Show
 
 propositionType :: Proposition -> PropositionType
 propositionType (x,_,_,_) = x
@@ -49,8 +67,8 @@ propositionType (x,_,_,_) = x
 propName :: Proposition -> String
 propName (_,_,x,_) = x
 
-argMap :: Proposition -> [Int]
-argMap (_,_,_,x) = x
+signature :: Proposition -> [Signature]
+signature (_,_,_,x) = x
 
 propModule :: Proposition -> Module
 propModule (_,x,_,_) = x
@@ -120,10 +138,14 @@ disproves (Disprove _)     = True
 disproves (DisproveBy _ _) = True
 disproves _                = False
 
+disprovesBy :: PropRes -> Bool
+disprovesBy (DisproveBy _ _) = True
+disprovesBy _                = False
+
 -- Using the given complexity function, compare the computation trees of the list of
 -- property results and select the simplest tree.
 simplestTree :: (CompTree -> Int) -> [Module] -> [PropRes] -> (Int,CompTree,Trace) -> Trace -> Vertex -> IO (Int,CompTree,Trace)
-simplestTree complexity ms rs cur trc v = foldM (simple2 complexity trc v ms) cur rs
+simplestTree complexity ms rs cur trc v = foldM (simple2 complexity trc v ms) cur (filter disprovesBy rs)
 
 -- Using the given complexity function, read the computation tree of the given property
 -- into memory and compare its complexity with the complexity of the currently best tree.
@@ -317,21 +339,25 @@ generateHeading prop ms =
   qcImports'
     = generateImport (Module "System.Random" [])             -- newStdGen
       ++ generateImport (Module "Data.Maybe" [])             -- fromJust
+      ++ generateImport (Module "Test.QuickCheck" [])
 
 generateImport :: Module -> String
 generateImport m =  "import " ++ (moduleName m) ++ "\n"
 
 generateMain :: UnevalHandler -> Proposition -> Trace -> (UID->Event) -> UID -> String -> String
 generateMain handler prop trc getEvent i f
-  = "main = Hoed.runOstore \"" ++ (propName prop) ++"\" $ " ++ propVarBind handler (foldl accArg ((propName prop)++ " ",unevalState handler) (argMap prop)) prop ++ "\n" -- was reverse . argMap $ prop
+  = "main = Hoed.runOstore \"" ++ (propName prop) ++"\" $ "
+            ++ propVarBind handler (foldl accSig ((propName prop) ++ " ",unevalState handler) (signature prop)) prop
+            ++ "\n"
     where 
-    accArg :: (String,PropVars) -> Int -> (String,PropVars)
-    accArg (acc,propVars) x = let (s,propVars') = getArg x propVars in (acc ++ " " ++ s, propVars')
-    getArg :: Int -> PropVarGen String
-    getArg x
-      | x < 0             = cf
-      | x < (length args) = args !! x
-      | otherwise         = propVarError
+    accSig :: (String,PropVars) -> Signature -> (String,PropVars)
+    accSig (acc,propVars) x = let (s,propVars') = getSig x propVars in (acc ++ " " ++ s, propVars')
+    getSig :: Signature -> PropVarGen String
+    getSig SubjectFunction = cf
+    getSig (Argument i) | i < length args = args !! i
+    -- MF TODO: should we do something better when user gives index that is out of bounds?
+    getSig Random = propVarFresh
+    getSig _ = propVarError
 
     args :: [PropVarGen String]
     args = generateArgs (unevalHandler handler) trc getEvent i
