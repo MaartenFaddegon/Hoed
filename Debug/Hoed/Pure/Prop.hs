@@ -63,6 +63,7 @@ exeFile      = ".Hoed/exe/Main"
 outFile      = ".Hoed/exe/Main.out"
 errFile      = ".Hoed/exe/Main.compilerMessages"
 treeFilePath = ".Hoed/savedCompTree."
+traceFilePath = ".Hoed/savedTrace."
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -81,14 +82,16 @@ lookupWith f x ys = case filter (\y -> f y == x) ys of
 judgeAll :: UnevalHandler -> Trace -> [Propositions] -> CompTree -> IO CompTree
 judgeAll handler trc ps compTree = undefined
 
-data Judge = Judge Judgement | AlternativeTree CompTree
+data Judge = Judge Judgement | AlternativeTree CompTree Trace
 
 -- First tries restricted and bottom for unevaluated expressions,
 -- then unrestricted and random values for unevaluated expressions.
 -- MF TODO: in between try unrestricted with bottom for unevaluated expressions (still need to switch trees if Wrong!)
 judge :: Trace -> Propositions -> Vertex -> (CompTree -> Int) -> CompTree -> IO Judge
 judge trc p v complexity curTree = do
-  putStrLn $ "Evaluating properties to judge statement <<" ++ vertexRes v ++ ">>"
+  putStrLn $ take 50 (cycle "-")
+  putStrLn $ "Evaluating properties to judge statement: " ++ vertexRes v
+  putStrLn $ take 50 (cycle "-")
   pas <- evalPropositions Bottom trc p v
   let j | propType p == Specify && all holds pas  = return (Judge Right)
         | any disproves pas                       = return (Judge Wrong)
@@ -97,12 +100,12 @@ judge trc p v complexity curTree = do
             let j' | propType p == Specify && all holds pas'  = return (Judge Right)
                    | any disproves pas'                       = do 
                        let curComplexity = complexity curTree
-                       (bestComplexity,bestTree) <- simplestTree complexity (extraModules p) pas' (curComplexity,curTree) trc v
+                       (bestComplexity,bestTree,bestTrace) <- simplestTree complexity (extraModules p) pas' (curComplexity,curTree,[]) trc v
                        if bestComplexity == curComplexity
                          then return $ Judge $ Assisted $ [InconclusiveProperty $ "We found values for the unevaluated"
-                                                           ++ " expressions in the current statement, however the resulting"
-                                                           ++ " tree is more complex."]
-                         else return (AlternativeTree bestTree)
+                                                           ++ " expressions in the current statement that falsify\n"
+                                                           ++ " a property, however the resulting tree is more complex."]
+                         else return (AlternativeTree bestTree bestTrace)
                    | otherwise                                = return (advice pas')
             j'
   j
@@ -119,25 +122,26 @@ disproves _                = False
 
 -- Using the given complexity function, compare the computation trees of the list of
 -- property results and select the simplest tree.
-simplestTree :: (CompTree -> Int) -> [Module] -> [PropRes] -> (Int,CompTree) -> Trace -> Vertex -> IO (Int,CompTree)
+simplestTree :: (CompTree -> Int) -> [Module] -> [PropRes] -> (Int,CompTree,Trace) -> Trace -> Vertex -> IO (Int,CompTree,Trace)
 simplestTree complexity ms rs cur trc v = foldM (simple2 complexity trc v ms) cur rs
 
 -- Using the given complexity function, read the computation tree of the given property
 -- into memory and compare its complexity with the complexity of the currently best tree.
 -- Return whichever of these two trees is simplest.
-simple2 :: (CompTree -> Int)  -> Trace -> Vertex -> [Module] -> (Int,CompTree) -> PropRes -> IO (Int,CompTree)
-simple2 complexity trc v ms (curComplexity,curTree) propRes = do
-  putStrLn "RE-EVALUATE START"
-  (Disprove _) <- reEvalProposition propRes trc v ms
-  putStrLn "RE-EVALUATE STOP"
-  maybeCandTree <- restoreTree $ treeFilePath ++ resOf propRes
-  case maybeCandTree of
-    Nothing         -> return (curComplexity,curTree)
-    (Just candTree) -> do 
+simple2 :: (CompTree -> Int)  -> Trace -> Vertex -> [Module] -> (Int,CompTree,Trace) -> PropRes -> IO (Int,CompTree,Trace)
+simple2 complexity trc v ms (curComplexity,curTree,curTrace) propRes = do
+  reEvalProposition propRes trc v ms
+  maybeCandTree  <- restoreTree  $ treeFilePath  ++ resOf propRes
+  maybeCandTrace <- restoreTrace $ traceFilePath ++ resOf propRes
+  case (maybeCandTree,maybeCandTrace) of
+    (Just candTree, Just candTrace) -> do 
       let candComplexity = complexity candTree
       return $ if candComplexity < curComplexity 
-                 then (candComplexity,candTree)
-                 else (curComplexity,curTree)
+                 then (candComplexity,candTree,candTrace)
+                 else (curComplexity,curTree,curTrace)
+    _ -> do
+      putStrLn $ "FAILED to to restore computation tree of " ++ resOf propRes
+      return (curComplexity,curTree,curTrace)
 
 advice :: [PropRes] -> Judge
 advice rs' = case filter holds rs' of
@@ -178,6 +182,7 @@ evalPropositions handler trc p v = mapM (evalProposition handler trc v (extraMod
 
 evalProposition :: UnevalHandler -> Trace -> Vertex -> [Module] -> Proposition -> IO PropRes
 evalProposition handler trc v ms prop = do
+  putStrLn $ "property " ++ propName prop
   createDirectoryIfMissing True ".Hoed/exe"
   clean
   prgm <- generateCode handler trc v prop ms
@@ -196,7 +201,11 @@ evalProposition handler trc v ms prop = do
 
 
 reEvalProposition :: PropRes -> Trace -> Vertex -> [Module] -> IO PropRes
-reEvalProposition (DisproveBy prop values) trc v ms = evalProposition (FromList values) trc v ms prop
+reEvalProposition (DisproveBy prop values) trc v ms = do
+  putStrLn $ "RE-EVALUATE with " ++ concat (intersperse " " values) ++ " {"
+  (Disprove p) <- evalProposition (FromList values) trc v ms prop
+  putStrLn $ "} RE-EVALUATE"
+  return (Disprove p)
 
 clean = system $ "rm -f " ++ sourceFile ++ " " ++ exeFile ++ " " ++ buildFiles
 

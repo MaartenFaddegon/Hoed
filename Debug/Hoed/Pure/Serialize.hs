@@ -8,7 +8,10 @@ module Debug.Hoed.Pure.Serialize
 , restoreJudgements
 , storeTree
 , restoreTree
+, storeTrace
+, restoreTrace
 ) where
+import Debug.Hoed.Pure.Observe
 import Prelude hiding (lookup,Right)
 import qualified Prelude as Prelude
 import Debug.Hoed.Pure.CompTree
@@ -28,6 +31,9 @@ instance Serialize Vertex
 instance Serialize Judgement
 instance Serialize AssistedMessage
 instance Serialize CompStmt
+instance Serialize Parent
+instance Serialize Event
+instance Serialize Change
 
 --------------------------------------------------------------------------------
 -- Tree
@@ -40,7 +46,20 @@ restoreTree fp = do
         bs <- BS.readFile fp
         case decode bs of
           (Prelude.Left _)   -> return Nothing
-          (Prelude.Right ct) -> return (Just ct)
+          (Prelude.Right x) -> return (Just x)
+
+--------------------------------------------------------------------------------
+-- Trace
+
+storeTrace :: FilePath -> Trace -> IO ()
+storeTrace fp = (BS.writeFile fp) . encode
+
+restoreTrace :: FilePath -> IO (Maybe Trace)
+restoreTrace fp = do
+        bs <- BS.readFile fp
+        case decode bs of
+          (Prelude.Left _)   -> return Nothing
+          (Prelude.Right x) -> return (Just x)
 
 --------------------------------------------------------------------------------
 -- Judgements

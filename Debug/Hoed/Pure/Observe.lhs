@@ -269,7 +269,7 @@ observeTempl :: String -> Q Exp
 observeTempl s = do n  <- methodName s
                     let f  = return $ VarE n
                         s' = stringE s
-                    [| (\x-> fst (gobserve $f DoNotTraceThreadId $s' x)) |]
+                    [| (\x-> fst (gobserve $f $s' x)) |]
 \end{code}
 
 Generate class definition and class instances for list of types.
@@ -934,8 +934,8 @@ Our principle function and class
 -- 'observe' can also observe functions as well a structural values.
 -- 
 {-# NOINLINE gobserve #-}
-gobserve :: (a->Parent->a) -> TraceThreadId -> String -> a -> (a,Int)
-gobserve f tti name a = generateContext f tti name a
+gobserve :: (a->Parent->a) -> String -> a -> (a,Int)
+gobserve f name a = generateContext f name a
 
 {- | 
 Functions which you suspect of misbehaving are annotated with observe and
@@ -968,11 +968,7 @@ an Observable instance can be derived as follows:
 -}
 {-# NOINLINE observe #-}
 observe ::  (Observable a) => String -> a -> a
-observe lbl = fst . (gobserve observer DoNotTraceThreadId lbl)
-
-{-# NOINLINE observeCC #-}
-observeCC ::  (Observable a) => String -> a -> a
-observeCC lbl = fst . (gobserve observer TraceThreadId lbl)
+observe lbl = fst . (gobserve observer lbl)
 
 {- This gets called before observer, allowing us to mark
  - we are entering a, before we do case analysis on
@@ -1003,22 +999,14 @@ unsafeWithUniq fn
 \end{code}
 
 \begin{code}
-data TraceThreadId = TraceThreadId | DoNotTraceThreadId
-
-generateContext :: (a->Parent->a) -> TraceThreadId -> String -> a -> (a,Int)
-generateContext f tti label orig = unsafeWithUniq $ \node ->
-     do { t <- myThreadId
-        ; sendEvent node (Parent 0 0) (Observe label t node)
-        ; return (observer_ f orig (Parent
-                        { parentUID      = node
-                        , parentPosition = 0
-                        })
-                 , node)
-        }
-  where myThreadId = case tti of
-          DoNotTraceThreadId -> return ThreadIdUnknown
-          TraceThreadId      -> do t <- Concurrent.myThreadId
-                                   return (ThreadId t)
+generateContext :: (a->Parent->a) -> String -> a -> (a,Int)
+generateContext f {- tti -} label orig = unsafeWithUniq $ \node ->
+     do sendEvent node (Parent 0 0) (Observe label node)
+        return (observer_ f orig (Parent
+                      { parentUID      = node
+                      , parentPosition = 0
+                      })
+               , node)
 
 send :: String -> ObserverM a -> Parent -> a
 send consLabel fn context = unsafeWithUniq $ \ node ->
@@ -1077,22 +1065,22 @@ data Event = Event
                 , eventParent  :: !Parent
                 , change       :: !Change
                 }
-        deriving (Eq)
+        deriving (Eq,Generic)
 
 data Change
-        = Observe       !String         !ThreadId        !Int
+        = Observe       !String        !Int
         | Cons    !Int  !String
         | Enter
         | NoEnter
         | Fun
-        deriving (Eq, Show)
+        deriving (Eq, Show,Generic)
 
 type ParentPosition = Int
 
 data Parent = Parent
         { parentUID      :: !UID            -- my parents UID
         , parentPosition :: !ParentPosition -- my branch number (e.g. the field of a data constructor)
-        } deriving (Eq)
+        } deriving (Eq,Generic)
 
 instance Show Event where
   show e = (show . eventUID $ e) ++ ": " ++ (show . change $ e) ++ " (" ++ (show . eventParent $ e) ++ ")"
@@ -1101,10 +1089,6 @@ instance Show Parent where
   show p = "P " ++ (show . parentUID $ p) ++ " " ++ (show . parentPosition $ p)
 
 root = Parent 0 0
-
-data ThreadId = ThreadIdUnknown | ThreadId Concurrent.ThreadId
-        deriving (Show,Eq,Ord)
-
 
 isRootEvent :: Event -> Bool
 isRootEvent e = case change e of Observe{} -> True; _ -> False

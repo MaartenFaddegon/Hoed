@@ -116,7 +116,6 @@ module Debug.Hoed.Pure
   , traceOnly
   , observeTempl
   , observedTypes
-  , observeCC
 
    -- * For use by Hoed-generated programs that test some property ...
   , ParEq(..) -- MF TODO: this should become part of Observable
@@ -224,6 +223,7 @@ runOstore :: String -> IO a -> IO ()
 runOstore tag program = do 
   (trace,traceInfo,compTree,frt) <- runO' Silent program
   storeTree (treeFilePath ++ tag) compTree
+  storeTrace (traceFilePath ++ tag) trace
 
 -- | Repeat and trace a failing testcase
 testO :: Show a => (a->Bool) -> a -> IO ()
@@ -351,8 +351,7 @@ debugSession trace traceInfo tree frt ps
        dataDir <- getDataDir
        system $ "cp " ++ dataDir ++ "/img/*png .Hoed/wwwroot/"
        system $ "cp " ++ dataDir ++ "/img/*gif .Hoed/wwwroot/"
-       treeRef <- newIORef tree
        startGUI defaultConfig
            { jsPort       = Just 10000
            , jsStatic     = Just "./.Hoed/wwwroot"
-           } (guiMain trace traceInfo treeRef frt ps)
+           } (guiMain trace tree frt ps)

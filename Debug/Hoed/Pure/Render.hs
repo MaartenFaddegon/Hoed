@@ -73,7 +73,7 @@ renderCompStmts = foldl (\acc set -> acc ++ renderCompStmt set) []
 -- is rendered to a computation statement
 
 renderCompStmt :: CDS -> [CompStmt]
-renderCompStmt (CDSNamed name threadId dependsOn set)
+renderCompStmt (CDSNamed name dependsOn set)
   = map mkStmt statements
   where statements :: [(String,UID)]
         statements   = map (\(d,i) -> (pretty 70 d,i)) doc
@@ -104,7 +104,7 @@ nubSorted (a:as)              = a : nub as
 -- %************************************************************************
 
 
-data CDS = CDSNamed      String ThreadId UID CDSSet
+data CDS = CDSNamed      String UID CDSSet
          | CDSCons       UID    String   [CDSSet]
          | CDSFun        UID             CDSSet CDSSet
          | CDSEntered    UID
@@ -135,8 +135,8 @@ eventsToCDS pairs = getChild 0 0
      getNode'' ::  Int -> Event -> Change -> CDS
      getNode'' node e change =
        case change of
-        (Observe str t i) -> let chd = getChild node 0
-                               in CDSNamed str t (getId chd i) chd
+        (Observe str i) -> let chd = getChild node 0
+                               in CDSNamed str (getId chd i) chd
         (Enter)             -> CDSEntered node
         (NoEnter)           -> CDSTerminated node
         Fun                 -> CDSFun node (getChild node 0) (getChild node 1)
@@ -244,11 +244,11 @@ findFn' (CDSFun i arg res) rest =
 findFn' other rest = ([],[other], Nothing) : rest
 
 rmEntry :: CDS -> CDS
-rmEntry (CDSNamed str t i set)= CDSNamed str t i (rmEntrySet set)
-rmEntry (CDSCons i str sets)       = CDSCons i str (map rmEntrySet sets)
-rmEntry (CDSFun i a b)             = CDSFun i (rmEntrySet a) (rmEntrySet b)
-rmEntry (CDSTerminated i)          = CDSTerminated i
-rmEntry (CDSEntered i)             = error "found bad CDSEntered"
+rmEntry (CDSNamed str i set) = CDSNamed str i (rmEntrySet set)
+rmEntry (CDSCons i str sets) = CDSCons i str (map rmEntrySet sets)
+rmEntry (CDSFun i a b)       = CDSFun i (rmEntrySet a) (rmEntrySet b)
+rmEntry (CDSTerminated i)    = CDSTerminated i
+rmEntry (CDSEntered i)       = error "found bad CDSEntered"
 
 rmEntrySet = map rmEntry . filter noEntered
   where
@@ -256,7 +256,7 @@ rmEntrySet = map rmEntry . filter noEntered
         noEntered _              = True
 
 simplifyCDS :: CDS -> CDS
-simplifyCDS (CDSNamed str t i set) = CDSNamed str t i (simplifyCDSSet set)
+simplifyCDS (CDSNamed str i set) = CDSNamed str i (simplifyCDSSet set)
 simplifyCDS (CDSCons _ "throw"
                   [[CDSCons _ "ErrorCall" set]]
             ) = simplifyCDS (CDSCons 0 "error" set)
@@ -297,7 +297,7 @@ data Output = OutLabel String CDSSet [Output]
 cdssToOutput :: CDSSet -> [Output]
 cdssToOutput =  map cdsToOutput
 
-cdsToOutput (CDSNamed name _ _ cdsset)
+cdsToOutput (CDSNamed name _ cdsset)
             = OutLabel name res1 res2
   where
       res1 = [ cdss | (OutData cdss) <- res ]

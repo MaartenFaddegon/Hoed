@@ -43,12 +43,15 @@ sortOn' f = sortBy (\x y -> compare (f x) (f y))
 --------------------------------------------------------------------------------
 -- The tabbed layout from which we select the different views
 
-guiMain :: Trace -> TraceInfo -> IORef CompTree -> EventForest -> [Propositions] -> Window -> UI ()
-guiMain trace traceInfo compTreeRef frt propositions window
+guiMain :: Trace -> CompTree -> EventForest -> [Propositions] -> Window -> UI ()
+guiMain trace tree frt propositions window
   = do return window # set UI.title "Hoed debugging session"
 
+       -- memory shared between the different views
+       compTreeRef <- UI.liftIO $ newIORef tree
+       traceRef    <- UI.liftIO $ newIORef trace
+
        -- Get a list of vertices from the computation graph
-       tree <- UI.liftIO $ readIORef compTreeRef
        let ns = filter (not . isRootVertex) (preorder tree)
 
        -- Shared memory
@@ -82,7 +85,7 @@ guiMain trace traceInfo compTreeRef frt propositions window
             UI.getBody window # set UI.children [tabs,pane]
        on UI.click tab4 $ \_ -> do
             coloActive tab4
-            pane <- guiAssisted trace propositions compTreeRef currentVertexRef regexRef imgCountRef # set UI.style [("margin-top","0.5em")]
+            pane <- guiAssisted traceRef propositions compTreeRef currentVertexRef regexRef imgCountRef # set UI.style [("margin-top","0.5em")]
             UI.getBody window # set UI.children [tabs,pane]
        on UI.click tab5 $ \_ -> do
             coloActive tab5
@@ -210,8 +213,8 @@ updateRegEx currentVertexRef vs stmtDiv r = do
 --------------------------------------------------------------------------------
 -- The Assisted Debugging GUI
 
-guiAssisted :: Trace -> [Propositions] -> IORef CompTree -> IORef Int -> IORef String -> IORef Int -> UI UI.Element
-guiAssisted trace ps compTreeRef currentVertexRef regexRef imgCountRef = do
+guiAssisted :: IORef Trace -> [Propositions] -> IORef CompTree -> IORef Int -> IORef String -> IORef Int -> UI UI.Element
+guiAssisted traceRef ps compTreeRef currentVertexRef regexRef imgCountRef = do
 
        handlerRef <- UI.liftIO $ newIORef Bottom
 
@@ -233,10 +236,10 @@ guiAssisted trace ps compTreeRef currentVertexRef regexRef imgCountRef = do
        j right Right
        j wrong Wrong
        testB  <- UI.button # set UI.text "test"                                                # set UI.height 30 # set UI.style [("margin-right","1em")]
-       testAllB  <- UI.button # set UI.text "test all"                                         # set UI.height 30 # set UI.style [("margin-right","1em")]
+       -- testAllB  <- UI.button # set UI.text "test all"                                         # set UI.height 30 # set UI.style [("margin-right","1em")]
        resetB <- UI.button # set UI.text "clear all judgements"                                # set UI.height 30
-       on UI.click testAllB $ \_ -> testAll compTreeRef trace ps status currentVertexRef compStmt handlerRef
-       on UI.click testB $ \_ -> testCurrent compTreeRef trace ps status currentVertexRef compStmt handlerRef
+       -- on UI.click testAllB $ \_ -> testAll compTreeRef traceRef ps status currentVertexRef compStmt handlerRef
+       on UI.click testB $ \_ -> testCurrent compTreeRef traceRef ps status currentVertexRef compStmt handlerRef
        on UI.click resetB $ \_ -> resetTree compTreeRef ps status currentVertexRef compStmt
 
        -- MF TODO: remove radio buttons !?
@@ -257,7 +260,7 @@ guiAssisted trace ps compTreeRef currentVertexRef regexRef imgCountRef = do
        -- onCheck r3 r1 r2 TrustForall
 
        -- Populate the main screen
-       top <- UI.center #+ [return status, UI.br, return right, return wrong, return testB, return testAllB, return resetB]
+       top <- UI.center #+ [return status, UI.br, return right, return wrong, return testB{-, return testAllB-}, return resetB]
        UI.div #+ [return top, return radioButtons, UI.hr, return compStmt]
 
 resetTree compTreeRef ps status currentVertexRef compStmt = do
@@ -266,9 +269,8 @@ resetTree compTreeRef ps status currentVertexRef compStmt = do
   advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
   where resetVertex = flip setJudgement Unassessed
 
-testAll compTreeRef trace ps status currentVertexRef compStmt handlerRef = do
-  advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef -- NOP, MF TODO: re-enable in some way?
 {-
+testAll compTreeRef trace ps status currentVertexRef compStmt handlerRef = do
   return status # UI.set UI.text "Evaluating propositions ..." #+ [UI.img # set UI.src "static/loading.gif" # set UI.height 30]
   UI.liftIO $ do
     handler <- UI.liftIO $ readIORef handlerRef
@@ -278,7 +280,7 @@ testAll compTreeRef trace ps status currentVertexRef compStmt handlerRef = do
   advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
 -}
 
-testCurrent compTreeRef trace ps status currentVertexRef compStmt handlerRef = do
+testCurrent compTreeRef traceRef ps status currentVertexRef compStmt handlerRef = do
   return status # UI.set UI.text "Evaluating propositions ..." #+ [UI.img # set UI.src "static/loading.gif" # set UI.height 30]
   mcv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
   case mcv of
@@ -287,12 +289,14 @@ testCurrent compTreeRef trace ps status currentVertexRef compStmt handlerRef = d
         Nothing  -> updateStatus status compTreeRef
         (Just p) -> do
           compTree <- UI.liftIO $ readIORef compTreeRef
+          trace <- UI.liftIO $ readIORef traceRef
           j <- UI.liftIO $ Prop.judge trace p cv unjudgedCharacterCount compTree
           case j of 
             (Judge jmt) -> 
               UI.liftIO $ writeIORef compTreeRef (replaceVertex compTree (setJudgement cv jmt))
-            (AlternativeTree compTree') -> do
+            (AlternativeTree compTree' trace') -> do
               UI.liftIO $ writeIORef compTreeRef compTree'
+              UI.liftIO $ writeIORef traceRef trace'
               UI.liftIO $ putStrLn $ "Switched to a simpler computation tree!" -- MF TODO: need to properly tell (or better: ask) user
           advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
     Nothing -> updateStatus status compTreeRef
