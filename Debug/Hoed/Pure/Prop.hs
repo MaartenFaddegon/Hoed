@@ -355,9 +355,10 @@ generateRes unevalGen trc getEvent i = case dfsChildren frt e of
 generateRes' :: PropVarGen String -> Trace -> (UID->Event) -> Maybe Event -> PropVarGen String
 generateRes' unevalGen trc getEvent Nothing = unevalGen
 generateRes' unevalGen trc getEvent (Just e)
-  | change e == Fun = case dfsChildren frt e of [_,_,_,mr] -> generateRes' unevalGen trc getEvent mr
+  | change e == Fun = case dfsChildren frt e of [_,_    ,_,mr] -> generateRes' unevalGen trc getEvent mr
+                                                [Nothing,_,mr] -> generateRes' unevalGen trc getEvent mr
                                                 as  -> error $ "generateRes': event " ++ show (eventUID e) ++ ":FUN has " 
-                                                               ++ show (length as) ++ " children!"
+                                                               ++ show (length as) ++ " children!\nnamely: " ++ commas (map show as)
   | otherwise       = generateExpr unevalGen frt (Just e)
   where
   frt = (mkEventForest trc)
