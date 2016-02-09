@@ -97,31 +97,40 @@ module Debug.Hoed.Pure
   ( -- * Basic annotations
     observe
   , runO
-  , testO
   , printO
-  , logO
+  , testO
 
-  -- * Property-based judging
+  -- * Property-assisted algorithmic debugging
   , runOwp
   , testOwp
-  , logOwp
   , Propositions(..)
   , PropType(..)
   , Proposition(..)
   , PropositionType(..)
   , Module(..)
-  , UnevalHandler(..) -- MF TODO: no need to export this?
   , Signature(..)
+  , ParEq(..)
+  , runOstore
+  , conAp
 
-    -- * Experimental annotations
-  , traceOnly
+  -- * Build your own debugger with Hoed
+  , runO'
+  , judge
+  , unjudgedCharacterCount
+  , CompTree(..)
+  , Vertex(..)
+  , CompStmt(..)
+  , Judge(..)
+  , Verbosity(..)
+
+  -- * Alternative template Haskell annotations
   , observeTempl
   , observedTypes
 
-   -- * For use by Hoed-generated programs that test some property ...
-  , ParEq(..) -- MF TODO: this should become part of Observable
-  , runOstore
-  , conAp
+  -- * API to test Hoed itself
+  , logO
+  , logOwp
+  , traceOnly
 
    -- * The Observable class
   , Observer(..)
@@ -237,21 +246,6 @@ runOwp :: [Propositions] -> IO a -> IO ()
 runOwp ps program = do
   (trace,traceInfo,compTree,frt) <- runO' Verbose program
   let compTree' = compTree
-{-
-  hPutStrLn stderr "\n=== Evaluating assigned properties ===\n"
-  compTree' <- judge propVarError trace ps compTree
-
-  let vs = filter (/= RootVertex) (vertices compTree')
-      showLen p = show . length . (filter p) $ vs
-  hPutStrLn stderr "\n=== Evaluated assigned properties for all computation statements ==="
-  hPutStrLn stderr $ showLen isWrong    ++ " statements are now wrong because they fail a property."
-  hPutStrLn stderr $ showLen isAssisted ++ " statements satisfy some properties and violate no properties."
-  hPutStrLn stderr $ showLen isRight    ++ " statements are right because they satisfy their specification."
-  case (findFaulty_dag getJudgement compTree') of
-    []    -> do hPutStrLn stderr "\n=== Starting interactive debug session ===\n"
-                debugSession trace traceInfo compTree' frt
-    (v:_) -> hPutStrLn stderr $ "Fault detected in:\n\n" ++ show (vertexStmt v)
--}
   debugSession trace traceInfo compTree' frt ps
   return ()
 
@@ -278,7 +272,7 @@ condPutStrLn :: Verbosity -> String -> IO ()
 condPutStrLn Silent _  = return ()
 condPutStrLn Verbose msg = hPutStrLn stderr msg
 
-
+-- |Entry point giving you access to the internals of Hoed. Also see: runO.
 runO' :: Verbosity -> IO a -> IO (Trace,TraceInfo,CompTree,EventForest)
 runO' verbose program = do
   createDirectoryIfMissing True ".Hoed/"

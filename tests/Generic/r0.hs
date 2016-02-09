@@ -5,6 +5,7 @@ data D = D Int
 
 instance Observable D where
   observer (D x) = send "D" $ return D << x
+  constrain = undefined
 
 f = observe "f" f'
 f' x = D x

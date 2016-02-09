@@ -80,6 +80,7 @@ vertexRes :: Vertex -> String
 vertexRes RootVertex = "RootVertex"
 vertexRes v          = stmtRes . vertexStmt $ v
 
+-- | The forest of computation trees. Also see the Libgraph library.
 type CompTree = Graph Vertex ()
 
 isRootVertex :: Vertex -> Bool
@@ -89,6 +90,8 @@ isRootVertex _          = False
 leafs :: CompTree -> [Vertex]
 leafs g = filter (\v -> succs g v == []) (vertices g)
 
+-- | Approximates the complexity of a computation tree by summing the length
+-- of the unjudged computation statements (i.e not Right or Wrong) in the tree.
 unjudgedCharacterCount :: CompTree -> Int
 unjudgedCharacterCount = sum . (map characterCount) . (filter unjudged) . vertices
   where characterCount = length . stmtLabel . vertexStmt

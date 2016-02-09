@@ -6,6 +6,7 @@ data D = D D | T
 instance Observable D where
   observer (D x) = send "D" $ return D << x
   observer T     = send "T" $ return T
+  constrain = undefined
 
 f :: D -> Int
 f = observe "f" f'

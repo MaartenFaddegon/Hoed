@@ -100,11 +100,17 @@ lookupWith f x ys = case filter (\y -> f y == x) ys of
 judgeAll :: UnevalHandler -> Trace -> [Propositions] -> CompTree -> IO CompTree
 judgeAll handler trc ps compTree = undefined
 
-data Judge = Judge Judgement | AlternativeTree CompTree Trace
+data Judge 
+  = Judge Judgement
+    -- ^ Returns a Judgement (see Libgraph library).
+  | AlternativeTree CompTree Trace
+    -- ^ Found counter example with simpler computation tree.
 
+-- MF TODO. We should in function judge also try in between restricted and forall to use the unrestricted subject function with bottom for unevaluated expressions. Note that also in that case we need to switch trees if Wrong.
+
+-- |Use propositions to judge a computation statement.
 -- First tries restricted and bottom for unevaluated expressions,
 -- then unrestricted and random values for unevaluated expressions.
--- MF TODO: in between try unrestricted with bottom for unevaluated expressions (still need to switch trees if Wrong!)
 judge :: Trace -> Propositions -> Vertex -> (CompTree -> Int) -> CompTree -> IO Judge
 judge trc p v complexity curTree = do
   putStrLn $ take 50 (cycle "-")
