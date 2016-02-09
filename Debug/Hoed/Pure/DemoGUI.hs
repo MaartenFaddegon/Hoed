@@ -356,20 +356,26 @@ advance adv status compStmt mMenu mImg currentVertexRef compTreeRef = do
   mv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
   case mv of
     Nothing  -> do
-      return ()
+      t <- UI.liftIO $ readIORef compTreeRef
+      case next_step t getJudgement of
+        RootVertex -> return () -- when does this happen ... ?
+        w          -> advanceTo w status compStmt mMenu mImg currentVertexRef compTreeRef
     (Just v) -> do
       t <- UI.liftIO $ readIORef compTreeRef
-      let w = case (adv, next_step t getJudgement) of
-                (DoNotAdvance,_)           -> v
-                (AdvanceToNext,RootVertex) -> v
-                (AdvanceToNext,w')         -> w'
-      UI.liftIO $ writeIORef currentVertexRef (vertexUID w)
-      showStmt compStmt compTreeRef currentVertexRef
-      updateStatus status compTreeRef 
-      case mMenu of Nothing                  -> return ()
-                    (Just menu)              -> updateMenu menu compTreeRef currentVertexRef 
-      case mImg  of Nothing                  -> return ()
-                    (Just (img,imgCountRef)) -> redraw img imgCountRef compTreeRef (Just w)
+      case (adv, next_step t getJudgement) of
+        (DoNotAdvance,_)           -> advanceTo v status compStmt mMenu mImg currentVertexRef compTreeRef
+        (AdvanceToNext,RootVertex) -> advanceTo v status compStmt mMenu mImg currentVertexRef compTreeRef
+        (AdvanceToNext,w)          -> advanceTo w status compStmt mMenu mImg currentVertexRef compTreeRef
+  updateStatus status compTreeRef 
+
+advanceTo w status compStmt mMenu mImg currentVertexRef compTreeRef = do
+  UI.liftIO $ writeIORef currentVertexRef (vertexUID w)
+  showStmt compStmt compTreeRef currentVertexRef
+  case mMenu of Nothing                  -> return ()
+                (Just menu)              -> updateMenu menu compTreeRef currentVertexRef 
+  case mImg  of Nothing                  -> return ()
+                (Just (img,imgCountRef)) -> redraw img imgCountRef compTreeRef (Just w)
+
 
 --------------------------------------------------------------------------------
 -- Explore the computation tree
@@ -452,7 +458,7 @@ showStmt e compTreeRef currentVertexRef = do
 getMessage :: [AssistedMessage] -> String
 getMessage = foldl (\acc m -> acc ++ getMessage' m) ""
 getMessage' (InconclusiveProperty msg) = msg
-getMessage' (PassingProperty msg) = msg
+getMessage' (PassingProperty msg) = msg ++ " holds for this statement's values"
 
 -- populate the exploration menu with the current vertex, its predecessor and its successors
 updateMenu :: UI.Element -> IORef CompTree -> IORef Int -> UI ()

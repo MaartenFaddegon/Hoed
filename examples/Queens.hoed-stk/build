@@ -1,2 +1,0 @@
-rm -f Main Main.o Main.hi
-ghc -O0 -prof --make Main.hs

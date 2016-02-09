@@ -120,9 +120,9 @@ judge trc p v complexity curTree = do
                        let curComplexity = complexity curTree
                        (bestComplexity,bestTree,bestTrace) <- simplestTree complexity (extraModules p) pas' (curComplexity,curTree,[]) trc v
                        if bestComplexity == curComplexity
-                         then return $ Judge $ Assisted $ [InconclusiveProperty $ "We found values for the unevaluated"
-                                                           ++ " expressions in the current statement that falsify\n"
-                                                           ++ " a property, however the resulting tree is more complex."]
+                         then return $ Judge $ Assisted $ [InconclusiveProperty $ "We found values for the unevaluated "
+                                                           ++ "expressions in the current statement that falsify\n"
+                                                           ++ "a property, however the resulting tree is not simpler."]
                          else return (AlternativeTree bestTree bestTrace)
                    | otherwise                                = return (advice pas')
             j'
@@ -189,7 +189,13 @@ unevalHandler (FromList _) = propVarFresh
 unevalState :: UnevalHandler -> PropVars
 unevalState Bottom            = propVars0
 unevalState Forall            = propVars0
+-- unevalState (FromList _)      = propVars0
+-- Replace last line with 
 unevalState (FromList values) = ([],values)
+-- to directly substitute unevaluated expressions with the FromList values.
+-- This is only valid when all randomly generated values are actually substituting
+-- unevaluated expressions (this is not always the case, consider e.g. testing f in
+-- quickCheck p where p f x y = f x == g x y)
 
 resOf :: PropRes -> String
 resOf (Error p _)      = propName p
@@ -257,7 +263,7 @@ mkPropRes prop ExitSuccess out
   | out == "True\n"                       = Hold prop
   | out == "+++ OK, passed 100 tests.\n"  = HoldWeak prop
   | out == "False\n"                      = Disprove prop
-  | "Failed! Falsifiable" `isInfixOf` out = DisproveBy prop (tail . lines $ out)
+  | "Failed! Falsifiable" `isInfixOf` out = DisproveBy prop (reverse . tail . lines $ out)
   | otherwise                             = Error prop out
 
 shorten s
@@ -312,7 +318,7 @@ generatePrint :: Proposition -> String
 generatePrint p = case propositionType p of
   IOProposition         -> ""
   BoolProposition       -> "print $ "
-  QuickCheckProposition -> "(\\q -> do MkRose res ts <- protectRose .reduceRose .  unProp . (\\p->unGen p  (mkQCGen 1) 1) . unProperty $ q; print . fromJust . ok $ res) $ "
+  QuickCheckProposition -> "(\\q -> do MkRose res ts <- reduceRose .  unProp . (\\p->unGen p  (mkQCGen 1) 1) . unProperty $ q; print . fromJust . ok $ res) $ "
   LegacyQuickCheckProposition -> "do g <- newStdGen; print . fromJust . ok . (generate 1 g) . evaluate $ "
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -348,8 +354,11 @@ generateMain :: UnevalHandler -> Proposition -> Trace -> (UID->Event) -> UID -> 
 generateMain handler prop trc getEvent i f
   = "main = Hoed.runOstore \"" ++ (propName prop) ++"\" $ "
             ++ propVarBind handler (foldl accSig ((propName prop) ++ " ",unevalState handler) (signature prop)) prop
+            -- ++ appValues handler
             ++ "\n"
     where 
+    -- appValues (FromList values) = concat (map (" "++) values)
+    -- appValues _                 = ""
     accSig :: (String,PropVars) -> Signature -> (String,PropVars)
     accSig (acc,propVars) x = let (s,propVars') = getSig x propVars in (acc ++ " " ++ s, propVars')
     getSig :: Signature -> PropVarGen String
