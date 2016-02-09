@@ -148,6 +148,7 @@ instance (ParEq a, ParEq b, ParEq c, ParEq d,  ParEq e)
 -- MF TODO: this whole declaration is a bit of a hack "fromList" is used instead of a data constructor to generate a new map, and then we actually observe a list produced by toList
 instance (Show k, Show a) => Observable (M.Map k a) where 
   observer m = send ("M.fromList " ++ show (M.toList m)) (return m) -- MF TODO: could this violate strictness?
+  constrain = undefined
 
 instance (ParEq k, ParEq a) => ParEq (M.Map k a) where 
   m === n = (M.toList m) === (M.toList n)
@@ -177,7 +178,9 @@ data RationalRect = RationalRect Rational Rational Rational Rational
     deriving (Show, Read, Eq, Generic)
 
 instance Observable RationalRect
-instance Observable Rational where observer = observeBase
+instance Observable Rational where 
+  observer = observeBase
+  constrain = constrainBase
 
 instance ParEq RationalRect
 instance ParEq Rational where x === y = Just (x == y)

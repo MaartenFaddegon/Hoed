@@ -519,12 +519,6 @@ markNode g v s = mapGraph f g
         (===) :: Vertex -> Vertex -> Bool
         v1 === v2 = (vertexUID v1) == (vertexUID v2)
 
-replaceVertex :: CompTree -> Vertex -> CompTree
-replaceVertex g v = mapGraph f g
-  where f RootVertex = RootVertex
-        f v' | (vertexUID v') == (vertexUID v) = v
-             | otherwise                       = v'
-
 data MaxStringLength = ShorterThan Int | Unlimited
 
 shorten :: MaxStringLength -> String -> String

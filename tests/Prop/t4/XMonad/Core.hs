@@ -223,6 +223,7 @@ data Layout a = forall l. (LayoutClass l a, Read (l a), Observable (l a)) => Lay
 
 instance (Observable a) => Observable (Layout a) where
   observer (Layout x) = send "Layout" (return Layout << x)
+  constrain = undefined
 
 -- | Using the 'Layout' as a witness, parse existentially wrapped windows
 -- from a 'String'.

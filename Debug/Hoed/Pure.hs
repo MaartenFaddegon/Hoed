@@ -131,6 +131,7 @@ module Debug.Hoed.Pure
   , logO
   , logOwp
   , traceOnly
+  , UnevalHandler(..)
 
    -- * The Observable class
   , Observer(..)
@@ -139,8 +140,9 @@ module Debug.Hoed.Pure
   , thunk
   , nothunk
   , send
-  , observeBase
   , observeOpaque
+  , observeBase
+  , constrainBase
   , debugO
   , CDS(..)
   , Generic
@@ -327,7 +329,7 @@ logOwp :: UnevalHandler -> FilePath -> [Propositions] -> IO a -> IO ()
 logOwp handler filePath properties program = do
   (trace,traceInfo,compTree,frt) <- runO' Verbose program
   hPutStrLn stderr "\n=== Evaluating assigned properties ===\n"
-  compTree' <- judgeAll handler trace properties compTree
+  compTree' <- judgeAll handler unjudgedCharacterCount trace properties compTree
   writeFile filePath (showGraph compTree')
   return ()
 

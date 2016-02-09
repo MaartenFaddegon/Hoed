@@ -1,10 +1,10 @@
 diGraph G {
 v6 [label="Right: negin (N (V 'r')) = N (V 'r')"]
-v5 [label="Assisted \"With passing properties: prop_negin_complete\\n\\n---\\n\\nApplying property prop_negin_sound gives inconclusive result:\\n\\nMain: Request of value that was unevaluated in original program.\\n\": negin (V _) = V _"]
-v4 [label="Assisted \"With passing properties: prop_negin_complete\\n\\n---\\n\\nApplying property prop_negin_sound gives inconclusive result:\\n\\nMain: Request of value that was unevaluated in original program.\\n\": negin (N (N (V _))) = V _"]
+v5 [label="Assisted [PassingProperty \"prop_negin_complete\",InconclusiveProperty \"\\n---\\n\\nApplying property prop_negin_sound gives inconclusive result:\\n\\n[Escaping Exception in Code : Request of value that was unevaluated in original program.]\\n\"]: negin (V _) = V _"]
+v4 [label="Assisted [PassingProperty \"prop_negin_complete\",InconclusiveProperty \"\\n---\\n\\nApplying property prop_negin_sound gives inconclusive result:\\n\\n[Escaping Exception in Code : Request of value that was unevaluated in original program.]\\n\"]: negin (N (N (V _))) = V _"]
 v3 [label="Right: negin (N (V 'p')) = N (V 'p')"]
 v2 [label="Wrong: negin (N (A (V 'p') (N (V _)))) = A (N (V 'p')) (V _)"]
-v1 [label="Assisted \"With passing properties: prop_negin_complete\\n\\n---\\n\\nApplying property prop_negin_sound gives inconclusive result:\\n\\nMain: Request of value that was unevaluated in original program.\\n\": negin (N (O (A (V 'p') (N (V _))) (V 'r'))) = O (A (N (V 'p')) (V _)) (N (V 'r'))"]
+v1 [label="Assisted [PassingProperty \"prop_negin_complete\",InconclusiveProperty \"\\n---\\n\\nApplying property prop_negin_sound gives inconclusive result:\\n\\n[Escaping Exception in Code : Request of value that was unevaluated in original program.]\\n\"]: negin (N (O (A (V 'p') (N (V _))) (V 'r'))) = O (A (N (V 'p')) (V _)) (N (V 'r'))"]
 v0 [label=root]
 v2 -> v4 [label=""]
 v4 -> v5 [label=""]

@@ -24,12 +24,12 @@ main = do
 -}
 
 main :: IO ()
-main = logOwp Abort "hoed-tests-Prop-t4.graph" propositions $ do
+main = logOwp Bottom "hoed-tests-Prop-t4.graph" propositions $ do
   g <- newStdGen
   print . fromJust . ok . (generate 1 g) . evaluate $  prop_shift_win_I 1 'd' myStackSet
   where
     propositions =
-        [Propositions [(LegacyQuickCheckProposition,module_Properties,"prop_focus_all_l",[0])
+        [Propositions [(LegacyQuickCheckProposition,module_Properties,"prop_focus_all_l",[Argument 0])
                       -- ,(LegacyQuickCheckProposition,module_Properties,"prop_focus_all_l_weak",[0])
                       ]
                       PropertiesOf "focusUp" [module_StackSet, module_QuickCheck, module_Map, module_Random, module_Maybe]
@@ -38,16 +38,16 @@ main = logOwp Abort "hoed-tests-Prop-t4.graph" propositions $ do
         --                ] 
         --                PropertiesOf "insertUp" [module_StackSet, module_QuickCheck, module_Map, module_Random, module_Maybe]
 
-        , Propositions [ (LegacyQuickCheckProposition,module_Properties,"prop_view_reversible",[1,0])
-                       , (LegacyQuickCheckProposition,module_Properties,"prop_view_I",[1,0])
-                       , (LegacyQuickCheckProposition,module_Properties,"prop_view_current",[0,1])
-                       , (LegacyQuickCheckProposition,module_Properties,"prop_view_idem",[0,1])
-                       , (LegacyQuickCheckProposition,module_Properties,"prop_view_local",[0,1])
+        , Propositions [ (LegacyQuickCheckProposition,module_Properties,"prop_view_reversible",[Argument 0,Argument 1])
+                       , (LegacyQuickCheckProposition,module_Properties,"prop_view_I",[Argument 0,Argument 1])
+                       , (LegacyQuickCheckProposition,module_Properties,"prop_view_current",[Argument 1,Argument 0])
+                       , (LegacyQuickCheckProposition,module_Properties,"prop_view_idem",[Argument 1,Argument 0])
+                       , (LegacyQuickCheckProposition,module_Properties,"prop_view_local",[Argument 1,Argument 0])
                        ] 
                        PropertiesOf "view" [module_StackSet, module_QuickCheck, module_Map, module_Random, module_Maybe]
 
-        , Propositions [ (LegacyQuickCheckProposition,module_Properties,"prop_greedyView_reversible",[1,0])
-                       , (LegacyQuickCheckProposition,module_Properties,"prop_greedyView_idem",[0,1])
+        , Propositions [ (LegacyQuickCheckProposition,module_Properties,"prop_greedyView_reversible",[Argument 1,Argument 0])
+                       , (LegacyQuickCheckProposition,module_Properties,"prop_greedyView_idem",[Argument 0,Argument 1])
                        ] 
                        PropertiesOf "greedyView" [module_StackSet, module_QuickCheck, module_Map, module_Random, module_Maybe]
 

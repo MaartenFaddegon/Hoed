@@ -10,7 +10,7 @@ module Debug.Hoed.Pure.Prop where
 -- ) where
 import Debug.Hoed.Pure.Observe(Observable(..),Trace(..),UID,Event(..),Change(..),ourCatchAllIO,evaluate)
 import Debug.Hoed.Pure.Render(CompStmt(..),noNewlines)
-import Debug.Hoed.Pure.CompTree(CompTree,Vertex(..),Graph(..),vertexUID,vertexRes)
+import Debug.Hoed.Pure.CompTree(CompTree,Vertex(..),Graph(..),vertexUID,vertexRes,replaceVertex,getJudgement,setJudgement)
 import Debug.Hoed.Pure.EventForest(EventForest,mkEventForest,dfsChildren)
 import Debug.Hoed.Pure.Serialize
 import qualified Data.IntMap as M
@@ -97,14 +97,37 @@ lookupWith f x ys = case filter (\y -> f y == x) ys of
 
 ------------------------------------------------------------------------------------------------------------------------
 
-judgeAll :: UnevalHandler -> Trace -> [Propositions] -> CompTree -> IO CompTree
-judgeAll handler trc ps compTree = undefined
 
 data Judge 
   = Judge Judgement
     -- ^ Returns a Judgement (see Libgraph library).
   | AlternativeTree CompTree Trace
     -- ^ Found counter example with simpler computation tree.
+
+judgeAll :: UnevalHandler -> (CompTree -> Int) -> Trace -> [Propositions] -> CompTree -> IO CompTree
+judgeAll handler complexity trc ps compTree = foldM f compTree (vertices compTree)
+  where
+  c = complexity compTree
+  f :: CompTree -> Vertex -> IO CompTree
+  f curTree v = do
+    putStrLn $ take 50 (cycle "-")
+    putStrLn $ "Evaluating properties to judge statement: " ++ vertexRes v
+    putStrLn $ take 50 (cycle "-")
+    case lookupPropositions ps v of
+      Nothing  -> do
+        putStrLn "*** no propositions"
+        return curTree
+      (Just p) -> do
+        j <- judge' Bottom trc p v complexity curTree
+        case j of
+          (Judge jmt)            -> do
+            putStrLn $ "*** judgement is " ++ show jmt
+            return $ replaceVertex curTree (setJudgement v jmt)
+          (AlternativeTree t' _) -> do
+             let msg = "Simpler tree suggested with complexity " ++ show (complexity t') 
+                       ++ "(current tree has complexity of " ++ show c ++ ")"
+             putStrLn $ "*** " ++ msg
+             return $ replaceVertex curTree (setJudgement v (Assisted [InconclusiveProperty msg]))
 
 -- MF TODO. We should in function judge also try in between restricted and forall to use the unrestricted subject function with bottom for unevaluated expressions. Note that also in that case we need to switch trees if Wrong.
 
@@ -116,22 +139,30 @@ judge trc p v complexity curTree = do
   putStrLn $ take 50 (cycle "-")
   putStrLn $ "Evaluating properties to judge statement: " ++ vertexRes v
   putStrLn $ take 50 (cycle "-")
+  judgeBottom <- judge' Bottom trc p v complexity curTree
+  case judgeBottom of
+    (Judge (Assisted _)) -> judge' Forall trc p v complexity curTree
+    (Judge _)            -> return judgeBottom
+
+judge' Bottom trc p v complexity curTree = do
   pas <- evalPropositions Bottom trc p v
+  let j | propType p == Specify && all holds pas  = (Judge Right)
+        | any disproves pas                       = (Judge Wrong)
+        | otherwise                               = advice pas
+  return j
+
+judge' Forall trc p v complexity curTree = do
+  pas <- evalPropositions Forall trc p v
   let j | propType p == Specify && all holds pas  = return (Judge Right)
-        | any disproves pas                       = return (Judge Wrong)
-        | otherwise                               = do
-            pas' <- evalPropositions Forall trc p v
-            let j' | propType p == Specify && all holds pas'  = return (Judge Right)
-                   | any disproves pas'                       = do 
-                       let curComplexity = complexity curTree
-                       (bestComplexity,bestTree,bestTrace) <- simplestTree complexity (extraModules p) pas' (curComplexity,curTree,[]) trc v
-                       if bestComplexity == curComplexity
-                         then return $ Judge $ Assisted $ [InconclusiveProperty $ "We found values for the unevaluated "
-                                                           ++ "expressions in the current statement that falsify\n"
-                                                           ++ "a property, however the resulting tree is not simpler."]
-                         else return (AlternativeTree bestTree bestTrace)
-                   | otherwise                                = return (advice pas')
-            j'
+        | any disproves pas                       = do 
+            let curComplexity = complexity curTree
+            (bestComplexity,bestTree,bestTrace) <- simplestTree complexity (extraModules p) pas (curComplexity,curTree,[]) trc v
+            if bestComplexity == curComplexity
+              then return $ Judge $ Assisted $ [InconclusiveProperty $ "We found values for the unevaluated "
+                                                ++ "expressions in the current statement that falsify\n"
+                                                ++ "a property, however the resulting tree is not simpler."]
+              else return (AlternativeTree bestTree bestTrace)
+        | otherwise = return (advice pas)
   j
 
 holds :: PropRes -> Bool

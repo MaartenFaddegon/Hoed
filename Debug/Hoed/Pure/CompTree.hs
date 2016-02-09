@@ -11,6 +11,7 @@ module Debug.Hoed.Pure.CompTree
 , isRootVertex
 , vertexUID
 , vertexRes
+, replaceVertex
 , getJudgement
 , setJudgement
 , isRight
@@ -98,6 +99,12 @@ unjudgedCharacterCount = sum . (map characterCount) . (filter unjudged) . vertic
 
 unjudged = not . judged
 judged v = (isRight v || isWrong v)
+
+replaceVertex :: CompTree -> Vertex -> CompTree
+replaceVertex g v = mapGraph f g
+  where f RootVertex = RootVertex
+        f v' | (vertexUID v') == (vertexUID v) = v
+             | otherwise                       = v'
 
 --------------------------------------------------------------------------------
 -- Computation Tree
