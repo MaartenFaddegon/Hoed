@@ -26,9 +26,9 @@ exec instrs = run 1 []
     if pc < 1 || size < pc then Crash
     else
       case (memory ! pc, stack) of
-      (Push x	    , stack)          -> run pc' (x : stack)
-      (Pop	    , _ : stack)      -> run pc' stack
-      (Fetch n      , stack)	 
+      (Push x       , stack)          -> run pc' (x : stack)
+      (Pop          , _ : stack)      -> run pc' stack
+      (Fetch n      , stack)     
         | length stack >  n           -> run pc' (stack !! n : stack)
       (Store n      , x : stack)
         | length stack >= n           -> run pc' (take (n-1) stack ++
@@ -36,12 +36,12 @@ exec instrs = run 1 []
       (Instr1 op1   , i : stack)      -> run pc' (uno op1 i : stack)
       (Instr2 op2   , i : j : stack)  -> run pc' (duo op2 j i : stack)
       (Display      , i : stack)      -> i :> run pc' stack
-      (Jump n	    , stack)	      -> step n (run (pc' + n) stack)
+      (Jump n       , stack)          -> step n (run (pc' + n) stack)
       (JumpUnless n , Log b : stack)
-        | b	                      -> run pc' stack
+        | b                           -> run pc' stack
         | otherwise                   -> step n (run (pc' + n) stack)
-      (Halt	    , stack)	      -> End
-      _ 			      -> Crash
+      (Halt         , stack)          -> End
+      _                               -> Crash
      where
       pc' = pc + 1
 
