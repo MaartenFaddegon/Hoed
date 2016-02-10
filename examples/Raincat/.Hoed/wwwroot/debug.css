@@ -1,0 +1,21 @@
+div {
+  padding:0;
+  margin:0;
+}
+.buttons {
+  float:top;
+  height:50vh;
+  overflow-y: scroll;
+  overflow-x: hidden;
+}
+.nowrap {
+  white-space: nowrap;
+}
+.odd {
+  background-color: lightgray;
+  padding: 10px 0;
+}
+.even {
+  background-color: white;
+  padding: 10px 0;
+}

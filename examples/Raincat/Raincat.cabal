@@ -1,0 +1,94 @@
+name:                   Raincat-buggy
+version:                1.1.1.3
+cabal-version:          >= 1.8
+build-type:             Simple
+license:                BSD3
+license-file:           LICENSE
+copyright:              Garrick Chin 2008-2010
+maintainer:             Mikhail S. Pobolovets <styx.mp@gmail.com>
+homepage:               http://raincat.bysusanlin.com/
+package-url:            git://github.com/styx/Raincat.git
+bug-reports:            http://github.com/styx/Raincat/issues
+synopsis:               A puzzle game written in Haskell with a cat in lead role
+description:            Project Raincat is a game developed by Carnegie Mellon students
+                        through GCS during the Fall 2008 semester. Raincat features game
+                        play inspired from classics Lemmings and The Incredible Machine.
+                        The project proved to be an excellent learning experience for
+                        the programmers. Everything is programmed in Haskell.
+
+category:               Game
+author:                 Garrick Chin, Susan Lin, SooHyun Jang, Anthony Maurice, William Wang,
+                        Andrew Zheng, Rachel Berkowitz, Spencer Ying, Tal Stramer, Mikhail Pobolovets,
+                        Sergei Trofimovich
+
+stability:              stable
+tested-with:            GHC==7.6.2
+data-files:             LICENSE README.md
+                        data/effects/*.png data/cat/cat-walk/*.png data/cat/cat-idle/*.png
+                        data/music/*.ogg data/levels/skyline/*.lvl data/levels/movement1/*.lvl
+                        data/cat/cat-springboots/*.png data/levels/movement2/*.lvl data/levels/pinball/*.lvl
+                        data/item-buttons/*.png data/backgrounds/*.png data/levels/rift/*.png
+                        data/levels/water1/*.png data/levels/river/*.lvl data/cat/cat-skateboard/*.png
+                        data/cat/cat-laser/*.png data/cat/cat-pogostick/*.png data/levels/water2/*.png
+                        data/cat/cat-hurt/*.png data/levels/rift/*.lvl data/levels/water1/*.lvl
+                        data/levels/pool/*.png data/level-misc/*.png data/cat/cat-speedboots/*.png
+                        data/cat/cat-rainboots/*.png data/levels/water2/*.lvl data/levels/skyline/*.png
+                        data/levels/movement1/*.png data/cat/cat-poncho/*.png data/cat/cat-umbrella/*.png
+                        data/levels/movement2/*.png data/levels/pinball/*.png data/menu/*.png
+                        data/cat/cat-upside-down-umbrella/*.png data/cat/cat-shield/*.png
+                        data/levels/river/*.png data/levels/pool/*.lvl data/items/*.png
+
+data-dir:               ""
+extra-source-files:     Setup.lhs
+
+executable              raincat-buggy
+    main-is:            Main.hs
+    buildable:          True
+    ghc-options:        -Wall
+    hs-source-dirs:     src
+    build-depends:
+                        base >= 3 && < 5,
+                        containers,
+                        extensible-exceptions,
+                        mtl,
+                        random,
+                        time,
+                        GLUT,
+                        OpenGL,
+                        SDL,
+                        SDL-image,
+                        SDL-mixer,
+                        Hoed
+    other-modules:
+                        Cat.Cat
+                        Error.Error
+                        Game.GameGraphics
+                        Game.GameInit
+                        Game.GameInput
+                        Game.GameMain
+                        Game.GameState
+                        Input.InputState
+                        Items.ItemEffects
+                        Items.Items
+                        Level.EndMarker
+                        Level.FireHydrant
+                        Level.Level
+                        Menu.Menu
+                        Menu.PostVictory
+                        Nxt.Audio
+                        Nxt.Graphics
+                        Nxt.Input
+                        Nxt.Types
+                        Panels.ItemPanel
+                        Panels.MainPanel
+                        Panels.MessagePanel
+                        Program.Program
+                        Rain.Rain
+                        Settings.CatSettings
+                        Settings.DisplaySettings
+                        Settings.Path
+                        Settings.RainSettings
+                        Settings.UISettings
+                        Settings.WorldSettings
+                        UI.ItemPanel
+                        World.World
