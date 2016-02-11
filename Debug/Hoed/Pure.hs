@@ -306,7 +306,7 @@ runO' verbose program = do
   condPutStrLn verbose $ show n ++ " computation statements"
   condPutStrLn verbose $ show ((length . vertices $ ct) - 1) ++ " nodes + 1 virtual root node in the computation tree"
   condPutStrLn verbose $ show (length . arcs $ ct) ++ " edges in computation tree"
-  condPutStrLn verbose $ "computation tree has a branch factor of " ++ show b ++ "(i.e the average number of children of non-leaf nodes)"
+  condPutStrLn verbose $ "computation tree has a branch factor of " ++ show b ++ " (i.e the average number of children of non-leaf nodes)"
 
   condPutStrLn verbose "\n=== Debug Session ===\n"
   return (events, ti, ct, frt)

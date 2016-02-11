@@ -148,6 +148,8 @@ runO' program = {- SCC "runO" -} do
   let eqs   = ((sortBy byStack) . renderCompStmts) cdss2
   let ct    = mkGraph eqs
 
+  putStrLn $ unlines (map (\s->equLabel s ++ " " ++ show (equStack s)) eqs)
+
   hPutStrLn stderr "\n=== Statistics ===\n"
   let e  = length events
       n  = length eqs
@@ -156,7 +158,7 @@ runO' program = {- SCC "runO" -} do
   hPutStrLn stderr $ show n ++ " computation statements"
   hPutStrLn stderr $ show ((length . vertices $ ct) - 1) ++ " nodes + 1 virtual root node in the computation tree"
   hPutStrLn stderr $ show (length . arcs $ ct) ++ " edges in computation tree"
-  hPutStrLn stderr $ "computation tree has a branch factor of " ++ show b ++ "(i.e the average number of children of non-leaf nodes)"
+  hPutStrLn stderr $ "computation tree has a branch factor of " ++ show b ++ " (i.e the average number of children of non-leaf nodes)"
 
   hPutStrLn stderr "\n=== Debug session === \n"
   -- hPutStrLn stderr (showWithStack eqs)

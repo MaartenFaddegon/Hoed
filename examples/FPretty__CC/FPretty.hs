@@ -258,13 +258,13 @@ linebreak = Line 0 ""
 group = Group
 nest = Nest
 align = Align 0
-pretty = observe "pretty" (\w d -> {-# SCC "pretty" #-} pretty' w d)
+pretty arg1 arg2 = (observe "pretty" (\w d -> {-# SCC "pretty" #-} pretty' w d)) arg1 arg2
 pretty' w d = interpret (normalise d) w (\p dq r i -> "") 0 Dequeue.empty w 0
 
 -- semantic-preserving transformation that ensures that between every end
 -- of group and a subsequent line there is no text
 normalise :: Doc -> Doc
-normalise = observe "normalise" (\d -> {-# SCC "normalise" #-} normalise' d)
+normalise arg1 = (observe "normalise" (\d -> {-# SCC "normalise" #-} normalise' d)) arg1
 normalise' d = td :<> sd
   where
   (td,sd) = go d Nil
@@ -274,7 +274,7 @@ normalise' d = td :<> sd
 -- go d tt = (td,sd) implies  d <> tt and td <> sd denote the same set of 
 -- layouts.
 go :: Doc -> Doc -> (Doc,Doc)
-go = observe "go" (\d tt -> {-# SCC "go" #-} go' d tt)
+go arg1 arg2 = (observe "go" (\d tt -> {-# SCC "go" #-} go' d tt)) arg1 arg2
 go' Nil tt = (tt,Nil)
 go' (Text l t) tt = (Text l t :<> tt,Nil)
 go' (Line l t) tt = (Nil,Line l t :<> tt)
@@ -289,7 +289,7 @@ go' (Align i d) tt = let (td,sd) = go d tt in (td,Align (i - docLength td) sd)
 -- To ensure linear complexity for align should actually keep track
 -- of document length within go function itself.
 docLength :: Doc -> Int
-docLength = observe "docLength" (\d -> {-# SCC "docLength" #-} docLength' d)
+docLength arg1 = (observe "docLength" (\d -> {-# SCC "docLength" #-} docLength' d)) arg1
 docLength' Nil = 0
 docLength' (Text l _) = l
 docLength' (dl :<> dr) = docLength dl + docLength dr
@@ -316,7 +316,7 @@ type TreeCont = Position -> Dequeue.Seq (Position,OutGroup) -> Out
              -> String
 -}
 interpret :: Doc -> Width -> TreeCont -> TreeCont
-interpret = observe "interpret" interpret_cc
+interpret arg1 arg2 = (observe "interpret" interpret_cc) arg1 arg2
 
 interpret_cc :: Doc -> Width -> TreeCont -> TreeCont
 interpret_cc d w tc = {-# SCC "interpret" #-} interpret' d w tc
@@ -341,23 +341,23 @@ interpret' (Align j d) w tc p ds =
 
 -- MF: lifted this function to top level from interpret
 outLine :: Int -> String -> Width -> OutGroup
-outLine = observe "outLine" (\l t w -> {-# SCC "outLine" #-} outLine' l t w)
+outLine arg1 arg2 arg3 = (observe "outLine" (\l t w -> {-# SCC "outLine" #-} outLine' l t w)) arg1 arg2 arg3
 outLine' l t w h c r i = if h then t ++ c (r-l) i
                          else '\n' : replicate i ' ' ++ c (w-i) i
 
 -- MF: lifted this function to top level from interpret and added argument j
 outNest :: Int -> OutGroup
-outNest = observe "outNest" (\j -> {-# SCC "outNest" #-} outNest' j)
+outNest arg1 = (observe "outNest" (\j -> {-# SCC "outNest" #-} outNest' j)) arg1
 outNest' j h c r i = c r (i+j)
 
 -- MF: lifted this function to top level from interpret and added arguments t and l
 outText :: Int -> String -> OutGroup
-outText = observe "outText" (\j s -> {-# SCC "outText" #-} outText' j s)
+outText arg1 arg2 = (observe "outText" (\j s -> {-# SCC "outText" #-} outText' j s)) arg1 arg2
 outText' l t h c r i = t ++ c (r-l) i
 
 -- MF: lifted this function to top level from interpret and added arguments j and w
 outAlign :: Int -> Width -> OutGroup
-outAlign = observe "outAlign" (\j w -> {-# SCC "outAlign" #-} outAlign' j w)
+outAlign arg1 arg2 = (observe "outAlign" (\j w -> {-# SCC "outAlign" #-} outAlign' j w)) arg1 arg2
 outAlign' j w h c r i = c r (w-r+j)
 
 -- If no pending groups, then do out directly,
@@ -365,7 +365,7 @@ outAlign' j w h c r i = c r (w-r+j)
 -- This extracts an otherwise repeated pattern of the interpret function.
 extendFrontGroup :: (TreeCont -> TreeCont) -> (TreeCont -> TreeCont) -> 
                     OutGroup -> TreeCont -> TreeCont
-extendFrontGroup = observe "extendFrontGroup" (\cont1 cont2 out tc -> {-# SCC "extendFrontGroup" #-} extendFrontGroup' cont1 cont2 out tc)
+extendFrontGroup arg1 arg2 arg3 arg4 = (observe "extendFrontGroup" (\cont1 cont2 out tc -> {-# SCC "extendFrontGroup" #-} extendFrontGroup' cont1 cont2 out tc)) arg1 arg2 arg3 arg4
 extendFrontGroup' cont1 cont2 out tc p ds =
   case viewl ds of
     EmptyL -> out False (cont1 tc p ds)
@@ -374,7 +374,7 @@ extendFrontGroup' cont1 cont2 out tc p ds =
 
 
 leaveGroup :: TreeCont -> TreeCont
-leaveGroup = observe "leaveGroup" (\tc -> {-# SCC "leaveGroup" #-} leaveGroup' tc)
+leaveGroup arg1 = (observe "leaveGroup" (\tc -> {-# SCC "leaveGroup" #-} leaveGroup' tc)) arg1
 leaveGroup' tc p ds = 
   case viewl ds of
     EmptyL -> tc p ds
@@ -386,7 +386,7 @@ leaveGroup' tc p ds =
 
 
 prune :: TreeCont -> TreeCont
-prune = observe "prune" (\tc -> {-# SCC "prune" #-} prune' tc)
+prune arg1 arg2 = (observe "prune" (\tc -> {-# SCC "prune" #-} prune' tc)) arg1 arg2
 prune' tc p ds = 
   case viewr ds of
     EmptyR -> tc p ds

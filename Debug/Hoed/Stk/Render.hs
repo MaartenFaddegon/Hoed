@@ -118,6 +118,9 @@ compareStack s1 s2
 --         Truncate -> nextStack_truncate
 nextStack = nextStack_truncate
 
+nextStackVertex (Vertex (c:_) _) = nextStack c
+vertexStack (Vertex (c:_) _) = equStack c
+
 -- Always push onto top of stack
 -- nextStack_vanilla :: CompStmt -> CallStack
 -- nextStack_vanilla (CompStmt cc _ _ _ _ ccs) = cc:ccs
@@ -161,19 +164,19 @@ contains ccs cc = filter (== cc) ccs /= []
 ------------------------------------------------------------------------
 -- Bags are collections of computation statements with the same stack
 
-data Bag = Bag {bagStack :: CallStack, bagStmts :: [CompStmt]}
+data Bag = Bag {bagStack :: CallStack, bagStmts :: [Vertex]}
 
 instance Eq  Bag where b1 == b2 = {-# SCC "Bag.==" #-} bagStack b1 == bagStack b2
 instance Ord Bag where compare b1 b2 = cmpStk (bagStack b1) (bagStack b2)
 
-bag :: (CompStmt -> CallStack) -> CompStmt -> Bag
+bag :: (Vertex -> CallStack) -> Vertex -> Bag
 bag s c = Bag (s c) [c]
 
-(+++) :: CompStmt -> Bag -> Bag
+(+++) :: Vertex -> Bag -> Bag
 c +++ b = b{bagStmts = c : bagStmts b}
 
 
-mkBags :: (CompStmt -> CallStack) -> [CompStmt] -> [Bag]
+mkBags :: (Vertex -> CallStack) -> [Vertex] -> [Bag]
 mkBags _ []  = []
 mkBags s cs = mkBags' (bag s fc) [] ocs
 
@@ -189,12 +192,11 @@ mkBags s cs = mkBags' (bag s fc) [] ocs
 
 type Tree = RBTree Bag
 
-mkTree :: (CompStmt -> CallStack) -> [CompStmt] -> Tree
+mkTree :: (Vertex -> CallStack) -> [Vertex] -> Tree
 mkTree s cs = foldl insertOrd emptyRB (mkBags s cs)
 
-mkTrees :: [CompStmt] -> (Tree,Tree)
-mkTrees cs = (mkTree equStack cs, mkTree nextStack cs)
-
+mkTrees :: [Vertex] -> (Tree,Tree)
+mkTrees cs = (mkTree vertexStack cs, mkTree nextStackVertex cs)
 
 cmpStk :: CallStack -> CallStack -> Ordering
 cmpStk [] [] = EQ
@@ -202,7 +204,7 @@ cmpStk s1 s2 = case compare (length s1) (length s2) of
                 EQ  -> compare (head s1) (head s2)
                 ord -> ord
 
-lookup :: Tree -> CallStack -> [CompStmt]
+lookup :: Tree -> CallStack -> [Vertex]
 lookup t s = case search (\s b -> cmpStk s (bagStack b)) t s of
                (Just b) -> bagStmts b
                Nothing  -> []
@@ -210,7 +212,7 @@ lookup t s = case search (\s b -> cmpStk s (bagStack b)) t s of
 ------------------------------------------------------------------------
 -- Inverse call
 
-stmts :: Tree -> (CallStack,CallStack) -> [(CompStmt,CompStmt)]
+stmts :: Tree -> (CallStack,CallStack) -> [(Vertex,Vertex)]
 stmts t (s1,s2) = flattenStmts (lookup t s1, lookup t s2)
 
 flattenStmts :: ([a],[b]) -> [(a,b)]
@@ -252,53 +254,38 @@ type CompGraph = Graph Vertex ()
 isRoot Root = True
 isRoot _    = False
 
-pushDeps :: (Tree,Tree) -> [CompStmt] -> [Arc CompStmt ()]
+pushDeps :: (Tree,Tree) -> [Vertex] -> [Arc Vertex ()]
 pushDeps ts cs = concat (map (pushArcs ts) cs)
 
-pushArcs :: (Tree,Tree) -> CompStmt -> [Arc CompStmt ()]
+pushArcs :: (Tree,Tree) -> Vertex -> [Arc Vertex ()]
 pushArcs t p = map (\c -> p ==> c) (pushers t p)
   where src ==> tgt = Arc src tgt ()
 
-pushers :: (Tree,Tree) -> CompStmt -> [CompStmt]
-pushers (ts,tn) c = lookup ts (nextStack c)
+pushers :: (Tree,Tree) -> Vertex -> [Vertex]
+pushers (ts,tn) c = lookup ts (nextStackVertex c)
 
-callDeps :: (Tree,Tree) -> [CompStmt] -> [Arc CompStmt ()]
+callDeps :: (Tree,Tree) -> [Vertex] -> [Arc Vertex ()]
 callDeps (_,t) cs = concat (map (callDep t) cs)
 
-callDep :: Tree -> CompStmt -> [Arc CompStmt ()]
+callDep :: Tree -> Vertex -> [Arc Vertex ()]
 callDep t c3 = foldl (\as (c2,c1) -> c1 ==> c2 : c2 ==> c3 : as) []
-                          (concat (map (stmts t) (lacc $ equStack c3)))
+                          (concat (map (stmts t) (lacc $ vertexStack c3)))
   where src ==> tgt = Arc src tgt ()
 
 mkGraph :: [CompStmt] -> CompGraph
 mkGraph cs =  (dagify merge)
               . addRoot
-              . toVertices 
-              -- . sameThread 
-              -- . filterDependsJustOn
-              -- . addSequenceDependencies
               . nubArcs
               $ g
-  where g :: Graph CompStmt ()
-        g = let ts = mkTrees cs in Graph (head' msg cs) cs (pushDeps ts cs ++ callDeps ts cs)
+  where g :: Graph Vertex ()
+        g = Graph (head' msg vs) vs (pushDeps ts vs ++ callDeps ts vs)
         msg = "mkGraph: No computation statements to construct graph from!"
 
-        nubArcs :: Graph CompStmt () -> Graph CompStmt ()
+        ts = mkTrees vs
+        vs = mergeEquivalent cs
+
+        nubArcs :: Graph Vertex () -> Graph Vertex ()
         nubArcs (Graph r vs as) = Graph r vs (nub as)
-
-        -- sameThread :: Graph CompStmt () -> Graph CompStmt ()
-        -- sameThread (Graph r vs as) = Graph r vs (filter (sameThread') as)
-        -- sameThread' (Arc v w _)
-        --   | equThreadId v == ThreadIdUnknown 
-        --     || equThreadId w == ThreadIdUnknown
-        --     || equThreadId v == equThreadId w   = True
-        --   | otherwise                           = False
-
-        -- filterDependsJustOn :: Graph CompStmt () -> Graph CompStmt ()
-        -- filterDependsJustOn (Graph r vs as) = Graph r vs (filter (filterDependsJustOn') as)
-        -- filterDependsJustOn' (Arc v w _) = case equDependsOn w of
-        --   (DependsJustOn i) -> i == equIdentifier v
-        --   _                 -> True
 
         addSequenceDependencies :: Graph CompStmt () -> Graph CompStmt ()
         addSequenceDependencies (Graph r vs as) = Graph r vs (seqDeps vs ++ as)
@@ -306,9 +293,6 @@ mkGraph cs =  (dagify merge)
         seqDep v w = case equDependsOn w of
           (InSequenceAfter i) -> i == equIdentifier v
           _                     -> False
-
-        toVertices :: Graph CompStmt () -> CompGraph
-        toVertices = mapGraph (\s->Vertex [s] Unassessed)
 
         addRoot :: CompGraph -> CompGraph
         addRoot (Graph _ vs as) =
@@ -322,6 +306,17 @@ mkGraph cs =  (dagify merge)
         msgvs = "mkGraph.merge: No vertices to merge."
 
         src ==> tgt = Arc src tgt ()
+
+mergeEquivalent :: [CompStmt] -> [Vertex]
+mergeEquivalent [] = []
+mergeEquivalent (c:cs) = mkVertex (c:e) : mergeEquivalent n
+  where
+  equivalent x y = equLabel x == equLabel y && equStack x == equStack y
+  (e,n) = partition (equivalent c) cs
+
+mkVertex :: [CompStmt] -> Vertex
+mkVertex s = Vertex s Unassessed
+
 
 -- %************************************************************************
 -- %*                                                                   *
