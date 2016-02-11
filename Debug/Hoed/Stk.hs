@@ -148,8 +148,6 @@ runO' program = {- SCC "runO" -} do
   let eqs   = ((sortBy byStack) . renderCompStmts) cdss2
   let ct    = mkGraph eqs
 
-  putStrLn $ unlines (map (\s->equLabel s ++ " " ++ show (equStack s)) eqs)
-
   hPutStrLn stderr "\n=== Statistics ===\n"
   let e  = length events
       n  = length eqs
