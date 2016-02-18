@@ -230,14 +230,14 @@ guiAssisted traceRef ps compTreeRef currentVertexRef regexRef imgCountRef = do
        showStmt compStmt compTreeRef currentVertexRef 
 
        -- Buttons to judge the current statement
-       right <- UI.button # UI.set UI.text "right " #+ [UI.img # set UI.src "static/right.png" # set UI.height 30] # set UI.style [("margin-right","1em")]
-       wrong <- UI.button # set UI.text "wrong "    #+ [UI.img # set UI.src "static/wrong.png" # set UI.height 30] # set UI.style [("margin-right","1em")]
+       right <- UI.button # UI.set UI.text "right " #+ [UI.img # set UI.src "static/right.png" # set UI.height 20] # set UI.style [("margin-right","1em")]
+       wrong <- UI.button # set UI.text "wrong "    #+ [UI.img # set UI.src "static/wrong.png" # set UI.height 20] # set UI.style [("margin-right","1em")]
        let j = judge AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
        j right Right
        j wrong Wrong
-       testB  <- UI.button # set UI.text "test"                                                # set UI.height 30 # set UI.style [("margin-right","1em")]
-       -- testAllB  <- UI.button # set UI.text "test all"                                         # set UI.height 30 # set UI.style [("margin-right","1em")]
-       resetB <- UI.button # set UI.text "clear all judgements"                                # set UI.height 30
+       testB  <- UI.button # set UI.text "test"  #+ [UI.img # set UI.src "static/test.png" # set UI.height 20] # set UI.style [("margin-right","1em")]
+       -- testAllB  <- UI.button # set UI.text "test all"                                         # set UI.height 20 # set UI.style [("margin-right","1em")]
+       resetB <- UI.button # set UI.text "clear all judgements"                                # set UI.height 20
        -- on UI.click testAllB $ \_ -> testAll compTreeRef traceRef ps status currentVertexRef compStmt handlerRef
        on UI.click testB $ \_ -> testCurrent compTreeRef traceRef ps status currentVertexRef compStmt handlerRef
        on UI.click resetB $ \_ -> resetTree compTreeRef ps status currentVertexRef compStmt
