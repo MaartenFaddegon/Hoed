@@ -41,7 +41,20 @@ data Signature
   | Random
   deriving Show
 
-type Proposition = (PropositionType,Module,String,[Signature])
+data Proposition = Proposition {propositionType :: PropositionType, propModule :: Module, propName :: String, signature :: [Signature], maxSize :: Maybe Int}
+  deriving Show
+
+mkProposition :: Module -> String -> Proposition
+mkProposition m f = Proposition {propositionType = BoolProposition, propModule = m, propName = f, signature = [SubjectFunction,Argument 0], maxSize = Nothing}
+
+ofType :: Proposition -> PropositionType -> Proposition
+ofType p t = p{propositionType = t}
+
+withSignature :: Proposition -> [Signature] -> Proposition
+withSignature p s = p{signature = s}
+
+sizeHint :: Proposition -> Int -> Proposition
+sizeHint p n = p{maxSize = Just n}
 
 data PropositionType 
   = IOProposition
@@ -60,18 +73,6 @@ data PropRes
   | Disprove Proposition
   | DisproveBy Proposition [String] 
   deriving Show
-
-propositionType :: Proposition -> PropositionType
-propositionType (x,_,_,_) = x
-
-propName :: Proposition -> String
-propName (_,_,x,_) = x
-
-signature :: Proposition -> [Signature]
-signature (_,_,_,x) = x
-
-propModule :: Proposition -> Module
-propModule (_,x,_,_) = x
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -347,9 +348,12 @@ propVarReturn s vs = (s,vs)
 propVarBind :: UnevalHandler -> (String,PropVars) -> Proposition -> String
 propVarBind (FromList _) (propApp,_)       prop = generatePrint prop ++ propApp
 propVarBind _            (propApp,([],_))  prop = generatePrint prop ++ propApp
-propVarBind _            (propApp,(bvs,_)) prop = "quickCheck (\\" ++ bvs' ++ " -> " ++ propApp ++ ")"
+propVarBind _            (propApp,(bvs,_)) prop = qc ++ " (\\" ++ bvs' ++ " -> " ++ propApp ++ ")"
   where
   bvs' = concat (intersperse " " bvs)
+  qc = case maxSize prop of
+         Nothing ->  "quickCheckWith stdArgs{maxDiscardRatio=50}"
+         (Just n) -> "quickCheckWith stdArgs{maxDiscardRatio=50,maxSize=" ++ show n ++ "}"
 
 generatePrint :: Proposition -> String
 generatePrint p = case propositionType p of
@@ -419,7 +423,9 @@ generateMain handler prop trc getEvent i f
 generateRes :: (PropVarGen String) -> Trace -> (UID -> Event) -> UID -> PropVarGen String
 generateRes unevalGen trc getEvent i = case dfsChildren frt e of
   [_,_,_,Nothing] -> unevalGen
-  [_,_,_,mr]      -> generateRes' unevalGen trc getEvent mr
+  [_,_    ,_,mr]  -> generateRes' unevalGen trc getEvent mr
+  [Nothing,_,mr]  -> generateRes' unevalGen trc getEvent mr
+  es              -> error $ "unexpected number of events :" ++ show es
   where
   frt = (mkEventForest trc)
   e   = getEvent i
@@ -480,10 +486,15 @@ genConAp n f = "(\\r " ++ args ++ " -> Hoed.constrain (" ++ f ++ " " ++ args ++ 
 ------------------------------------------------------------------------------------------------------------------------
 -- MF TODO: this should probably be part of the Observable class ...
 
+
+(===) :: ParEq a => a -> a -> Bool
+x === y = case parEq x y of (Just b) -> b
+                            Nothing  -> error "might be equal"
+
 class ParEq a where
-  (===) :: a -> a -> Maybe Bool
-  default (===) :: (Generic a, GParEq (Rep a)) => a -> a -> Maybe Bool
-  x === y = gParEq (from x) (from y)
+  parEq :: a -> a -> Maybe Bool
+  default parEq :: (Generic a, GParEq (Rep a)) => a -> a -> Maybe Bool
+  parEq x y = gParEq (from x) (from y)
 
 class GParEq rep where
   gParEq :: rep a -> rep a -> Maybe Bool
@@ -521,7 +532,7 @@ instance GParEq U1 where
 -- Constants: additional parameters and recursion of kind *
 instance (ParEq a) => GParEq (K1 i a) where
   gParEq x y = let r = gParEq_ x y in r
-    where gParEq_ (K1 x) (K1 y) = x === y
+    where gParEq_ (K1 x) (K1 y) = x `parEq` y
 
 -- Meta: data types
 instance (GParEq a) => GParEq (M1 D d a) where
@@ -541,9 +552,9 @@ instance (GParEq a, Constructor c) => GParEq (M1 C c a) where
 instance (ParEq a)          => ParEq [a]
 instance (ParEq a, ParEq b) => ParEq (a,b)
 instance (ParEq a)          => ParEq (Maybe a)
-instance ParEq Int          where x === y = Just (x == y)
-instance ParEq Bool         where x === y = Just (x == y)
-instance ParEq Integer      where x === y = Just (x == y)
-instance ParEq Float        where x === y = Just (x == y)
-instance ParEq Double       where x === y = Just (x == y)
-instance ParEq Char         where x === y = Just (x == y)
+instance ParEq Int          where parEq x y = Just (x == y)
+instance ParEq Bool         where parEq x y = Just (x == y)
+instance ParEq Integer      where parEq x y = Just (x == y)
+instance ParEq Float        where parEq x y = Just (x == y)
+instance ParEq Double       where parEq x y = Just (x == y)
+instance ParEq Char         where parEq x y = Just (x == y)

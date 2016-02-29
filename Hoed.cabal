@@ -154,7 +154,7 @@ Executable hoed-examples-FPretty_indents_too_much__CC
 --   hs-source-dirs:      examples/FPretty__with_properties
 --   default-language:    Haskell2010
 
-Executable hoed-examples-Queens__with_properties
+Executable hoed-examples-Queens_v1__with_properties
   if flag(buildExamples)
     build-depends:       base >= 4 && < 5
                          , Hoed
@@ -168,6 +168,23 @@ Executable hoed-examples-Queens__with_properties
   else
     buildable: False
   main-is:             Main.hs
+  hs-source-dirs:      examples/Queens__with_properties
+  default-language:    Haskell2010
+
+Executable hoed-examples-Queens_v2__with_properties
+  if flag(buildExamples)
+    build-depends:       base >= 4 && < 5
+                         , Hoed
+                         , threepenny-gui
+                         , filepath
+                         , containers
+                         , deepseq
+                         , array
+                         , QuickCheck
+                         , mtl
+  else
+    buildable: False
+  main-is:             Main2.hs
   hs-source-dirs:      examples/Queens__with_properties
   default-language:    Haskell2010
 

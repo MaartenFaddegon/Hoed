@@ -102,14 +102,20 @@ module Debug.Hoed.Pure
 
   -- * Property-assisted algorithmic debugging
   , runOwp
+  , printOwp
   , testOwp
   , Propositions(..)
   , PropType(..)
   , Proposition(..)
+  , mkProposition
+  , ofType
+  , withSignature
+  , sizeHint
   , PropositionType(..)
   , Module(..)
   , Signature(..)
   , ParEq(..)
+  , (===)
   , runOstore
   , conAp
 
@@ -260,6 +266,10 @@ testOwp ps p x = runOwp ps $ putStrLn $
 -- | Short for @runO . print@.
 printO :: (Show a) => a -> IO ()
 printO expr = runO (print expr)
+
+
+printOwp :: (Show a) => [Propositions] -> a -> IO ()
+printOwp ps expr = runOwp ps (print expr)
 
 -- | Only produces a trace. Useful for performance measurements.
 traceOnly :: IO a -> IO ()
