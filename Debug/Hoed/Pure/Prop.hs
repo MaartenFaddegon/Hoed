@@ -105,6 +105,7 @@ data Judge
   | AlternativeTree CompTree Trace
     -- ^ Found counter example with simpler computation tree.
 
+-- TODO: review this function, not sure if complexity suggestion actually makes sense there...
 judgeAll :: UnevalHandler -> (CompTree -> Int) -> Trace -> [Propositions] -> CompTree -> IO CompTree
 judgeAll handler complexity trc ps compTree = foldM f compTree (vertices compTree)
   where
@@ -119,7 +120,7 @@ judgeAll handler complexity trc ps compTree = foldM f compTree (vertices compTre
         putStrLn "*** no propositions"
         return curTree
       (Just p) -> do
-        j <- judge' Bottom trc p v complexity curTree
+        j <- judge' handler trc p v complexity curTree
         case j of
           (Judge jmt)            -> do
             putStrLn $ "*** judgement is " ++ show jmt
@@ -130,30 +131,38 @@ judgeAll handler complexity trc ps compTree = foldM f compTree (vertices compTre
              putStrLn $ "*** " ++ msg
              return $ replaceVertex curTree (setJudgement v (Assisted [InconclusiveProperty msg]))
 
--- MF TODO. We should in function judge also try in between restricted and forall to use the unrestricted subject function with bottom for unevaluated expressions. Note that also in that case we need to switch trees if Wrong.
 
 -- |Use propositions to judge a computation statement.
 -- First tries restricted and bottom for unevaluated expressions,
--- then unrestricted and random values for unevaluated expressions.
+-- then unrestricted, and finally with randomly generated values 
+-- for unevaluated expressions.
 judge :: Trace -> Propositions -> Vertex -> (CompTree -> Int) -> CompTree -> IO Judge
 judge trc p v complexity curTree = do
   putStrLn $ take 50 (cycle "-")
   putStrLn $ "Evaluating properties to judge statement: " ++ vertexRes v
   putStrLn $ take 50 (cycle "-")
-  judgeBottom <- judge' Bottom trc p v complexity curTree
-  case judgeBottom of
-    (Judge (Assisted _)) -> judge' Forall trc p v complexity curTree
-    (Judge _)            -> return judgeBottom
+  putStrLn "### ATTEMPT 1: with a restricted subject function\n"
+  res1 <- judge' RestrictedBottom trc p v complexity curTree
+  case res1 of
+    (Judge (Assisted _)) -> do 
+      putStrLn "### ATTEMPT 2: with an unrestricted subject function\n"
+      res2 <- judge' Bottom trc p v complexity curTree
+      case res2 of
+        (Judge (Assisted _)) -> do 
+          putStrLn "### ATTEMPT 3: with randomly generated values\n"
+          judge' Forall trc p v complexity curTree
+        (Judge _)            -> return res2
+    (Judge _) -> return res1
 
-judge' Bottom trc p v complexity curTree = do
-  pas <- evalPropositions Bottom trc p v
+judge' RestrictedBottom trc p v complexity curTree = do
+  pas <- evalPropositions RestrictedBottom trc p v
   let j | propType p == Specify && all holds pas  = (Judge Right)
         | any disproves pas                       = (Judge Wrong)
         | otherwise                               = advice pas
   return j
 
-judge' Forall trc p v complexity curTree = do
-  pas <- evalPropositions Forall trc p v
+judge' handler trc p v complexity curTree = do
+  pas <- evalPropositions handler trc p v
   let j | propType p == Specify && all holds pas  = return (Judge Right)
         | any disproves pas                       = do 
             let curComplexity = complexity curTree
@@ -217,14 +226,16 @@ errorMessages = foldl (\acc (Error prop msg) -> InconclusiveProperty ("\n---\n\n
 isError (Error _ _) = True
 isError _           = False
 
-data UnevalHandler = Bottom | Forall | FromList [String] deriving (Eq, Show)
+data UnevalHandler = RestrictedBottom | Bottom | Forall | FromList [String] deriving (Eq, Show)
 
 unevalHandler :: UnevalHandler -> PropVarGen String
-unevalHandler Bottom       = propVarError
-unevalHandler Forall       = propVarFresh
-unevalHandler (FromList _) = propVarFresh
+unevalHandler RestrictedBottom = propVarError
+unevalHandler Bottom           = propVarError
+unevalHandler Forall           = propVarFresh
+unevalHandler (FromList _)     = propVarFresh
 
 unevalState :: UnevalHandler -> PropVars
+unevalState RestrictedBottom  = propVars0
 unevalState Bottom            = propVars0
 unevalState Forall            = propVars0
 -- unevalState (FromList _)      = propVars0
@@ -413,11 +424,12 @@ generateMain handler prop trc getEvent i f
     args = generateArgs (unevalHandler handler) trc getEvent i
 
     cf :: PropVarGen String
-    cf | handler == Bottom = foldl1 (liftPV $ \acc c -> acc ++ " " ++ c)
-                            [ propVarReturn $ "(" ++ genConAp (length args) f
-                            , generateRes (unevalHandler handler) trc getEvent i
-                            , propVarReturn $ ")"
-                            ]
+    cf | handler == RestrictedBottom 
+           = foldl1 (liftPV $ \acc c -> acc ++ " " ++ c)
+             [ propVarReturn $ "(" ++ genConAp (length args) f
+             , generateRes (unevalHandler handler) trc getEvent i
+             , propVarReturn $ ")"
+             ]
        | otherwise = propVarReturn f
 
 generateRes :: (PropVarGen String) -> Trace -> (UID -> Event) -> UID -> PropVarGen String
