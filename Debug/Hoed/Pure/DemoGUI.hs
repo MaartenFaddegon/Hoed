@@ -242,26 +242,24 @@ guiAssisted traceRef ps compTreeRef currentVertexRef regexRef imgCountRef = do
        on UI.click testB $ \_ -> testCurrent compTreeRef traceRef ps status currentVertexRef compStmt handlerRef
        on UI.click resetB $ \_ -> resetTree compTreeRef ps status currentVertexRef compStmt
 
-       -- MF TODO: remove radio buttons !?
-       -- Radio buttons to indicate how unevaluated expressions are handled
-       r1 <- UI.input # set UI.type_ "radio" # set UI.checked True
-       r2 <- UI.input # set UI.type_ "radio" # set UI.checked False
-       r3 <- UI.input # set UI.type_ "radio" # set UI.checked False
-       d1 <- UI.div #+ [return r1, UI.span # set UI.text "Abort when property depends on an unevaluated expression."]
-       d2 <- UI.div #+ [return r2, UI.span # set UI.text "Try to find counterexamples using randomly generated values for unevaluated parts of a computation statement."]
-       d3 <- UI.div #+ [return r3, UI.span # set UI.text "Accept specification without counter examples as enough to judge as right (use with caution)."]
-       radioButtons <- UI.div #+ map return [d1,d2,d3]
-       let onCheck r a b h = on UI.checkedChange r $ \_ -> do
-            UI.liftIO $ writeIORef handlerRef h
-            return a # set UI.checked False
-            return b # set UI.checked False
-       onCheck r1 r2 r3 Bottom
-       onCheck r2 r1 r3 Forall
+       -- r1 <- UI.input # set UI.type_ "radio" # set UI.checked True
+       -- r2 <- UI.input # set UI.type_ "radio" # set UI.checked False
+       -- r3 <- UI.input # set UI.type_ "radio" # set UI.checked False
+       -- d1 <- UI.div #+ [return r1, UI.span # set UI.text "Abort when property depends on an unevaluated expression."]
+       -- d2 <- UI.div #+ [return r2, UI.span # set UI.text "Try to find counterexamples using randomly generated values for unevaluated parts of a computation statement."]
+       -- d3 <- UI.div #+ [return r3, UI.span # set UI.text "Accept specification without counter examples as enough to judge as right (use with caution)."]
+       -- radioButtons <- UI.div #+ map return [d1,d2,d3]
+       -- let onCheck r a b h = on UI.checkedChange r $ \_ -> do
+       --      UI.liftIO $ writeIORef handlerRef h
+       --      return a # set UI.checked False
+       --      return b # set UI.checked False
+       -- onCheck r1 r2 r3 Bottom
+       -- onCheck r2 r1 r3 Forall
        -- onCheck r3 r1 r2 TrustForall
 
        -- Populate the main screen
        top <- UI.center #+ [return status, UI.br, return right, return wrong, return testB{-, return testAllB-}, return resetB]
-       UI.div #+ [return top, return radioButtons, UI.hr, return compStmt]
+       UI.div #+ [return top, UI.hr, return compStmt]
 
 resetTree compTreeRef ps status currentVertexRef compStmt = do
   t <- UI.liftIO $ readIORef compTreeRef
@@ -286,7 +284,9 @@ testCurrent compTreeRef traceRef ps status currentVertexRef compStmt handlerRef 
   case mcv of
     (Just cv) -> do
       case lookupPropositions ps cv of 
-        Nothing  -> updateStatus status compTreeRef
+        Nothing  -> do
+          UI.element status # set UI.text ("Cannot test: no propositions associated with function " ++ (stmtLabel . vertexStmt) cv ++ "!")
+          return ()
         (Just p) -> do
           compTree <- UI.liftIO $ readIORef compTreeRef
           trace <- UI.liftIO $ readIORef traceRef

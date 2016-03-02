@@ -29,7 +29,9 @@ import Control.Monad(foldM)
 
 ------------------------------------------------------------------------------------------------------------------------
 
-data Propositions = Propositions { propositions :: [Proposition], propType :: PropType, funName :: String
+data Propositions = Propositions { propositions :: [Proposition]
+                                 , propType :: PropType
+                                 , funName :: String
                                  , extraModules :: [Module]
                                  }
 
@@ -41,11 +43,25 @@ data Signature
   | Random
   deriving Show
 
-data Proposition = Proposition {propositionType :: PropositionType, propModule :: Module, propName :: String, signature :: [Signature], maxSize :: Maybe Int}
+data TestGen = TestGenQuickCheck | TestGenLegacyQuickCheck -- | TestGenSmallCheck
   deriving Show
 
+data Proposition = Proposition { propositionType :: PropositionType
+                               , propModule      :: Module
+                               , propName        :: String
+                               , signature       :: [Signature]
+                               , maxSize         :: Maybe Int
+                               , testgen         :: TestGen
+                               } deriving Show
+
 mkProposition :: Module -> String -> Proposition
-mkProposition m f = Proposition {propositionType = BoolProposition, propModule = m, propName = f, signature = [SubjectFunction,Argument 0], maxSize = Nothing}
+mkProposition m f = Proposition { propositionType = BoolProposition
+                                , propModule      = m
+                                , propName        = f
+                                , signature       = [SubjectFunction,Argument 0]
+                                , maxSize         = Nothing
+                                , testgen         = TestGenQuickCheck
+                                }
 
 ofType :: Proposition -> PropositionType -> Proposition
 ofType p t = p{propositionType = t}
@@ -55,6 +71,9 @@ withSignature p s = p{signature = s}
 
 sizeHint :: Proposition -> Int -> Proposition
 sizeHint p n = p{maxSize = Just n}
+
+withTestGen :: Proposition -> TestGen -> Proposition
+withTestGen p f = p{testgen=f}
 
 data PropositionType 
   = IOProposition
@@ -362,9 +381,15 @@ propVarBind _            (propApp,([],_))  prop = generatePrint prop ++ propApp
 propVarBind _            (propApp,(bvs,_)) prop = qc ++ " (\\" ++ bvs' ++ " -> " ++ propApp ++ ")"
   where
   bvs' = concat (intersperse " " bvs)
-  qc = case maxSize prop of
-         Nothing ->  "quickCheckWith stdArgs{maxDiscardRatio=50}"
-         (Just n) -> "quickCheckWith stdArgs{maxDiscardRatio=50,maxSize=" ++ show n ++ "}"
+  qc = case (testgen prop, maxSize prop) of
+         (TestGenQuickCheck, Nothing) 
+           -> "quickCheckWith stdArgs{maxDiscardRatio=50}"
+         (TestGenQuickCheck, Just n)
+           -> "quickCheckWith stdArgs{maxDiscardRatio=50,maxSize=" ++ show n ++ "}"
+         (TestGenLegacyQuickCheck, Nothing)
+           ->  "check defaultConfig{configMaxFail=5000}"
+         (TestGenLegacyQuickCheck, Just n)
+           -> "check defaultConfig{configMaxFail=5000,configSize=(+" ++ show n ++ ") . (`div` 2)}"
 
 generatePrint :: Proposition -> String
 generatePrint p = case propositionType p of

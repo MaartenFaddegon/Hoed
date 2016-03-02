@@ -111,6 +111,8 @@ module Debug.Hoed.Pure
   , ofType
   , withSignature
   , sizeHint
+  , withTestGen
+  , TestGen(..)
   , PropositionType(..)
   , Module(..)
   , Signature(..)
