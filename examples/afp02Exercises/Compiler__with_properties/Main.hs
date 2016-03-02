@@ -14,7 +14,10 @@ main = runOwp properties $ do
   putStrLn "compiled:"
   print (exec (compile prog))
   where
-  properties = [Propositions [(BoolProposition,modInterpreter,"prop_ifT",[Argument 1,Argument 0])] PropertiesOf "run" [modSyntax,modValue,modQuickCheck]
+  properties = [Propositions [mkProposition modInterpreter "prop_ifT"
+                                `ofType` BoolProposition 
+                                `withSignature`[Argument 1, Argument 0]
+                ]PropertiesOf "run" [modSyntax,modValue,modQuickCheck]
                ]
   modInterpreter = Module "Interpreter" "../examples/afp02Exercises/Compiler__with_properties/"
   modValue = Module "Value" "../examples/afp02Exercises/Compiler__with_properties/"

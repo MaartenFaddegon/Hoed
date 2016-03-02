@@ -29,25 +29,45 @@ main = runOwp propositions $ do
   print . fromJust . ok . (generate 1 g) . evaluate $  prop_shift_win_I 1 'd' myStackSet
   where
     propositions =
-        [Propositions [(LegacyQuickCheckProposition,module_Properties,"prop_focus_all_l",[Argument 0])
-                      ,(LegacyQuickCheckProposition,module_Properties,"prop_focus_all_l_weak",[Argument 0])
+        [Propositions [mkProposition module_Properties "prop_focus_all_l"
+                          `ofType` LegacyQuickCheckProposition
+                          `withSignature` [Argument 0]
+                      ,mkProposition module_Properties "prop_focus_all_l_weak"
+                          `ofType` LegacyQuickCheckProposition
+                          `withSignature` [Argument 0]
                       ]
                       PropertiesOf "focusUp" [module_StackSet, module_QuickCheck, module_Map, module_Random, module_Maybe]
 
-        , Propositions [ (LegacyQuickCheckProposition,module_Properties,"prop_insert_duplicate_weak",[Argument 1,Argument 0])
+        , Propositions [ mkProposition module_Properties "prop_insert_duplicate_weak"
+                          `ofType` LegacyQuickCheckProposition
+                          `withSignature` [Argument 1, Argument 0]
                        ] 
                        PropertiesOf "insertUp" [module_StackSet, module_QuickCheck, module_Map, module_Random, module_Maybe]
 
-        , Propositions [ (LegacyQuickCheckProposition,module_Properties,"prop_view_reversible",[Argument 1,Argument 0])
-                       , (LegacyQuickCheckProposition,module_Properties,"prop_view_I",[Argument 1,Argument 0])
-                       , (LegacyQuickCheckProposition,module_Properties,"prop_view_current",[Argument 0,Argument 1])
-                       , (LegacyQuickCheckProposition,module_Properties,"prop_view_idem",[Argument 0,Argument 1])
-                       , (LegacyQuickCheckProposition,module_Properties,"prop_view_local",[Argument 0,Argument 1])
+        , Propositions [ mkProposition module_Properties "prop_view_reversible"
+                          `ofType` LegacyQuickCheckProposition
+                          `withSignature` [Argument 1, Argument 0]
+                       , mkProposition module_Properties "prop_view_I"
+                          `ofType` LegacyQuickCheckProposition
+                          `withSignature` [Argument 1, Argument 0]
+                       , mkProposition module_Properties "prop_view_current"
+                          `ofType` LegacyQuickCheckProposition
+                          `withSignature` [Argument 1, Argument 0]
+                       , mkProposition module_Properties "prop_view_idem"
+                          `ofType` LegacyQuickCheckProposition
+                          `withSignature` [Argument 0, Argument 1]
+                       , mkProposition module_Properties "prop_view_local"
+                          `ofType` LegacyQuickCheckProposition
+                          `withSignature` [Argument 0, Argument 1]
                        ] 
                        PropertiesOf "view" [module_StackSet, module_QuickCheck, module_Map, module_Random, module_Maybe]
 
-        , Propositions [ (LegacyQuickCheckProposition,module_Properties,"prop_greedyView_reversible",[Argument 1,Argument 0])
-                       , (LegacyQuickCheckProposition,module_Properties,"prop_greedyView_idem",[Argument 0,Argument 1])
+        , Propositions [ mkProposition module_Properties "prop_greedyView_reversible"
+                          `ofType` LegacyQuickCheckProposition
+                          `withSignature` [Argument 1, Argument 0]
+                       , mkProposition module_Properties "prop_greedyView_idem"
+                          `ofType` LegacyQuickCheckProposition
+                          `withSignature` [Argument 0, Argument 1]
                        ] 
                        PropertiesOf "greedyView" [module_StackSet, module_QuickCheck, module_Map, module_Random, module_Maybe]
 

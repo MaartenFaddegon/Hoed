@@ -6,8 +6,11 @@ import Debug.Hoed.Pure
 -- main = quickcheck prop_idemSimplify
 main = testOwp properties prop_idemSimplify (Mul (Const 1) (Const 2))
   where
-  properties = [ Propositions [(BoolProposition,myModule,"prop_idemOne",[Argument 0])]      PropertiesOf "one" []
-               , Propositions [(BoolProposition,myModule,"prop_idemZero",[Argument 0])]     PropertiesOf "zero" []
-               , Propositions [(BoolProposition,myModule,"prop_idemSimplify",[Argument 0])] PropertiesOf "simplify" []
+  properties = [ Propositions [mkProposition myModule "prop_idemOne" `ofType` BoolProposition `withSignature` [Argument 0]
+                              ] PropertiesOf "one" []
+               , Propositions [ mkProposition myModule "prop_idemZero" `ofType` BoolProposition `withSignature` [Argument 0]
+                              ] PropertiesOf "zero" []
+               , Propositions [ mkProposition myModule "prop_idemSimplify" `ofType` BoolProposition `withSignature` [Argument 0]
+                              ] PropertiesOf "simplify" []
                ]
   myModule = Module "MyModule" "../examples/ExpressionSimplifier"

@@ -13,7 +13,7 @@ succeed :: a -> Parser a
 succeed v inp = [(v,inp)]
 
 satisfy :: (Char -> Bool) -> Parser Char
-satisfy p []	 = []
+satisfy p []     = []
 satisfy p (x:xs) = if p x then [(x,xs)] else []
 
 lit :: Char -> Parser Char
@@ -24,13 +24,13 @@ infix  8 `using`
 infixr 7 |||
 
 (|||) :: Parser a -> Parser a -> Parser a
-(|||) p1 p2 inp	 = p1 inp ++ p2 inp
+(|||) p1 p2 inp  = p1 inp ++ p2 inp
 
 (...) :: Parser a -> Parser b -> Parser (a,b)
-(...) p1 p2 inp	= concatMap f1 (p1 inp)
+(...) p1 p2 inp = concatMap f1 (p1 inp)
                   where
-		  f1 (v1,inp1) =  map f2 (p2 inp1)
-		                  where
+                  f1 (v1,inp1) =  map f2 (p2 inp1)
+                                  where
                                   f2 (v2,inp2) = ((v1,v2),inp2)
 
 (..*) :: Parser a -> Parser b -> Parser a
