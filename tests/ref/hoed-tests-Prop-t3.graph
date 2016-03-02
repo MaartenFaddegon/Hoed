@@ -1,8 +1,8 @@
 diGraph G {
 v5 [label="Unassessed: focusUp' (Stack 'a' \"y\" []) = Stack 'y' [] []"]
 v4 [label="Unassessed: focusUp' (Stack 'r' \"ay\" []) = Stack 'a' \"y\" []"]
-v3 [label="Wrong: focusUp (StackSet (Screen (Workspace (NonNegative 0) _ (Just (Stack 'a' \"y\" []))) 0 0) _ _ _) = StackSet (Screen (Workspace (NonNegative 0) _ (Just (Stack 'y' [] []))) 0 0) _ _ _"]
-v2 [label="Wrong: focusUp (StackSet (Screen (Workspace (NonNegative 0) _ (Just (Stack 'r' \"ay\" []))) 0 0) _ _ _) = StackSet (Screen (Workspace (NonNegative 0) _ (Just (Stack 'a' \"y\" []))) 0 0) _ _ _"]
+v3 [label="Assisted [InconclusiveProperty \"We found values for the unevaluated expressions in the current statement that falsify\\na property, however the resulting tree is not simpler.\"]: focusUp (StackSet (Screen (Workspace (NonNegative 0) _ (Just (Stack 'a' \"y\" []))) 0 0) _ _ _) = StackSet (Screen (Workspace (NonNegative 0) _ (Just (Stack 'y' [] []))) 0 0) _ _ _"]
+v2 [label="Assisted [InconclusiveProperty \"We found values for the unevaluated expressions in the current statement that falsify\\na property, however the resulting tree is not simpler.\"]: focusUp (StackSet (Screen (Workspace (NonNegative 0) _ (Just (Stack 'r' \"ay\" []))) 0 0) _ _ _) = StackSet (Screen (Workspace (NonNegative 0) _ (Just (Stack 'a' \"y\" []))) 0 0) _ _ _"]
 v1 [label="Unassessed: focusWindow 'y' (StackSet (Screen (Workspace (NonNegative 0) _ (Just (Stack 'r' \"ay\" []))) 0 0) _ _ _) = StackSet (Screen (Workspace (NonNegative 0) _ (Just (Stack 'y' [] []))) 0 0) _ _ _"]
 v0 [label=root]
 v0 -> v1 [label=""]

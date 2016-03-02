@@ -153,7 +153,7 @@ instance (Show k, Show a) => Observable (M.Map k a) where
   constrain = error "cannot constrain Map"
 
 instance (ParEq k, ParEq a) => ParEq (M.Map k a) where 
-  m === n = (M.toList m) === (M.toList n)
+  parEq m n = parEq (M.toList m) (M.toList n)
 
 -- | Visible workspaces, and their Xinerama screens.
 data Screen i l a sid sd = Screen { workspace :: !(Workspace i l a)
@@ -185,7 +185,7 @@ instance Observable Rational where
   constrain = constrainBase
 
 instance ParEq RationalRect
-instance ParEq Rational where x === y = Just (x == y)
+instance ParEq Rational where parEq x y = Just (x == y)
 
 -- |
 -- A stack is a cursor onto a window list.
