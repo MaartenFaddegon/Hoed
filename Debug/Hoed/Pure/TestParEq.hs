@@ -25,14 +25,14 @@ t9 = pareq_equiv (C (C D)) (C (F 4 2))
 t10 = pareq_equiv c c where c = (C (F 4 2))
 t11 = pareq_equiv c c where c = (C (F 4 2))
 
-s1 = ((G (error "oeps") D) === (G D (F 4 2))) == Just False
-s2 = ((G D (F 4 2) === (G (error "oeps") D))) == Just False
-s3 = ((G (error "oeps") D) === (G D D)) == Nothing
-s4 = (I D (E A A A) D) === (I (error "oeps") D D) == Just False
-s5 = (I D D (E A A A)) === (I D (error "oeps") D) == Just False
-s6 = (I (E A A A) D D) === (I D D (error "oeps")) == Just False
+s1 = ((G (error "oeps") D) === (G D (F 4 2))) == False
+s2 = ((G D (F 4 2) === (G (error "oeps") D))) == False
+s3 = ((G (error "oeps") D) `parEq` (G D D)) == Nothing
+s4 = (I D (E A A A) D) === (I (error "oeps") D D) == False
+s5 = (I D D (E A A A)) === (I D (error "oeps") D) == False
+s6 = (I (E A A A) D D) === (I D D (error "oeps")) == False
 
 -- pareq should be equivalent to normal equality when the
 -- latter is conclusive
 pareq_equiv x y = (x == y) == b
-  where (Just b) = x === y
+  where (Just b) = x `parEq` y
