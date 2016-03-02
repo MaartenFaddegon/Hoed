@@ -86,6 +86,7 @@ fromList (o,m,fs,xs,l) =
 -- Just generate StackSets with Char elements.
 --
 type T = StackSet (NonNegative Int) Int Char Int Int
+type T' = StackSet Int Int Char Int Int
 
 -- Useful operation, the non-local workspaces
 hidden_spaces x = map workspace (visible x) ++ hidden x
@@ -139,8 +140,8 @@ prop_empty_I  (n :: Positive Int) l = forAll (choose (1,fromIntegral n)) $  \m -
                                       forAll (vector m) $ \ms ->
         invariant $ new l [0..fromIntegral n-1] ms
 
-prop_view_I (n :: NonNegative Int) (x :: T) =
-    invariant $ view (fromIntegral n) x
+prop_view_I v (n :: NonNegative Int) (x :: T) =
+    invariant $ v (fromIntegral n) x
 
 prop_greedyView_I (n :: NonNegative Int) (x :: T) =
     invariant $ greedyView (fromIntegral n) x

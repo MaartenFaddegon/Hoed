@@ -47,6 +47,7 @@ Source-repository head
 library
   exposed-modules:     Debug.Hoed.Stk
                        , Debug.Hoed.Pure
+                       , Debug.Hoed.NoTrace
   other-modules:       Debug.Hoed.Stk.Observe
                        , Debug.Hoed.Stk.Render
                        , Debug.Hoed.Stk.DemoGUI
@@ -271,6 +272,19 @@ Executable hoed-examples-XMonad_changing_focus_duplicates_windows
     buildable: False
   main-is:             Main.hs
   hs-source-dirs:      examples/XMonad_changing_focus_duplicates_windows
+  default-language:    Haskell2010
+
+Executable hoed-examples-XMonad_changing_focus_duplicates_windows__test_only
+  if flag(buildExamples)
+    build-depends:     base >= 4 && < 5, Hoed, 
+                       X11>=1.5 && < 1.7, mtl, unix,
+                       utf8-string,
+                       extensible-exceptions, random,
+                       containers, filepath, process, directory
+  else
+    buildable: False
+  main-is:             Main.hs
+  hs-source-dirs:      examples/XMonad_changing_focus_duplicates_windows__test_only
   default-language:    Haskell2010
 
 Executable hoed-examples-XMonad_changing_focus_duplicates_windows__CC

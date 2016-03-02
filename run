@@ -42,6 +42,9 @@ cd tmp
 # else
 # ../dist/build/$EXE/$EXE +RTS -p -h -L80
 # fi
-eval ../dist/build/$EXE/$EXE
 
+# eval ../dist/build/$EXE/$EXE
+
+# profile ....
+../dist/build/$EXE/$EXE +RTS -hd -L80
 

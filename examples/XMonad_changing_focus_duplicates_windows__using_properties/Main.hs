@@ -51,22 +51,22 @@ main = runOwp propositions $ do
                           `ofType` LegacyQuickCheckProposition
                           `withSignature` [Argument 0, Argument 1]
                           `withTestGen` TestGenLegacyQuickCheck
-                       , mkProposition module_Properties "prop_view_I"
+                         , mkProposition module_Properties "prop_view_I"
                           `ofType` LegacyQuickCheckProposition
-                          `withSignature` [Argument 0, Argument 1]
+                          `withSignature` [SubjectFunction, Argument 0, Argument 1]
                           `withTestGen` TestGenLegacyQuickCheck
-                       , mkProposition module_Properties "prop_view_current"
-                          `ofType` LegacyQuickCheckProposition
-                          `withSignature` [Argument 1, Argument 0]
-                          `withTestGen` TestGenLegacyQuickCheck
-                       , mkProposition module_Properties "prop_view_idem"
-                          `ofType` LegacyQuickCheckProposition
-                          `withSignature` [Argument 1, Argument 0]
-                          `withTestGen` TestGenLegacyQuickCheck
-                       , mkProposition module_Properties "prop_view_local"
-                          `ofType` LegacyQuickCheckProposition
-                          `withSignature` [Argument 1, Argument 0]
-                          `withTestGen` TestGenLegacyQuickCheck
+                         , mkProposition module_Properties "prop_view_current"
+                            `ofType` LegacyQuickCheckProposition
+                            `withSignature` [Argument 1, Argument 0]
+                            `withTestGen` TestGenLegacyQuickCheck
+                         , mkProposition module_Properties "prop_view_idem"
+                            `ofType` LegacyQuickCheckProposition
+                            `withSignature` [Argument 1, Argument 0]
+                            `withTestGen` TestGenLegacyQuickCheck
+                         , mkProposition module_Properties "prop_view_local"
+                            `ofType` LegacyQuickCheckProposition
+                            `withSignature` [Argument 1, Argument 0]
+                            `withTestGen` TestGenLegacyQuickCheck
                        ] 
                        PropertiesOf "view" [module_StackSet, module_QuickCheck, module_Map, module_Random, module_Maybe]
 
@@ -83,9 +83,9 @@ main = runOwp propositions $ do
 
         ]
 
-    module_Properties = Module "Properties"              "../examples/XMonad_changing_focus_duplicates_windows/"
-    module_StackSet   = Module "XMonad.StackSet"         "../examples/XMonad_changing_focus_duplicates_windows/"
-    module_QuickCheck = Module "Test.QuickCheck"         "../examples/XMonad_changing_focus_duplicates_windows/"
+    module_Properties = Module "Properties"              "../examples/XMonad_changing_focus_duplicates_windows__using_properties/"
+    module_StackSet   = Module "XMonad.StackSet"         "../examples/XMonad_changing_focus_duplicates_windows__using_properties/"
+    module_QuickCheck = Module "Test.QuickCheck"         "../examples/XMonad_changing_focus_duplicates_windows__using_properties/"
     module_Map        = Module "qualified Data.Map as M" ""
     module_Random     = Module "System.Random"           ""
     module_Maybe      = Module "Data.Maybe"              ""
