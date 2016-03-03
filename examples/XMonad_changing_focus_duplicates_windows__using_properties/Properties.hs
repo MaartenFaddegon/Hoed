@@ -176,8 +176,9 @@ prop_swap_right_I (n :: NonNegative Int) (x :: T) =
 prop_shift_I (n :: NonNegative Int) (x :: T) =
     n `tagMember` x ==> invariant $ shift (fromIntegral n) x
 
-prop_shift_win_I (n :: NonNegative Int) (w :: Char) (x :: T) =
-    n `tagMember` x && w `member` x ==> invariant $ shiftWin (fromIntegral n) w x
+-- subjFun = shiftWin
+prop_shift_win_I subjFun (n :: NonNegative Int) (w :: Char) (x :: T) =
+    n `tagMember` x && w `member` x ==> invariant $ subjFun (fromIntegral n) w x
 
 
 -- ---------------------------------------------------------------------

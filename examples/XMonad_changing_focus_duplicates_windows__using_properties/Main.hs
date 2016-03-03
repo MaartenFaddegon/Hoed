@@ -26,10 +26,16 @@ main = do
 main :: IO ()
 main = runOwp propositions $ do
   g <- newStdGen
-  print . fromJust . ok . (generate 1 g) . evaluate $  prop_shift_win_I 1 'd' myStackSet
+  print . fromJust . ok . (generate 1 g) . evaluate $  prop_shift_win_I shiftWin 1 'd' myStackSet
   where
     propositions =
-        [Propositions [mkProposition module_Properties "prop_focus_all_l"
+        [ Propositions [mkProposition module_Properties "prop_shift_win_I"
+                          `ofType` LegacyQuickCheckProposition
+                          `withSignature` [SubjectFunction, Argument 0, Argument 1, Argument 2]
+                          `withTestGen` TestGenLegacyQuickCheck
+                       ]
+                       PropertiesOf "shiftWin" [module_StackSet, module_QuickCheck, module_Map, module_Random, module_Maybe]
+        , Propositions [mkProposition module_Properties "prop_focus_all_l"
                           `ofType` LegacyQuickCheckProposition
                           `withSignature` [Argument 0]
                           `withTestGen` TestGenLegacyQuickCheck
@@ -98,7 +104,7 @@ main = runOwp propositions $ do
 
         -- ,("shift: invariant"    , mytest prop_shift_I)
         -- ,("shift is reversible" , mytest prop_shift_reversible)
-        ,("shiftWin: invariant" , mytest prop_shift_win_I)
+        ,("shiftWin: invariant" , mytest $ prop_shift_win_I shiftWin)
         ,("shiftWin is shift on focus" , mytest prop_shift_win_focus)
         ,("shiftWin fix current" , mytest prop_shift_win_fix_current)
         ]

@@ -41,7 +41,7 @@ data Signature
   = Argument Int
   | SubjectFunction
   | Random
-  deriving Show
+  deriving (Show,Eq)
 
 data TestGen = TestGenQuickCheck | TestGenLegacyQuickCheck -- | TestGenSmallCheck
   deriving Show
@@ -277,6 +277,9 @@ evalPropositions _ _ _ RootVertex = return []
 evalPropositions handler trc p v = mapM (evalProposition handler trc v (extraModules p)) (propositions p)
 
 evalProposition :: UnevalHandler -> Trace -> Vertex -> [Module] -> Proposition -> IO PropRes
+evalProposition RestrictedBottom trc v ms prop | not (SubjectFunction `elem` (signature prop)) = do
+  putStrLn "Cannot restrict subject function!"
+  return $ Error prop "Cannot restrict subject function!"
 evalProposition handler trc v ms prop = do
   putStrLn $ "property " ++ propName prop
   createDirectoryIfMissing True ".Hoed/exe"
