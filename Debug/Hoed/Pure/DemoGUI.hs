@@ -235,30 +235,19 @@ guiAssisted traceRef ps compTreeRef currentVertexRef regexRef imgCountRef = do
        let j = judge AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
        j right Right
        j wrong Wrong
-       testB  <- UI.button # set UI.text "test"  #+ [UI.img # set UI.src "static/test.png" # set UI.height 20] # set UI.style [("margin-right","1em")]
-       -- testAllB  <- UI.button # set UI.text "test all"                                         # set UI.height 20 # set UI.style [("margin-right","1em")]
-       resetB <- UI.button # set UI.text "clear all judgements"                                # set UI.height 20
-       -- on UI.click testAllB $ \_ -> testAll compTreeRef traceRef ps status currentVertexRef compStmt handlerRef
-       on UI.click testB $ \_ -> testCurrent compTreeRef traceRef ps status currentVertexRef compStmt handlerRef
-       on UI.click resetB $ \_ -> resetTree compTreeRef ps status currentVertexRef compStmt
+       let lightBulbs n = take n . repeat  $ UI.img # set UI.src "static/test.png" # set UI.height 20
 
-       -- r1 <- UI.input # set UI.type_ "radio" # set UI.checked True
-       -- r2 <- UI.input # set UI.type_ "radio" # set UI.checked False
-       -- r3 <- UI.input # set UI.type_ "radio" # set UI.checked False
-       -- d1 <- UI.div #+ [return r1, UI.span # set UI.text "Abort when property depends on an unevaluated expression."]
-       -- d2 <- UI.div #+ [return r2, UI.span # set UI.text "Try to find counterexamples using randomly generated values for unevaluated parts of a computation statement."]
-       -- d3 <- UI.div #+ [return r3, UI.span # set UI.text "Accept specification without counter examples as enough to judge as right (use with caution)."]
-       -- radioButtons <- UI.div #+ map return [d1,d2,d3]
-       -- let onCheck r a b h = on UI.checkedChange r $ \_ -> do
-       --      UI.liftIO $ writeIORef handlerRef h
-       --      return a # set UI.checked False
-       --      return b # set UI.checked False
-       -- onCheck r1 r2 r3 Bottom
-       -- onCheck r2 r1 r3 Forall
-       -- onCheck r3 r1 r2 TrustForall
+       test1B   <- UI.button # set UI.text "test" #+ lightBulbs 1 # set UI.style [("margin-right","1em")]
+       testChB  <- UI.button # set UI.text "test" #+ lightBulbs 2 # set UI.style [("margin-right","1em")]
+       testAllB <- UI.button # set UI.text "test" #+ lightBulbs 3 # set UI.style [("margin-right","1em")]
+       resetB <- UI.button # set UI.text "clear all" # set UI.height 20
+       on UI.click test1B   $ \_ -> testCurrent compTreeRef traceRef ps status currentVertexRef compStmt handlerRef
+       on UI.click testChB  $ \_ -> testCurrentAndChildren compTreeRef traceRef ps status currentVertexRef compStmt handlerRef
+       on UI.click testAllB $ \_ -> testAll compTreeRef traceRef ps status currentVertexRef compStmt handlerRef
+       on UI.click resetB   $ \_ -> resetTree compTreeRef ps status currentVertexRef compStmt
 
        -- Populate the main screen
-       top <- UI.center #+ [return status, UI.br, return right, return wrong, return testB{-, return testAllB-}, return resetB]
+       top <- UI.center #+ [return status, UI.br, return right, return wrong, return test1B, return testChB, return testAllB, return resetB]
        UI.div #+ [return top, UI.hr, return compStmt]
 
 resetTree compTreeRef ps status currentVertexRef compStmt = do
@@ -267,39 +256,100 @@ resetTree compTreeRef ps status currentVertexRef compStmt = do
   advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
   where resetVertex = flip setJudgement Unassessed
 
-{-
-testAll compTreeRef trace ps status currentVertexRef compStmt handlerRef = do
-  return status # UI.set UI.text "Evaluating propositions ..." #+ [UI.img # set UI.src "static/loading.gif" # set UI.height 30]
-  UI.liftIO $ do
-    handler <- UI.liftIO $ readIORef handlerRef
-    compTree <- readIORef compTreeRef
-    compTree' <- Prop.judge handler trace ps compTree
-    writeIORef compTreeRef compTree'
-  advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
--}
-
+testCurrent :: IORef CompTree -> IORef Trace -> [Propositions] -> UI.Element -> IORef Int -> UI.Element -> t -> UI ()
 testCurrent compTreeRef traceRef ps status currentVertexRef compStmt handlerRef = do
   return status # UI.set UI.text "Evaluating propositions ..." #+ [UI.img # set UI.src "static/loading.gif" # set UI.height 30]
   mcv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
   case mcv of
-    (Just cv) -> do
-      case lookupPropositions ps cv of 
-        Nothing  -> do
-          UI.element status # set UI.text ("Cannot test: no propositions associated with function " ++ (stmtLabel . vertexStmt) cv ++ "!")
-          return ()
-        (Just p) -> do
-          compTree <- UI.liftIO $ readIORef compTreeRef
-          trace <- UI.liftIO $ readIORef traceRef
-          j <- UI.liftIO $ Prop.judge trace p cv unjudgedCharacterCount compTree
-          case j of 
-            (Judge jmt) -> 
-              UI.liftIO $ writeIORef compTreeRef (replaceVertex compTree (setJudgement cv jmt))
-            (AlternativeTree compTree' trace') -> do
-              UI.liftIO $ writeIORef compTreeRef compTree'
-              UI.liftIO $ writeIORef traceRef trace'
-              UI.liftIO $ putStrLn $ "Switched to a simpler computation tree!" -- MF TODO: need to properly tell (or better: ask) user
-          advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
     Nothing -> updateStatus status compTreeRef
+    (Just cv) -> do
+      test1 cv compTreeRef traceRef ps handlerRef (onNoProps cv) onJudge onTreeSwitch
+  where
+  onNoProps cv = do
+    UI.element status # set UI.text ("Cannot test: no propositions associated with function " ++ (stmtLabel . vertexStmt) cv ++ "!")
+    return ()
+  onJudge =
+    advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
+  onTreeSwitch :: CompTree -> Trace -> UI ()
+  onTreeSwitch newCompTree newTrace = do
+      UI.liftIO $ writeIORef compTreeRef newCompTree
+      UI.liftIO $ writeIORef traceRef newTrace 
+      advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
+      return status # UI.set UI.text "Discovered and switched to a simpler computatation tree!" #+ [UI.img # set UI.src "static/test.png" # set UI.height 30]
+      return ()
+
+testCurrentAndChildren compTreeRef traceRef ps status currentVertexRef compStmt handlerRef = do
+  return status # UI.set UI.text "Evaluating propositions ..." #+ [UI.img # set UI.src "static/loading.gif" # set UI.height 30]
+  mcv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
+  compTree <- UI.liftIO $ readIORef compTreeRef
+  case mcv of
+    Nothing -> updateStatus status compTreeRef
+    (Just cv) -> do
+      let vs = cv : succs compTree cv
+      switchedTree <- testMany vs compTreeRef traceRef ps handlerRef
+      advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
+      if switchedTree 
+      then do
+        return status # UI.set UI.text "Discovered and switched to a simpler computatation tree!" #+ [UI.img # set UI.src "static/test.png" # set UI.height 30]
+        return ()
+      else
+        return ()
+
+testAll compTreeRef traceRef ps status currentVertexRef compStmt handlerRef = do
+  return status # UI.set UI.text "Evaluating propositions ..." #+ [UI.img # set UI.src "static/loading.gif" # set UI.height 30]
+  mcv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
+  compTree <- UI.liftIO $ readIORef compTreeRef
+  let vs = vertices compTree
+  switchedTree <- testMany vs compTreeRef traceRef ps handlerRef
+  advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
+  if switchedTree 
+  then do
+    return status # UI.set UI.text "Discovered and switched to a simpler computatation tree!" #+ [UI.img # set UI.src "static/test.png" # set UI.height 30]
+    return ()
+  else
+    return ()
+
+testMany :: [Vertex] -> IORef CompTree -> IORef Trace -> [Propositions] -> t -> UI Bool
+testMany vs compTreeRef traceRef ps handlerRef = case vs of
+  []      -> return False
+  (v:vs') -> do
+    continue <- test1 v compTreeRef traceRef ps handlerRef (onNoProps v) onJudge onTreeSwitch
+    if continue then testMany vs' compTreeRef traceRef ps handlerRef
+                else return True
+  where
+  onNoProps _ =
+    return True
+  onJudge = 
+    return True
+  onTreeSwitch newCompTree newTrace = do
+    UI.liftIO $ writeIORef compTreeRef newCompTree
+    UI.liftIO $ writeIORef traceRef newTrace 
+    UI.liftIO $ putStrLn $ "Switched to a simpler computation tree!"
+    return False
+
+test1 :: Vertex -> IORef CompTree -> IORef Trace -> [Propositions] -> t -> UI b -> UI b -> (CompTree -> Trace -> UI b) -> UI b
+test1 vertex compTreeRef traceRef ps handlerRef onNoProps onJudge onTreeSwitch = do
+  compTree <- UI.liftIO $ readIORef compTreeRef
+  mj <- test1' vertex compTree traceRef ps handlerRef
+  case mj of
+    Nothing  -> onNoProps
+    (Just j) -> case j of 
+      (Judge jmt) -> do
+        UI.liftIO $ writeIORef compTreeRef (replaceVertex compTree (setJudgement vertex jmt))
+        onJudge
+      (AlternativeTree compTree' trace') -> do
+        onTreeSwitch compTree' trace'
+
+test1' :: Vertex -> CompTree -> IORef Trace -> [Propositions] -> t -> UI (Maybe Judge)
+test1' v compTree traceRef ps handlerRef = do
+      case lookupPropositions ps v of 
+        Nothing  ->
+          return Nothing
+        (Just p) -> do
+          trace <- UI.liftIO $ readIORef traceRef
+          j <- UI.liftIO $ Prop.judge trace p v unjudgedCharacterCount compTree
+          return (Just j)
+
 
 --------------------------------------------------------------------------------
 -- The Algorithmic Debugging GUI
