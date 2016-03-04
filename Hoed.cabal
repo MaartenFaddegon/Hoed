@@ -63,7 +63,7 @@ library
                        , template-haskell
                        , array, containers
                        , process
-                       , threepenny-gui == 0.6.*
+                       , threepenny-gui == 0.6.0.5
                        , filepath
                        , libgraph == 1.10
                        , RBTree == 0.0.5
@@ -112,7 +112,7 @@ Executable hoed-examples-FPretty_indents_too_much
   if flag(buildExamples)
     build-depends:       base >= 4 && < 5
                          , Hoed
-                         , threepenny-gui
+                         , threepenny-gui == 0.6.0.5
                          , filepath
                          , containers
                          , deepseq
@@ -127,7 +127,7 @@ Executable hoed-examples-FPretty_indents_too_much__CC
   if flag(buildExamples)
     build-depends:       base >= 4 && < 5
                          , Hoed
-                         , threepenny-gui
+                         , threepenny-gui == 0.6.0.5
                          , filepath
                          , containers
                          , deepseq
@@ -159,7 +159,7 @@ Executable hoed-examples-Queens_v1__with_properties
   if flag(buildExamples)
     build-depends:       base >= 4 && < 5
                          , Hoed
-                         , threepenny-gui
+                         , threepenny-gui == 0.6.0.5
                          , filepath
                          , containers
                          , deepseq
@@ -176,7 +176,7 @@ Executable hoed-examples-Queens_v2__with_properties
   if flag(buildExamples)
     build-depends:       base >= 4 && < 5
                          , Hoed
-                         , threepenny-gui
+                         , threepenny-gui == 0.6.0.5
                          , filepath
                          , containers
                          , deepseq
@@ -193,7 +193,7 @@ Executable hoed-examples-Rot13
   if flag(buildExamples)
     build-depends:       base >= 4 && < 5
                          , Hoed
-                         , threepenny-gui
+                         , threepenny-gui == 0.6.0.5
                          , filepath
   else
     buildable: False
@@ -205,7 +205,7 @@ Executable hoed-examples-Salary
   if flag(buildExamples)
     build-depends:       base >= 4 && < 5
                          , Hoed
-                         , threepenny-gui
+                         , threepenny-gui == 0.6.0.5
                          , filepath
   else
     buildable: False
@@ -215,7 +215,7 @@ Executable hoed-examples-Salary
 
 Executable hoed-examples-ZLang_Defect-1
   if flag(buildExamples)
-    build-depends:     base >= 4 && < 5, Hoed, threepenny-gui, filepath, QuickCheck, mtl, monad-loops, transformers, containers, parsec, indents, adjunctions
+    build-depends:     base >= 4 && < 5, Hoed, threepenny-gui == 0.6.0.5, filepath, QuickCheck, mtl, monad-loops, transformers, containers, parsec, indents, adjunctions
   else
     buildable: False
   main-is:             Main.hs
@@ -224,7 +224,7 @@ Executable hoed-examples-ZLang_Defect-1
 
 Executable hoed-examples-ZLang_Defect-2
   if flag(buildExamples)
-    build-depends:     base >= 4 && < 5, Hoed, threepenny-gui, filepath, QuickCheck, mtl, monad-loops, transformers, containers, parsec, indents, adjunctions
+    build-depends:     base >= 4 && < 5, Hoed, threepenny-gui == 0.6.0.5, filepath, QuickCheck, mtl, monad-loops, transformers, containers, parsec, indents, adjunctions
   else
     buildable: False
   main-is:             Main.hs
@@ -233,7 +233,7 @@ Executable hoed-examples-ZLang_Defect-2
 
 Executable hoed-examples-ZLang_Defect-3
   if flag(buildExamples)
-    build-depends:     base >= 4 && < 5, Hoed, threepenny-gui, filepath, QuickCheck, mtl, monad-loops, transformers, containers, parsec, indents, adjunctions
+    build-depends:     base >= 4 && < 5, Hoed, threepenny-gui == 0.6.0.5, filepath, QuickCheck, mtl, monad-loops, transformers, containers, parsec, indents, adjunctions
   else
     buildable: False
   main-is:             Main.hs
@@ -242,7 +242,7 @@ Executable hoed-examples-ZLang_Defect-3
 
 Executable hoed-examples-Nub-defective-sort__with_properties
   if flag(buildExamples)
-    build-depends:     base >= 4 && < 5, Hoed, threepenny-gui, filepath, QuickCheck
+    build-depends:     base >= 4 && < 5, Hoed, threepenny-gui == 0.6.0.5, filepath, QuickCheck
   else
     buildable: False
   main-is:             Main.hs
@@ -253,7 +253,7 @@ Executable hoed-examples-Insertion_Sort_elements_disappear
   if flag(buildExamples)
     build-depends:       base >= 4 && < 5
                          , Hoed
-                         , threepenny-gui
+                         , threepenny-gui == 0.6.0.5
                          , filepath
   else
     buildable: False
@@ -808,7 +808,7 @@ Executable hoed-tests-ParEq
                          , template-haskell
                          , array, containers
                          , process
-                         , threepenny-gui == 0.6.*
+                         , threepenny-gui == 0.6.0.5
                          , filepath
                          , libgraph == 1.10
                          , RBTree == 0.0.5
@@ -976,7 +976,7 @@ Executable hoed-tests-Stk-DoublingServer
   if flag(validateStk)
     build-depends:       base >= 4 && < 5
                          , Hoed
-                         , threepenny-gui
+                         , threepenny-gui == 0.6.0.5
                          , filepath
                          , network
   else
@@ -990,7 +990,7 @@ Executable hoed-tests-Stk-Insort2
   if flag(validateStk)
     build-depends:       base >= 4 && < 5
                          , Hoed
-                         , threepenny-gui
+                         , threepenny-gui == 0.6.0.5
                          , filepath
   else
     buildable: False
@@ -1003,7 +1003,7 @@ Executable hoed-tests-Stk-Example1
   if flag(validateStk)
     build-depends:       base >= 4 && < 5
                          , Hoed
-                         , threepenny-gui
+                         , threepenny-gui == 0.6.0.5
                          , filepath
   else
     buildable: False
@@ -1016,7 +1016,7 @@ Executable hoed-tests-Stk-Example3
   if flag(validateStk)
     build-depends:       base >= 4 && < 5
                          , Hoed
-                         , threepenny-gui
+                         , threepenny-gui == 0.6.0.5
                          , filepath
   else
     buildable: False
@@ -1029,7 +1029,7 @@ Executable hoed-tests-Stk-Example4
   if flag(validateStk)
     build-depends:       base >= 4 && < 5
                          , Hoed
-                         , threepenny-gui
+                         , threepenny-gui == 0.6.0.5
                          , filepath
   else
     buildable: False
@@ -1042,7 +1042,7 @@ Executable hoed-tests-Stk-IndirectRecursion
   if flag(validateStk)
     build-depends:       base >= 4 && < 5
                          , Hoed
-                         , threepenny-gui
+                         , threepenny-gui == 0.6.0.5
                          , filepath
   else
     buildable: False
