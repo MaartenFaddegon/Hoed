@@ -278,7 +278,7 @@ evalPropositions handler trc p v = mapM (evalProposition handler trc v (extraMod
 
 evalProposition :: UnevalHandler -> Trace -> Vertex -> [Module] -> Proposition -> IO PropRes
 evalProposition RestrictedBottom trc v ms prop | not (SubjectFunction `elem` (signature prop)) = do
-  putStrLn "Cannot restrict subject function!"
+  putStrLn $ "property " ++ propName prop ++ ": Cannot restrict subject function!"
   return $ Error prop "Cannot restrict subject function!"
 evalProposition handler trc v ms prop = do
   putStrLn $ "property " ++ propName prop
