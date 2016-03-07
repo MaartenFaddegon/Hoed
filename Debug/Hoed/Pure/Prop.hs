@@ -43,7 +43,7 @@ data Signature
   | Random
   deriving (Show,Eq)
 
-data TestGen = TestGenQuickCheck | TestGenLegacyQuickCheck -- | TestGenSmallCheck
+data TestGen = TestGenQuickCheck | TestGenLegacyQuickCheck -- TestGenSmallCheck
   deriving Show
 
 data Proposition = Proposition { propositionType :: PropositionType

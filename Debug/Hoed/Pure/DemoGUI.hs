@@ -24,6 +24,7 @@ import System.Process(system)
 import Data.IORef
 import Text.Regex.Posix
 import Text.Regex.Posix.String
+import Data.Time.Clock
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import Data.List(findIndex,intersperse,nub,sort,sortBy
@@ -263,7 +264,10 @@ testCurrent compTreeRef traceRef ps status currentVertexRef compStmt handlerRef 
   case mcv of
     Nothing -> updateStatus status compTreeRef
     (Just cv) -> do
+      time1 <- UI.liftIO getCurrentTime
       test1 cv compTreeRef traceRef ps handlerRef (onNoProps cv) onJudge onTreeSwitch
+      time2 <- UI.liftIO getCurrentTime
+      UI.liftIO $ putStrLn ("tested computation statement in " ++ show (diffUTCTime time2 time1))
   where
   onNoProps cv = do
     UI.element status # set UI.text ("Cannot test: no propositions associated with function " ++ (stmtLabel . vertexStmt) cv ++ "!")
@@ -286,7 +290,10 @@ testCurrentAndChildren compTreeRef traceRef ps status currentVertexRef compStmt 
     Nothing -> updateStatus status compTreeRef
     (Just cv) -> do
       let vs = cv : succs compTree cv
+      time1 <- UI.liftIO getCurrentTime
       switchedTree <- testMany vs compTreeRef traceRef ps handlerRef
+      time2 <- UI.liftIO getCurrentTime
+      UI.liftIO $ putStrLn ("tested " ++ show (length vs) ++ " computation statements in " ++ show (diffUTCTime time2 time1))
       advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
       if switchedTree 
       then do
@@ -300,7 +307,10 @@ testAll compTreeRef traceRef ps status currentVertexRef compStmt handlerRef = do
   mcv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
   compTree <- UI.liftIO $ readIORef compTreeRef
   let vs = vertices compTree
+  time1 <- UI.liftIO getCurrentTime
   switchedTree <- testMany vs compTreeRef traceRef ps handlerRef
+  time2 <- UI.liftIO getCurrentTime
+  UI.liftIO $ putStrLn ("tested " ++ show (length vs) ++ " computation statements in " ++ show (diffUTCTime time2 time1))
   advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
   if switchedTree 
   then do

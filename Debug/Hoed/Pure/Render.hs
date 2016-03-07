@@ -66,6 +66,8 @@ noNewlines' w (s:ss)
 ------------------------------------------------------------------------
 -- Render equations from CDS set
 
+statementWidth = 70 -- 110 is good for papers (maybe make this configurable from the GUI?)
+
 renderCompStmts :: CDSSet -> [CompStmt]
 renderCompStmts = foldl (\acc set -> acc ++ renderCompStmt set) []
 
@@ -76,7 +78,7 @@ renderCompStmt :: CDS -> [CompStmt]
 renderCompStmt (CDSNamed name dependsOn set)
   = map mkStmt statements
   where statements :: [(String,UID)]
-        statements   = map (\(d,i) -> (pretty 70 d,i)) doc
+        statements   = map (\(d,i) -> (pretty statementWidth d,i)) doc
         doc          = foldl (\a b -> a ++ renderNamedTop name b) [] output
         output       = cdssToOutput set
 
