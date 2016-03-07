@@ -1,10 +1,13 @@
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Types where
 import Test.QuickCheck hiding ((===))
 import Debug.Hoed.Pure
 
-data Board = B [Int] deriving (Eq, Show, Generic, Observable, ParEq)
+data Board = B [Int] deriving (Eq, Show, Generic)
+
+instance Observable Board
+instance ParEq Board
 
 instance Arbitrary Board where 
   arbitrary = do b <- genBoard; return (B b)
@@ -20,4 +23,6 @@ genPos n | n < 1 = return 1
 genPos n = elements [1..n]
 
 data Configuration = Configuration Int Board
-  deriving (Show,Eq, Generic, Observable, ParEq)
+  deriving (Show,Eq, Generic)
+instance Observable Configuration
+instance ParEq Configuration
