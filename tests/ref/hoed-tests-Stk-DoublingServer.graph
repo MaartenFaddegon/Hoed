@@ -1,7 +1,5 @@
 diGraph G {
-v4 [label="twotimes 3 = 5
-with stack [\"double\"]"]
-v3 [label="twotimes 2 = 4
+v3 [label="{twotimes 2 = 4, twotimes 3 = 5}
 with stack [\"double\"]"]
 v2 [label="{server 2 socket = <IO> _, server 1 socket = <IO> _, server 0 _ = <IO> _, }
 with stack []"]
@@ -9,7 +7,6 @@ v1 [label="{double \"2\" = \"4\", double \"3\" = \"5\", }
 with stack []"]
 v0 [label=root]
 v1 -> v3 [label=""]
-v1 -> v4 [label=""]
 v0 -> v2 [label=""]
 v0 -> v1 [label=""]
 }

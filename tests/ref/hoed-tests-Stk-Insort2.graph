@@ -1,23 +1,18 @@
 diGraph G {
-v5 [label="insert 2 [] = 2 : []
+v4 [label="{isort (2 : []) = 2 : [], isort [] = []}
 with stack [\"isort\",\"result\"]"]
-v4 [label="insert 1 (2 : []) = 1 : []
+v3 [label="{insert 1 (2 : []) = 1 : [], insert 2 [] = 2 : []}
 with stack [\"isort\",\"result\"]"]
-v3 [label="isort (1 : 2 : []) = 1 : []
+v2 [label="isort (1 : 2 : []) = 1 : []
 with stack [\"result\"]"]
-v2 [label="result = 1 : []
+v1 [label="result = 1 : []
 with stack []"]
-v1 [label=root]
-v0 [label="{isort [] = [], isort (2 : []) = 2 : []}
-with stack [\"isort\",\"result\"]"]
-v2 -> v0 [label=""]
-v2 -> v5 [label=""]
-v2 -> v4 [label=""]
-v0 -> v4 [label=""]
-v0 -> v5 [label=""]
-v3 -> v4 [label=""]
-v3 -> v5 [label=""]
-v3 -> v0 [label=""]
+v0 [label=root]
+v1 -> v4 [label=""]
+v1 -> v3 [label=""]
+v4 -> v3 [label=""]
 v2 -> v3 [label=""]
+v2 -> v4 [label=""]
 v1 -> v2 [label=""]
+v0 -> v1 [label=""]
 }
