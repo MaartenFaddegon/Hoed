@@ -399,3 +399,5 @@ traceInfo trc = foldl loop s0 trc
                                    $ case loc of
                                        True  -> stop e s
                                        False -> resume e s
+
+                        evnt -> error $ "traceInfo.loop cannot handle " ++ show evnt

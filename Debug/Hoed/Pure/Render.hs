@@ -66,7 +66,7 @@ noNewlines' w (s:ss)
 ------------------------------------------------------------------------
 -- Render equations from CDS set
 
-statementWidth = 70 -- 110 is good for papers (maybe make this configurable from the GUI?)
+statementWidth = 110 -- 110 is good for papers (maybe make this configurable from the GUI?)
 
 renderCompStmts :: CDSSet -> [CompStmt]
 renderCompStmts = foldl (\acc set -> acc ++ renderCompStmt set) []
@@ -75,20 +75,22 @@ renderCompStmts = foldl (\acc set -> acc ++ renderCompStmt set) []
 -- is rendered to a computation statement
 
 renderCompStmt :: CDS -> [CompStmt]
-renderCompStmt (CDSNamed name dependsOn set)
+renderCompStmt (CDSNamed name uid set)
   = map mkStmt statements
   where statements :: [(String,UID)]
         statements   = map (\(d,i) -> (pretty statementWidth d,i)) doc
-        doc          = foldl (\a b -> a ++ renderNamedTop name b) [] output
+        doc          = foldl (\a b -> a ++ renderNamedTop name uid b) [] output
         output       = cdssToOutput set
 
         mkStmt :: (String,UID) -> CompStmt
         mkStmt (s,i) = CompStmt name i s
 
-renderNamedTop :: String -> Output -> [(Doc,UID)]
-renderNamedTop name (OutData cds)
-  =  map (\(args,res,Just i) -> (renderNamedFn name (args,res), i)) pairs
-  where pairs  = (nubSorted . sortOn argAndRes) pairs'
+renderNamedTop :: String -> UID -> Output -> [(Doc,UID)]
+renderNamedTop name observeUid(OutData cds)
+  =  map f pairs
+  where f (args,res,Just i) = (renderNamedFn name (args,res), i)
+        f (_,cons,Nothing)  = (renderNamedCons name cons, observeUid)
+        pairs  = (nubSorted . sortOn argAndRes) pairs'
         pairs' = findFn [cds]
         argAndRes (arg,res,_) = (arg,res)
 
@@ -228,6 +230,12 @@ renderFn (args, res)
                  text "-> " <> renderSet' 0 False res
                 )
                )
+
+renderNamedCons :: String -> CDSSet -> Doc
+renderNamedCons name cons
+  = text name <> nest 2
+     ( sep <> linebreak <> grp (text "= " <> renderSet' 0 False cons)
+     )
 
 renderNamedFn :: String -> ([CDSSet],CDSSet) -> Doc
 renderNamedFn name (args,res)

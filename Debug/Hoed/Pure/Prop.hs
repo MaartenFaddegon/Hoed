@@ -170,7 +170,7 @@ judge trc p v complexity curTree = do
         (Judge (Assisted _)) -> do 
           putStrLn "### ATTEMPT 3: with randomly generated values\n"
           judge' Forall trc p v complexity curTree
-        (Judge _)            -> return res2
+        _                    -> return res2
     (Judge _) -> return res1
 
 judge' RestrictedBottom trc p v complexity curTree = do
@@ -211,7 +211,7 @@ disprovesBy _                = False
 -- Using the given complexity function, compare the computation trees of the list of
 -- property results and select the simplest tree.
 simplestTree :: (CompTree -> Int) -> [Module] -> [PropRes] -> (Int,CompTree,Trace) -> Trace -> Vertex -> IO (Int,CompTree,Trace)
-simplestTree complexity ms rs cur trc v = foldM (simple2 complexity trc v ms) cur (filter disprovesBy rs)
+simplestTree complexity ms rs cur trc v = foldM (simple2 complexity trc v ms) cur (filter disproves rs)
 
 -- Using the given complexity function, read the computation tree of the given property
 -- into memory and compare its complexity with the complexity of the currently best tree.
@@ -224,6 +224,8 @@ simple2 complexity trc v ms (curComplexity,curTree,curTrace) propRes = do
   case (maybeCandTree,maybeCandTrace) of
     (Just candTree, Just candTrace) -> do 
       let candComplexity = complexity candTree
+      putStrLn $ "Discovered new tree with complexity " ++ show candComplexity 
+                 ++ " (current tree is " ++ show curComplexity ++ ")"
       return $ if candComplexity < curComplexity 
                  then (candComplexity,candTree,candTrace)
                  else (curComplexity,curTree,curTrace)
@@ -300,6 +302,7 @@ evalProposition handler trc v ms prop = do
 
 
 reEvalProposition :: PropRes -> Trace -> Vertex -> [Module] -> IO PropRes
+reEvalProposition (Disprove prop) _ _ _ = return (Disprove prop) -- no need to re-evaluate
 reEvalProposition (DisproveBy prop values) trc v ms = do
   putStrLn $ "RE-EVALUATE with " ++ concat (intersperse " " values) ++ " {"
   (Disprove p) <- evalProposition (FromList values) trc v ms prop

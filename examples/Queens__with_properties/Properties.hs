@@ -9,6 +9,44 @@ import Test.QuickCheck.Random
 import Control.Monad
 import Types
 
+properties3 = [ Propositions 
+                [ mkProposition m1 "prop_queens_sound"
+                    `ofType` BoolProposition
+                    `withSignature` [SubjectFunction,Argument 0]
+                    `sizeHint` 4
+                , mkProposition m1 "prop_queens_complete" 
+                     `ofType` QuickCheckProposition
+                     `withSignature` [SubjectFunction,Argument 0,Random]
+                     `sizeHint` 4
+                ] Specify "queens" [m2a,m3]
+             , Propositions 
+                [ mkProposition m1 "prop_valid_sound" 
+                    `ofType` BoolProposition
+                    `withSignature` [SubjectFunction,Argument 0,Argument 1]
+                     `sizeHint` 4
+                , mkProposition m1 "prop_valid_complete" 
+                    `ofType` QuickCheckProposition
+                    `withSignature` [SubjectFunction,Argument 0,Argument 1,Random]
+                     `sizeHint` 4
+                ] Specify "valid" [m2a,m3]
+             , Propositions 
+                [ mkProposition m1 "prop_extend_sound"
+                    `ofType` BoolProposition `withSignature` [SubjectFunction,Argument 0,Argument 1]
+                , mkProposition m1 "prop_extend_complete"
+                    `ofType` BoolProposition `withSignature` [SubjectFunction,Argument 0,Argument 1]
+                ] Specify "extend" [m2a,m3]
+             , Propositions 
+                [ mkProposition m1 "spec_safe"
+                    `ofType` QuickCheckProposition `withSignature` [SubjectFunction,Argument 0]
+                ] Specify "safe" [m2a,m3]
+             , Propositions 
+                [ mkProposition m1 "spec_no_threat"
+                    `ofType` QuickCheckProposition `withSignature` [SubjectFunction,Argument 0,Argument 1,Argument 2]
+                ] Specify "no_threat" [m2a,m3]
+             ]
+  where
+  m2a = Module "Queens3"     "../examples/Queens__with_properties/"
+
 properties2 = [ Propositions 
                 [ mkProposition m1 "spec_queensFilter"
                     `ofType` BoolProposition

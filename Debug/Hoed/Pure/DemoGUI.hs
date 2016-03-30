@@ -41,6 +41,8 @@ sortOn' :: Ord b => (a -> b) -> [a] -> [a]
 sortOn' f = sortBy (\x y -> compare (f x) (f y))
 #endif
 
+type Next = CompTree -> (Vertex -> Judgement) -> Vertex
+
 --------------------------------------------------------------------------------
 -- The tabbed layout from which we select the different views
 
@@ -218,6 +220,7 @@ guiAssisted :: IORef Trace -> [Propositions] -> IORef CompTree -> IORef Int -> I
 guiAssisted traceRef ps compTreeRef currentVertexRef regexRef imgCountRef = do
 
        handlerRef <- UI.liftIO $ newIORef Bottom
+       nextRef <- UI.liftIO $ newIORef (next_step :: Next)
 
        -- Get a list of vertices from the computation tree
        tree <- UI.liftIO $ readIORef compTreeRef
@@ -233,7 +236,7 @@ guiAssisted traceRef ps compTreeRef currentVertexRef regexRef imgCountRef = do
        -- Buttons to judge the current statement
        right <- UI.button # UI.set UI.text "right " #+ [UI.img # set UI.src "static/right.png" # set UI.height 20] # set UI.style [("margin-right","1em")]
        wrong <- UI.button # set UI.text "wrong "    #+ [UI.img # set UI.src "static/wrong.png" # set UI.height 20] # set UI.style [("margin-right","1em")]
-       let j = judge AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
+       let j = judge AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef nextRef
        j right Right
        j wrong Wrong
        let lightBulbs n = take n . repeat  $ UI.img # set UI.src "static/test.png" # set UI.height 20
@@ -242,23 +245,38 @@ guiAssisted traceRef ps compTreeRef currentVertexRef regexRef imgCountRef = do
        testChB  <- UI.button # set UI.text "test" #+ lightBulbs 2 # set UI.style [("margin-right","1em")]
        testAllB <- UI.button # set UI.text "test" #+ lightBulbs 3 # set UI.style [("margin-right","1em")]
        resetB <- UI.button # set UI.text "clear all" # set UI.height 20
-       on UI.click test1B   $ \_ -> testCurrent compTreeRef traceRef ps status currentVertexRef compStmt handlerRef
-       on UI.click testChB  $ \_ -> testCurrentAndChildren compTreeRef traceRef ps status currentVertexRef compStmt handlerRef
-       on UI.click testAllB $ \_ -> testAll compTreeRef traceRef ps status currentVertexRef compStmt handlerRef
-       on UI.click resetB   $ \_ -> resetTree compTreeRef ps status currentVertexRef compStmt
+       on UI.click test1B   $ \_ -> testCurrent compTreeRef traceRef ps status currentVertexRef compStmt handlerRef nextRef
+       on UI.click testChB  $ \_ -> testCurrentAndChildren compTreeRef traceRef ps status currentVertexRef compStmt handlerRef nextRef
+       on UI.click testAllB $ \_ -> testAll compTreeRef traceRef ps status currentVertexRef compStmt handlerRef nextRef
+       on UI.click resetB   $ \_ -> resetTree compTreeRef ps status currentVertexRef compStmt nextRef
+
+       -- strategy buttons
+       singleStep  <- UI.input # set UI.type_ "radio" # set UI.checked True
+       divideQuery <- UI.input # set UI.type_ "radio" # set UI.checked False
+       on UI.checkedChange singleStep $ \_ -> do
+            return divideQuery # set UI.checked False
+            UI.liftIO $ writeIORef nextRef next_step
+            advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef nextRef
+       on UI.checkedChange divideQuery $ \_ -> do
+            return singleStep # set UI.checked False
+            UI.liftIO $ writeIORef nextRef next_daq
+            advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef nextRef
 
        -- Populate the main screen
        top <- UI.center #+ [return status, UI.br, return right, return wrong, return test1B, return testChB, return testAllB, return resetB]
-       UI.div #+ [return top, UI.hr, return compStmt]
+       top2 <- UI.center #+ [ UI.span # set UI.text "strategy: " # set UI.style [("margin-right","1em")]
+                            , return singleStep, UI.span # set UI.text "single step" # set UI.style [("margin-right","1em")]
+                            , return divideQuery, UI.span # set UI.text "divide & query"]
+       UI.div #+ [return top, return top2, UI.hr, return compStmt]
 
-resetTree compTreeRef ps status currentVertexRef compStmt = do
+resetTree compTreeRef ps status currentVertexRef compStmt nextRef = do
   t <- UI.liftIO $ readIORef compTreeRef
   UI.liftIO $ writeIORef compTreeRef (mapGraph resetVertex t)
-  advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
+  advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef nextRef
   where resetVertex = flip setJudgement Unassessed
 
-testCurrent :: IORef CompTree -> IORef Trace -> [Propositions] -> UI.Element -> IORef Int -> UI.Element -> t -> UI ()
-testCurrent compTreeRef traceRef ps status currentVertexRef compStmt handlerRef = do
+testCurrent :: IORef CompTree -> IORef Trace -> [Propositions] -> UI.Element -> IORef Int -> UI.Element -> t -> IORef Next -> UI ()
+testCurrent compTreeRef traceRef ps status currentVertexRef compStmt handlerRef nextRef= do
   return status # UI.set UI.text "Evaluating propositions ..." #+ [UI.img # set UI.src "static/loading.gif" # set UI.height 30]
   mcv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
   case mcv of
@@ -273,16 +291,16 @@ testCurrent compTreeRef traceRef ps status currentVertexRef compStmt handlerRef 
     UI.element status # set UI.text ("Cannot test: no propositions associated with function " ++ (stmtLabel . vertexStmt) cv ++ "!")
     return ()
   onJudge =
-    advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
+    advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef nextRef
   onTreeSwitch :: CompTree -> Trace -> UI ()
   onTreeSwitch newCompTree newTrace = do
       UI.liftIO $ writeIORef compTreeRef newCompTree
       UI.liftIO $ writeIORef traceRef newTrace 
-      advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
+      advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef nextRef
       return status # UI.set UI.text "Discovered and switched to a simpler computatation tree!" #+ [UI.img # set UI.src "static/test.png" # set UI.height 30]
       return ()
 
-testCurrentAndChildren compTreeRef traceRef ps status currentVertexRef compStmt handlerRef = do
+testCurrentAndChildren compTreeRef traceRef ps status currentVertexRef compStmt handlerRef nextRef = do
   return status # UI.set UI.text "Evaluating propositions ..." #+ [UI.img # set UI.src "static/loading.gif" # set UI.height 30]
   mcv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
   compTree <- UI.liftIO $ readIORef compTreeRef
@@ -294,7 +312,7 @@ testCurrentAndChildren compTreeRef traceRef ps status currentVertexRef compStmt 
       switchedTree <- testMany vs compTreeRef traceRef ps handlerRef
       time2 <- UI.liftIO getCurrentTime
       UI.liftIO $ putStrLn ("tested " ++ show (length vs) ++ " computation statements in " ++ show (diffUTCTime time2 time1))
-      advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
+      advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef nextRef
       if switchedTree 
       then do
         return status # UI.set UI.text "Discovered and switched to a simpler computatation tree!" #+ [UI.img # set UI.src "static/test.png" # set UI.height 30]
@@ -302,7 +320,7 @@ testCurrentAndChildren compTreeRef traceRef ps status currentVertexRef compStmt 
       else
         return ()
 
-testAll compTreeRef traceRef ps status currentVertexRef compStmt handlerRef = do
+testAll compTreeRef traceRef ps status currentVertexRef compStmt handlerRef nextRef = do
   return status # UI.set UI.text "Evaluating propositions ..." #+ [UI.img # set UI.src "static/loading.gif" # set UI.height 30]
   mcv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
   compTree <- UI.liftIO $ readIORef compTreeRef
@@ -311,7 +329,7 @@ testAll compTreeRef traceRef ps status currentVertexRef compStmt handlerRef = do
   switchedTree <- testMany vs compTreeRef traceRef ps handlerRef
   time2 <- UI.liftIO getCurrentTime
   UI.liftIO $ putStrLn ("tested " ++ show (length vs) ++ " computation statements in " ++ show (diffUTCTime time2 time1))
-  advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
+  advance AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef nextRef
   if switchedTree 
   then do
     return status # UI.set UI.text "Discovered and switched to a simpler computatation tree!" #+ [UI.img # set UI.src "static/test.png" # set UI.height 30]
@@ -345,6 +363,7 @@ test1 vertex compTreeRef traceRef ps handlerRef onNoProps onJudge onTreeSwitch =
     Nothing  -> onNoProps
     (Just j) -> case j of 
       (Judge jmt) -> do
+        UI.liftIO $ putStrLn $ "conclusion: statement is " ++ show jmt
         UI.liftIO $ writeIORef compTreeRef (replaceVertex compTree (setJudgement vertex jmt))
         onJudge
       (AlternativeTree compTree' trace') -> do
@@ -366,6 +385,7 @@ test1' v compTree traceRef ps handlerRef = do
 
 guiAlgoDebug :: IORef CompTree -> IORef Int -> IORef String -> IORef Int -> UI UI.Element
 guiAlgoDebug compTreeRef currentVertexRef regexRef imgCountRef = do
+       nextRef <- UI.liftIO $ newIORef (next_step :: Next)
 
        -- Get a list of vertices from the computation tree
        tree <- UI.liftIO $ readIORef compTreeRef
@@ -381,7 +401,7 @@ guiAlgoDebug compTreeRef currentVertexRef regexRef imgCountRef = do
        -- Buttons to judge the current statement
        right <- UI.button # UI.set UI.text "right " #+ [UI.img # set UI.src "static/right.png" # set UI.height 30] # set UI.style [("margin-right","1em")]
        wrong <- UI.button # set UI.text "wrong "    #+ [UI.img # set UI.src "static/wrong.png" # set UI.height 30]
-       let j = judge AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef
+       let j = judge AdvanceToNext status compStmt Nothing Nothing currentVertexRef compTreeRef nextRef
        j right Right
        j wrong Wrong
 
@@ -396,8 +416,8 @@ guiAlgoDebug compTreeRef currentVertexRef regexRef imgCountRef = do
 data Advance = AdvanceToNext | DoNotAdvance
 
 judge :: Advance -> UI.Element -> UI.Element -> Maybe UI.Element -> Maybe (UI.Element,IORef Int) 
-         -> IORef UID -> IORef CompTree -> UI.Element -> Judgement  -> UI ()
-judge adv status compStmt mMenu mImg currentVertexRef compTreeRef b j = 
+         -> IORef UID -> IORef CompTree -> IORef Next -> UI.Element -> Judgement  -> UI ()
+judge adv status compStmt mMenu mImg currentVertexRef compTreeRef nextRef b j = 
   on UI.click b $ \_ -> do
     mv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
     case mv of
@@ -408,21 +428,22 @@ judge adv status compStmt mMenu mImg currentVertexRef compTreeRef b j =
   judge' v = do
       t' <- UI.liftIO $ readIORef compTreeRef
       UI.liftIO $ writeIORef compTreeRef (markNode t' v j)
-      advance adv status compStmt mMenu mImg currentVertexRef compTreeRef
+      advance adv status compStmt mMenu mImg currentVertexRef compTreeRef nextRef
 
 advance :: Advance -> UI.Element -> UI.Element -> Maybe UI.Element -> Maybe (UI.Element,IORef Int) 
-         -> IORef UID -> IORef CompTree -> UI ()
-advance adv status compStmt mMenu mImg currentVertexRef compTreeRef = do
+         -> IORef UID -> IORef CompTree -> IORef Next -> UI ()
+advance adv status compStmt mMenu mImg currentVertexRef compTreeRef nextRef = do
   mv <- UI.liftIO $ lookupCurrentVertex currentVertexRef compTreeRef
+  next <- UI.liftIO $ readIORef nextRef
   case mv of
     Nothing  -> do
       t <- UI.liftIO $ readIORef compTreeRef
-      case next_step t getJudgement of
+      case next t getJudgement of
         RootVertex -> return () -- when does this happen ... ?
         w          -> advanceTo w status compStmt mMenu mImg currentVertexRef compTreeRef
     (Just v) -> do
       t <- UI.liftIO $ readIORef compTreeRef
-      case (adv, next_step t getJudgement) of
+      case (adv, next t getJudgement) of
         (DoNotAdvance,_)           -> advanceTo v status compStmt mMenu mImg currentVertexRef compTreeRef
         (AdvanceToNext,RootVertex) -> advanceTo v status compStmt mMenu mImg currentVertexRef compTreeRef
         (AdvanceToNext,w)          -> advanceTo w status compStmt mMenu mImg currentVertexRef compTreeRef
@@ -469,7 +490,8 @@ guiExplore compTreeRef currentVertexRef regexRef imgCountRef = do
        right <- UI.button # UI.set UI.text "right " #+ [UI.img # set UI.src "static/right.png" # set UI.height 20] # set UI.style [("margin-right","1em")]
        wrong <- UI.button # set UI.text "wrong "    #+ [UI.img # set UI.src "static/wrong.png" # set UI.height 20] # set UI.style [("margin-right","1em")]
 
-       let j = judge DoNotAdvance status compStmt (Just menu) (Just (img, imgCountRef)) currentVertexRef compTreeRef
+       nextRef <- UI.liftIO $ newIORef (next_step :: Next)
+       let j = judge DoNotAdvance status compStmt (Just menu) (Just (img, imgCountRef)) currentVertexRef compTreeRef nextRef
        j right Right
        j wrong Wrong
 

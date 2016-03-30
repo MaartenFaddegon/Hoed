@@ -57,6 +57,24 @@ instance (Integral i, Integral s, Eq a, Arbitrary a, Arbitrary l, Arbitrary sd, 
 
         return $ fromList (fromIntegral n, sds,fs,ls,lay)
 
+-- MF: added to complete values with unevaluated expressions
+instance Arbitrary RationalRect where 
+  arbitrary = do
+    r1 <- arbitrary
+    r2 <- arbitrary
+    r3 <- arbitrary
+    r4 <- arbitrary
+    return (RationalRect r1 r2 r3 r4)
+
+instance (Ord a, Arbitrary a, Arbitrary b) => Arbitrary (M.Map a b) where
+  arbitrary = sized arbitraryMap
+
+arbitraryMap 0 = return M.empty
+arbitraryMap n = do
+  m <- arbitraryMap (n-1)
+  k <- arbitrary
+  e <- arbitrary
+  return (M.insert k e m)
 
 -- | fromList. Build a new StackSet from a list of list of elements,
 -- keeping track of the currently focused workspace, and the total
