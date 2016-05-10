@@ -393,6 +393,12 @@ traceInfo trc = foldl loop s0 trc
                                                    $ start e s
                                           False -> pause e s
 
+                        NoEnter{} -> if not . corToCons cs $ e then s else cpyTopLvlFun e
+                                     $ case loc of
+                                          True  -> addDependency e
+                                                   $ start e s
+                                          False -> pause e s
+
                         -- Span end
                         Cons{} ->  cpyTopLvlFun e
                                    . setLocation e (\_->loc)
@@ -401,3 +407,5 @@ traceInfo trc = foldl loop s0 trc
                                        False -> resume e s
 
                         evnt -> error $ "traceInfo.loop cannot handle " ++ show evnt
+
+                        e -> error $ "compTree.hs:traceInfo encountered unexpected event " ++ show e

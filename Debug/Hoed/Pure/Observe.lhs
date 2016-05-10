@@ -123,6 +123,8 @@ import Control.Exception (Exception, throw, ErrorCall(..), SomeException(..))
                 ) as Exception
 -}
 import Data.Dynamic ( Dynamic )
+
+import qualified Debug.Trace as Debug
 \end{code}
 
 \begin{code}
@@ -547,11 +549,21 @@ with Template Haskell.
 
 \begin{code}
 
+-- MF TODO: the eqType and isObservable' definitions feel a bit "hacky",
+-- can we do better?
 isObservable :: TyVarMap -> Type -> Type -> Q Bool
--- MF TODO: if s == t then return True else isObservable' bs t
+isObservable bs s t | s `myEq` t = return True 
 isObservable bs s t = isObservable' bs t
 
--- MF TODO this is a hack
+myEq s t = Debug.trace (show s ++ " == " ++ show t ++ " ? " ++ show res) res
+  where res = s `eqType` t
+
+eqType (ForallT _ _ t1) t2 = t1 `eqType` t2
+eqType (AppT t1 s1) (AppT t2 s2) = (t1 `eqType` t2) && (s1 `eqType` s2)
+eqType (VarT _) (VarT _) = True -- dodgy ...
+eqType (ConT n1) (ConT n2) = n1 == n2
+eqType _ _ = False
+
 isObservable' bs (AppT ListT _)    = return True
 
 isObservable' bs (VarT n)      = case lookupBinding bs n of
