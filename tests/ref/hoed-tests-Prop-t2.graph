@@ -1,7 +1,7 @@
 diGraph G {
 v5 [label="Right: mergeAndSortTargets (('v', \"v\") : []) = ('v', \"v\") : []"]
-v4 [label="Assisted [InconclusiveProperty \"We found values for the unevaluated expressions in the current statement that falsify\\na property, however the resulting tree is not simpler.\"]: mergeAndSortTargets (('s', \"tvtv\") : ('v', \"v\") : []) = ('s', \"ttvv\") : ('v', \"v\") : []"]
-v3 [label="Assisted [InconclusiveProperty \"We found values for the unevaluated expressions in the current statement that falsify\\na property, however the resulting tree is not simpler.\"]: mergeAndSortTargets (('s', \"t\") : ('s', \"vtv\") : ('v', \"v\") : []) = ('s', \"ttvv\") : ('v', \"v\") : []"]
+v4 [label="Assisted [InconclusiveProperty \"Simpler tree suggested with complexity 38(current tree has complexity of 90)\"]: mergeAndSortTargets (('s', \"tvtv\") : ('v', \"v\") : []) = ('s', \"ttvv\") : ('v', \"v\") : []"]
+v3 [label="Assisted [InconclusiveProperty \"Simpler tree suggested with complexity 57(current tree has complexity of 90)\"]: mergeAndSortTargets (('s', \"t\") : ('s', \"vtv\") : ('v', \"v\") : []) = ('s', \"ttvv\") : ('v', \"v\") : []"]
 v2 [label="Right: addMissingSources (('s', \"ttvv\") : ('v', \"v\") : []) = ('s', 't' : 't' : _) : ('t', _) : ('t', _) : ('v', _) : []"]
 v1 [label="Assisted [InconclusiveProperty \"We found values for the unevaluated expressions in the current statement that falsify\\na property, however the resulting tree is not simpler.\"]: assoc1toNdigraph (('v', \"v\") : ('s', \"t\") : ('s', \"vtv\") : []) = ('s', 't' : 't' : _) : ('t', _) : ('t', _) : ('v', _) : []"]
 v0 [label=root]

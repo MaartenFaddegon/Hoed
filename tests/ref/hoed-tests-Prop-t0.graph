@@ -12,7 +12,7 @@ v15 [label="Assisted [PassingProperty \"prop_idemOne\"]: one (Const 1) = Const 1
 v14 [label="Assisted [PassingProperty \"prop_idemOne\"]: one (Const 1) = Const 1"]
 v13 [label="Assisted [InconclusiveProperty \"\\n---\\n\\nApplying property prop_idemOne gives inconclusive result:\\n\\n[Escaping Exception in Code : Request of value that was unevaluated in original program.]\\n\"]: one (Mul (Const _) (Const 1)) = Const _"]
 v12 [label="Assisted [PassingProperty \"prop_idemOne\"]: one (Const 2) = Const 2"]
-v11 [label="Assisted [InconclusiveProperty \"We found values for the unevaluated expressions in the current statement that falsify\\na property, however the resulting tree is not simpler.\"]: one (Mul (Const 1) (Const 2)) = Mul (Const _) (Const 1)"]
+v11 [label="Assisted [InconclusiveProperty \"Simpler tree suggested with complexity 9(current tree has complexity of 120)\"]: one (Mul (Const 1) (Const 2)) = Mul (Const _) (Const 1)"]
 v10 [label="Assisted [PassingProperty \"prop_idemOne\"]: one (Const 2) = Const 2"]
 v9 [label="Assisted [InconclusiveProperty \"\\n---\\n\\nApplying property prop_idemOne gives inconclusive result:\\n\\n[Escaping Exception in Code : Request of value that was unevaluated in original program.]\\n\"]: one (Mul _ (Const 2)) = Mul _ _"]
 v8 [label="Assisted [InconclusiveProperty \"\\n---\\n\\nApplying property prop_idemSimplify gives inconclusive result:\\n\\n[Escaping Exception in Code : Request of value that was unevaluated in original program.]\\n\"]: simplify (Const _) = Const _"]
