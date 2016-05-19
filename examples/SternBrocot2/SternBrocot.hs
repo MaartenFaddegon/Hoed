@@ -5,22 +5,22 @@ import Debug.Hoed.Pure
 data Rational = Integer :% Integer
  deriving (Eq, Generic, Observable, Show)
 
-data Tree a = Node a (Tree a) (Tree a) | Leaf a 
+data Tree = Node Rational Tree Tree | Leaf
  deriving (Generic, Observable)
 
-mkNode :: Integer -> Integer -> Integer -> Integer -> Tree Rational
-mkNode a b c d = Node (x :% y) (mkNode a b x y) (mkNode x y c d)
+mkTree :: Integer -> Integer -> Integer -> Integer -> Tree
+mkTree a b c d = Node (x :% y) (mkTree a b x y) (mkTree x y c d)
  where x = a+c
        y = b+d
 
-toFloat :: Tree Rational -> Float -> Rational
+toFloat :: Tree -> Float -> Rational
 toFloat (Node x left right) y
  | delta <= 0 = x
  | delta > 0  = toFloat left  y
  | otherwise  = toFloat right y
  where delta = (fromRational x) - y
 
-main = printO $ toFloat' (mkNode 0 1 1 0) 0.75
+main = printO $ toFloat' (mkTree 0 1 1 0) 0.75
   where toFloat' = observe "toFloat" toFloat
 
 fromRational :: Rational -> Float

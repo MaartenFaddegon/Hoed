@@ -407,5 +407,3 @@ traceInfo trc = foldl loop s0 trc
                                        False -> resume e s
 
                         evnt -> error $ "traceInfo.loop cannot handle " ++ show evnt
-
-                        e -> error $ "compTree.hs:traceInfo encountered unexpected event " ++ show e

@@ -1,6 +1,6 @@
 -- This file is part of the Haskell debugger Hoed.
 --
--- Copyright (c) Maarten Faddegon, 2015
+-- Copyright (c) Maarten Faddegon 2015-2016
 
 {-# LANGUAGE DefaultSignatures, TypeOperators, FlexibleContexts, FlexibleInstances, StandaloneDeriving, CPP, DeriveGeneric #-}
 
@@ -8,7 +8,7 @@ module Debug.Hoed.Pure.Prop where
 -- ( judge
 -- , Propositions(..)
 -- ) where
-import Debug.Hoed.Pure.Observe(Observable(..),Trace(..),UID,Event(..),Change(..),ourCatchAllIO,evaluate)
+import Debug.Hoed.Pure.Observe(Observable(..),Trace(..),UID,Event(..),Change(..),ourCatchAllIO,evaluate,eventParent,parentPosition)
 import Debug.Hoed.Pure.Render(CompStmt(..),noNewlines)
 import Debug.Hoed.Pure.CompTree(CompTree,Vertex(..),Graph(..),vertexUID,vertexRes,replaceVertex,getJudgement,setJudgement)
 import Debug.Hoed.Pure.EventForest(EventForest,mkEventForest,dfsChildren)
@@ -22,8 +22,8 @@ import System.Exit(ExitCode(..))
 import System.IO(hPutStrLn,stderr)
 import System.IO.Unsafe(unsafePerformIO)
 import Data.Char(isAlpha)
-import Data.Maybe(isNothing,fromJust)
-import Data.List(intersperse,isInfixOf)
+import Data.Maybe(isNothing,fromJust,isJust)
+import Data.List(intersperse,isInfixOf,foldl1)
 import GHC.Generics hiding (moduleName) --(Generic(..),Rep(..),from,(:+:)(..),(:*:)(..),U1(..),K1(..),M1(..))
 import Control.Monad(foldM)
 
@@ -304,10 +304,12 @@ evalProposition handler trc v ms prop = do
 reEvalProposition :: PropRes -> Trace -> Vertex -> [Module] -> IO PropRes
 reEvalProposition (Disprove prop) _ _ _ = return (Disprove prop) -- no need to re-evaluate
 reEvalProposition (DisproveBy prop values) trc v ms = do
-  putStrLn $ "RE-EVALUATE with " ++ concat (intersperse " " values) ++ " {"
-  (Disprove p) <- evalProposition (FromList values) trc v ms prop
+  putStrLn $ "RE-EVALUATE with " ++ concat valuesInBrackets ++ " {"
+  (Disprove p) <- evalProposition (FromList valuesInBrackets) trc v ms prop
   putStrLn $ "} RE-EVALUATE"
   return (Disprove p)
+  where
+  valuesInBrackets = map (\s -> " (" ++ s ++ ") ") values
 
 clean = system $ "rm -f " ++ sourceFile ++ " " ++ exeFile ++ " " ++ buildFiles
 
@@ -468,7 +470,10 @@ generateRes unevalGen trc getEvent i = case dfsChildren frt e of
   [_,_,_,Nothing] -> unevalGen
   [_,_    ,_,mr]  -> generateRes' unevalGen trc getEvent mr
   [Nothing,_,mr]  -> generateRes' unevalGen trc getEvent mr
-  es              -> error $ "unexpected number of events :" ++ show es
+  xs -> 
+    if areFun xs 
+    then generateFunMap unevalGen trc getEvent (justFuns xs)
+    else error $ "unexpected number of events :" ++ show xs
   where
   frt = (mkEventForest trc)
   e   = getEvent i
@@ -476,22 +481,84 @@ generateRes unevalGen trc getEvent i = case dfsChildren frt e of
 generateRes' :: PropVarGen String -> Trace -> (UID->Event) -> Maybe Event -> PropVarGen String
 generateRes' unevalGen trc getEvent Nothing = unevalGen
 generateRes' unevalGen trc getEvent (Just e)
-  | change e == Fun = case dfsChildren frt e of [_,_    ,_,mr] -> generateRes' unevalGen trc getEvent mr
-                                                [Nothing,_,mr] -> generateRes' unevalGen trc getEvent mr
-                                                as  -> error $ "generateRes': event " ++ show (eventUID e) ++ ":FUN has " 
-                                                               ++ show (length as) ++ " children!\nnamely: " ++ commas (map show as)
-  | otherwise       = generateExpr unevalGen frt (Just e)
-  where
-  frt = (mkEventForest trc)
+ | change e == Fun = 
+  case dfsChildren frt e of 
+   [_,_    ,_,mr] -> 
+    generateRes' unevalGen trc getEvent mr
+   [Nothing,_,mr] -> 
+    generateRes' unevalGen trc getEvent mr
+   as  -> 
+    error $ "generateRes': event " ++ show (eventUID e) 
+     ++ ":FUN has " ++ show (length as) ++ " children!\nnamely: " ++ commas (map show as)
+ | otherwise       = generateExpr unevalGen trc getEvent frt (Just e)
+ where
+ frt = (mkEventForest trc)
 
 generateArgs :: (PropVarGen String) -> Trace -> (UID -> Event) -> UID -> [PropVarGen String]
 generateArgs unevalGen trc getEvent i = case dfsChildren frt e of
-  [_,ma,_,mr]    -> generateExpr unevalGen frt ma : moreArgs unevalGen trc getEvent mr
-  [Nothing,_,mr] -> unevalGen                     : moreArgs unevalGen trc getEvent mr
-  xs             -> error ("generateArgs: dfsChildren (" ++ show e ++ ") = " ++ show xs)
-  where
-  frt = (mkEventForest trc)
-  e   = getEvent i
+ [_,ma,_,mr]    -> 
+  ( if isJustFun ma
+    then generateFunMap unevalGen trc getEvent (justFuns [ma])
+    else generateExpr unevalGen trc getEvent frt ma
+  ) : moreArgs unevalGen trc getEvent mr
+ [Nothing,_,mr] ->
+  unevalGen : moreArgs unevalGen trc getEvent mr
+ xs -> 
+  if areFun xs 
+  then [generateFunMap unevalGen trc getEvent (justFuns xs)]
+  else error ("generateArgs: dfsChildren (" ++ show e ++ ") = " ++ show xs)
+ where
+ frt = (mkEventForest trc)
+ e   = getEvent i
+
+areFun :: [Maybe Event] -> Bool
+areFun (_:e:_) = isJustFun e
+areFun _       = False
+
+justFuns :: [Maybe Event] -> [Event]
+justFuns = map fromJust . filter isJustFun 
+
+isJustFun :: Maybe Event -> Bool
+isJustFun (Just e) = change e == Fun
+isJustFun Nothing  = False
+
+generateFunMap :: (PropVarGen String) -> Trace -> (UID -> Event) -> [Event] -> PropVarGen String
+generateFunMap unevalGen trc getEvent funs 
+ | length funs > 0 = caseOf `pvCat` (pvConcat cases') `pvCat` esac
+ | otherwise       = propVarReturn "{- a fun without applications? -}"
+ where 
+ caseOf = propVarReturn $ "(\\y -> case y of "
+ esac   = propVarReturn ")"
+ cases, cases' :: [PropVarGen String]
+ cases  = map (\fun -> generateCase unevalGen trc getEvent fun) funs
+ cases' = intersperse (propVarReturn "; ") cases
+
+generateCase :: (PropVarGen String) -> Trace -> (UID -> Event) -> Event -> PropVarGen String
+generateCase unevalGen trc getEvent fun =
+ case args of 
+  [] -> (propVarReturn "{- catchall -} _") --> res
+  _  -> (foldl1 (liftPV $ \acc c -> acc ++ " " ++ c) args) --> res
+ where
+ args :: [PropVarGen String]
+ args  = map (generateExpr (propVarReturn "_") trc getEvent frt)
+         . filter (\(Just e) -> isArg e) . filter isJust . dfsChildren frt $ fun
+ res :: PropVarGen String
+ res  = generateRes unevalGen trc getEvent (eventUID fun)
+ (-->) :: PropVarGen String -> PropVarGen String -> PropVarGen String 
+ (-->) = liftPV $ \x y -> x ++ " -> " ++ y
+ frt = mkEventForest trc -- MF TODO: create just once and share?
+
+isArg = hasParentPos 0
+
+isRes = hasParentPos 0
+
+hasParentPos i = (==i) . parentPosition . eventParent
+
+pvCat :: PropVarGen String -> PropVarGen String -> PropVarGen String
+pvCat = liftPV (++)
+
+pvConcat :: [PropVarGen String] -> PropVarGen String
+pvConcat = foldl pvCat (propVarReturn "")
 
 moreArgs :: PropVarGen String -> Trace -> (UID->Event) -> Maybe Event -> [PropVarGen String]
 moreArgs _ trc getEvent Nothing = []
@@ -499,9 +566,11 @@ moreArgs unevalGen trc getEvent (Just e)
   | change e == Fun = generateArgs unevalGen trc getEvent (eventUID e)
   | otherwise       = []
 
-generateExpr :: PropVarGen String -> EventForest -> Maybe Event -> PropVarGen String
-generateExpr unevalGen _ Nothing    = unevalGen
-generateExpr unevalGen frt (Just e) = case change e of
+generateExpr :: PropVarGen String -> Trace -> (UID -> Event) -> EventForest -> Maybe Event -> PropVarGen String
+generateExpr unevalGen _ _ _ Nothing    = unevalGen
+generateExpr unevalGen trc getEvent frt (Just e) = 
+  -- (propVarReturn $ "{- generateExpr " ++ show e ++ "-}") `pvCat` 
+  case change e of
   (Cons _ s) -> let s' = if isAlpha (head s) then s else "(" ++ s ++ ")"
                 in liftPV (++) ( foldl (liftPV $ \acc c -> acc ++ " " ++ c)
                                  (propVarReturn ("(" ++ s')) cs
@@ -509,24 +578,24 @@ generateExpr unevalGen frt (Just e) = case change e of
                                ( propVarReturn ") "
                                )
   Enter      -> propVarReturn ""
-  _          -> propVarReturn "error \"cannot represent\""
+  -- Fun        -> generateFunMap unevalGen trc getEvent (justFuns xs)
+  evnt       -> propVarReturn $ "error \"cannot represent: " ++ show evnt ++ "\""
 
-  where cs :: [PropVarGen String]
-        cs = map (generateExpr unevalGen frt) (dfsChildren frt e)
+ where cs :: [PropVarGen String]
+       cs = map (generateExpr unevalGen trc getEvent frt) xs
+       xs = (dfsChildren frt e)
 
-
-------------------------------------------------------------------------------------------------------------------------
 
 -- only works if there is 1 argument
 conAp :: Observable b => (a -> b) -> b -> a -> b
 conAp f r x = constrain (f x) r
 
 genConAp :: Int -> String -> String
-genConAp n f = "(\\r " ++ args ++ " -> Hoed.constrain (" ++ f ++ " " ++ args ++ ") r)"
+genConAp n f | n > 0 = "(\\r " ++ args ++ " -> Hoed.constrain (" ++ f ++ " " ++ args ++ ") r)"
   where args = foldl1 (\a x -> a ++ " " ++ x) xs
         xs = map (\i -> "x" ++ show i) [1..n]
 
-------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- MF TODO: this should probably be part of the Observable class ...
 
 

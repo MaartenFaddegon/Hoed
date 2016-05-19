@@ -1,9 +1,13 @@
 {-#  LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 import Debug.Hoed.Pure
 
+----------------------------------------------------------------------
+-- The tree library
+
 data Tree a = Node a (Tree a) (Tree a) | Leaf a
  deriving (Generic, Observable)
 
+breadthFirst :: Observable a => Tree a -> [a]
 breadthFirst = observe "breadthFirst" $ \tree -> fold [tree]
 
 fold = observe "fold" fold'
@@ -18,19 +22,20 @@ nodeVal (Leaf x) = x
 subTrees (Node x t1 t2) = [t1,t2]
 subTrees (Leaf x) = []
 
+depth :: Observable => Tree a -> Int -> [a]
+depth d = take ((d+1)*2) (drop (2^d-1) (breadthFirst (mkTree [])))
+
+----------------------------------------------------------------------
+-- the Coin flip application
+
 data Coin = Head | Tail
  deriving (Eq, Generic, Observable)
 
 mkTree c = Node c (mkTree (Head : c)) (mkTree (Tail : c))
 
-afterFlip d = take ((d+1)*2) (drop (2^d-1) (breadthFirst (mkTree [])))
-
-prop_coinTreeLength d = all (\c -> length c == d) (afterFlip d)
-
-prop_afterFlipSound d = length h == length t
+prop_depthSound d = length h == length t
  where 
- c = concat (afterFlip d)
- h = filter (==Head) c
- t = filter (==Tail) c
+ c = concat (depth d)
+ (h,t) = partition (==Head) c
 
-main = runO (print (prop_afterFlipSound 3))
+main = runO (print (prop_depthSound 3))

@@ -1,6 +1,9 @@
 {-#  LANGUAGE TemplateHaskell, Rank2Types #-}
 import Debug.Hoed.Pure
 
+----------------------------------------------------------------------
+-- The tree library
+
 data Tree a = Node a (Tree a) (Tree a) | Leaf a
 
 $(observedTypes "breadthFirst" [ [t| forall a . Tree a|], [t| forall a . [a] |] ])
