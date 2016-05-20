@@ -1,0 +1,15 @@
+diGraph G {
+v6 [label="Assisted [InconclusiveProperty \"\\n---\\n\\nApplying property prop_filter_f gives inconclusive result:\\n\\n*** Gave up! Passed only 0 tests.\\n\",InconclusiveProperty \"\\n---\\n\\nApplying property prop_filter_t gives inconclusive result:\\n\\n*** Gave up! Passed only 0 tests.\\n\"]: filter _ [] = []"]
+v5 [label="Assisted [InconclusiveProperty \"Simpler tree suggested with complexity 6(current tree has complexity of 35)\"]: filter { \\ 3 -> False } (3 : []) = 3 : []"]
+v4 [label="Right: isEven 3 = False"]
+v3 [label="Right: isEven 2 = True"]
+v2 [label="Assisted [InconclusiveProperty \"Simpler tree suggested with complexity 12(current tree has complexity of 35)\"]: filter { \\ 2 -> True , \\ 3 -> False } (2 : 3 : []) = 3 : []"]
+v1 [label="Assisted [InconclusiveProperty \"We found values for the unevaluated expressions in the current statement that falsify\\na property, however the resulting tree is not simpler.\"]: evens (2 : 3 : []) = 3 : []"]
+v0 [label=root]
+v1 -> v3 [label=""]
+v1 -> v4 [label=""]
+v0 -> v1 [label=""]
+v1 -> v2 [label=""]
+v2 -> v5 [label=""]
+v5 -> v6 [label=""]
+}
