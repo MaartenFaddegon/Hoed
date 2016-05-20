@@ -172,6 +172,7 @@ judge trc p v complexity curTree = do
           judge' Forall trc p v complexity curTree
         _                    -> return res2
     (Judge _) -> return res1
+  return res1
 
 judge' RestrictedBottom trc p v complexity curTree = do
   pas <- evalPropositions RestrictedBottom trc p v
@@ -466,17 +467,19 @@ generateMain handler prop trc getEvent i f
        | otherwise = propVarReturn f
 
 generateRes :: (PropVarGen String) -> Trace -> (UID -> Event) -> UID -> PropVarGen String
-generateRes unevalGen trc getEvent i = case dfsChildren frt e of
-  [_,_,_,Nothing] -> unevalGen
-  [_,_    ,_,mr]  -> generateRes' unevalGen trc getEvent mr
-  [Nothing,_,mr]  -> generateRes' unevalGen trc getEvent mr
-  xs -> 
-    if areFun xs 
-    then generateFunMap unevalGen trc getEvent (justFuns xs)
-    else error $ "unexpected number of events :" ++ show xs
-  where
-  frt = (mkEventForest trc)
-  e   = getEvent i
+generateRes unevalGen trc getEvent i
+ | areFun mres = (propVarReturn " {- generateRes -} ") `pvCat`
+                 (generateRes unevalGen trc getEvent (eventUID . head . justFuns $ mres)) -- (*)
+ | otherwise   = case mres of [_,mr] -> generateRes' unevalGen trc getEvent mr
+ --
+ -- (*) MF TODO: can there be multiple funs in mres? what then?
+ --
+ where
+ mres = filter isJustRes children
+ mr = case mres of [_,e] -> e; _ -> Nothing
+ children = dfsChildren frt e
+ frt = (mkEventForest trc)
+ e   = getEvent i
 
 generateRes' :: PropVarGen String -> Trace -> (UID->Event) -> Maybe Event -> PropVarGen String
 generateRes' unevalGen trc getEvent Nothing = unevalGen
@@ -495,21 +498,27 @@ generateRes' unevalGen trc getEvent (Just e)
  frt = (mkEventForest trc)
 
 generateArgs :: (PropVarGen String) -> Trace -> (UID -> Event) -> UID -> [PropVarGen String]
-generateArgs unevalGen trc getEvent i = case dfsChildren frt e of
- [_,ma,_,mr]    -> 
-  ( if isJustFun ma
-    then generateFunMap unevalGen trc getEvent (justFuns [ma])
-    else generateExpr unevalGen trc getEvent frt ma
-  ) : moreArgs unevalGen trc getEvent mr
- [Nothing,_,mr] ->
-  unevalGen : moreArgs unevalGen trc getEvent mr
- xs -> 
-  if areFun xs 
-  then [generateFunMap unevalGen trc getEvent (justFuns xs)]
-  else error ("generateArgs: dfsChildren (" ++ show e ++ ") = " ++ show xs)
+generateArgs unevalGen trc getEvent i =
+ (propVarReturn " {- generateArgs -} ") `pvCat`
+ pvArg `pvCat` (propVarReturn $ " {- more: " ++ show mres ++ " -} ") 
+ : moreArgs unevalGen trc getEvent mr
  where
- frt = (mkEventForest trc)
+ pvArg | areFun marg = generateFunMap unevalGen trc getEvent (justFuns marg)
+       | otherwise   = case marg of
+         [Nothing] -> unevalGen
+         [_,ma]    -> generateExpr unevalGen trc getEvent frt ma
  e   = getEvent i
+ marg = filter nothingOrArg children
+ mres = filter isJustRes children
+ mr = case mres of [_,e] -> e; _ -> Nothing
+ children = dfsChildren frt e
+ frt = (mkEventForest trc)
+
+nothingOrArg Nothing = True
+nothingOrArg (Just e) = isArg e
+
+noArg [Nothing] = True
+noArg _         = False
 
 areFun :: [Maybe Event] -> Bool
 areFun (_:e:_) = isJustFun e
@@ -527,7 +536,8 @@ generateFunMap unevalGen trc getEvent funs
  | length funs > 0 = caseOf `pvCat` (pvConcat cases') `pvCat` esac
  | otherwise       = propVarReturn "{- a fun without applications? -}"
  where 
- caseOf = propVarReturn $ "(\\y -> case y of "
+ caseOf = propVarReturn $ " {- funmap with " ++ (show . length $ funs ) ++ " cases -} " 
+                          ++ "(\\y -> case y of "
  esac   = propVarReturn ")"
  cases, cases' :: [PropVarGen String]
  cases  = map (\fun -> generateCase unevalGen trc getEvent fun) funs
@@ -535,6 +545,7 @@ generateFunMap unevalGen trc getEvent funs
 
 generateCase :: (PropVarGen String) -> Trace -> (UID -> Event) -> Event -> PropVarGen String
 generateCase unevalGen trc getEvent fun =
+ (propVarReturn $ " {- CASE " ++ show fun ++ " -} ") `pvCat`
  case args of 
   [] -> (propVarReturn "{- catchall -} _") --> res
   _  -> (foldl1 (liftPV $ \acc c -> acc ++ " " ++ c) args) --> res
@@ -550,7 +561,10 @@ generateCase unevalGen trc getEvent fun =
 
 isArg = hasParentPos 0
 
-isRes = hasParentPos 0
+isRes = hasParentPos 1
+
+isJustRes (Just e) = isRes e
+isJustRes Nothing  = False
 
 hasParentPos i = (==i) . parentPosition . eventParent
 

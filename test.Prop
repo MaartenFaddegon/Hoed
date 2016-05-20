@@ -2,6 +2,7 @@
 
 TESTS=`ls dist/build | grep hoed-tests-Prop`
 FAIL=0
+VERBOSE=0
 
 echo "Testing property-based judging"
 echo
@@ -25,10 +26,12 @@ for t in $TESTS; do
     echo -en '\E[37;31m'"\033[1m!!\033[0m" # red "!!" on white background
     tput sgr0                              # reset colour
     echo "] $t"
-    echo "== Output was =="
-    cat $t.out
-    echo "== Difference with reference computation tree is =="
-    cat $t.diff
+    if [ $VERBOSE -eq 1 ]; then
+      echo "== Output was =="
+      cat $t.out
+      echo "== Difference with reference computation tree is =="
+      cat $t.diff
+    fi
   fi
 done
 
