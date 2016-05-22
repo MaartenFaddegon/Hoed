@@ -17,13 +17,13 @@ filter' pred (x:xs)
   | pred x         = filter pred xs
   | otherwise      = x : filter pred xs
 
-evens :: [Int] -> [Int]
-evens = observe "evens" evens'
-evens' xs = filter isEven xs
+odds :: [Int] -> [Int]
+odds = observe "odds" odds'
+odds' xs = filter (not . isEven) xs
 
 isEven :: Int -> Bool
 isEven = observe "isEven" isEven'
 isEven' x = (x .&. 1) == 0
 
 doit :: IO ()
-doit = runOwp properties ((\q -> do MkRose res ts <- reduceRose .  unProp . (\p->unGen p  (mkQCGen 1) 1) . unProperty $ q; print . fromJust . ok $ res) $ spec_evens evens [2,3] 2)
+doit = runOwp properties ((\q -> do MkRose res ts <- reduceRose .  unProp . (\p->unGen p  (mkQCGen 1) 1) . unProperty $ q; print . fromJust . ok $ res) $ spec_odds odds [3,4] 3)
