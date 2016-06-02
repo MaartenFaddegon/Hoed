@@ -154,8 +154,9 @@ class GObservable f where
         gdmObserveArgs :: f a -> ObserverM (f a)
         gdmShallowShow :: f a -> String
 
-constrainBase :: Eq a => a -> a -> a
+constrainBase :: (Show a, Eq a) => a -> a -> a
 constrainBase x c | x == c = x
+                  | otherwise = error $ show x ++ " constrained by " ++ show c
 \end{code}
 
 A type generic definition of constrain

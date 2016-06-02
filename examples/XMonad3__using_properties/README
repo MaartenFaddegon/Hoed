@@ -1,0 +1,23 @@
+Sources from the test-suite of XMonad 0.11.1 and QuickCheck-1.2.0.1.
+
+---
+
+Defect in reverseStack.
+12 computation statements
+
+| swapDown (StackSet (Screen (Workspace (NonNegative 0) -2 (Just (Stack 'o' "a" "b")))
+|       0 0) [] []  (M.fromList []) )
+|         
+|           = StackSet (Screen (Workspace (NonNegative 0) -2 (Just (Stack 'o' "baa" "a")))
+|                 0 0) [] []
+|                      (M.fromList []) 
+
+Judged as wrong by property.
+
+| reverseStack (Stack 'o' "a" "ba")
+|   
+|     = Stack 'o' "baa" "a"
+
+Judge as wrong by human oracle.
+
+Detect located.

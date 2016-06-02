@@ -1,0 +1,3 @@
+[7 of 7] Compiling Main             ( .Hoed/exe/Main.hs, .Hoed/exe/Main.o )
+
+.Hoed/exe/Main.hs:12:144: Not in scope: ‘x’

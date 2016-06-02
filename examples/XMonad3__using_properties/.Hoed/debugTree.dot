@@ -1,0 +1,15 @@
+diGraph G {
+v6 [label=<<TABLE BORDER="0" CELLBORDER="0"><TR><TD HEIGHT="30" WIDTH="30" FIXEDSIZE="true"><IMG SCALE="true" SRC=".Hoed/wwwroot/unassessed.png"/></TD><TD><FONT POINT-SIZE="30">swapUp' (Stack 'o' &quot;ba&quot; &quot;a&quot;) = Stack 'o' &quot;a&quot; &quot;ba&quot;</FONT></TD></TR></TABLE>>shape=none]
+v5 [label=<<TABLE BORDER="0" CELLBORDER="0"><TR><TD HEIGHT="30" WIDTH="30" FIXEDSIZE="true"><IMG SCALE="true" SRC=".Hoed/wwwroot/unassessed.png"/></TD><TD><FONT POINT-SIZE="30">reverseStack (Stack 'o' &quot;a&quot; &quot;b&quot;) = Stack 'o' &quot;ba&quot; &quot;a&quot;</FONT></TD></TR></TABLE>>shape=none]
+v4 [label=<<TABLE BORDER="0" CELLBORDER="0"><TR><TD HEIGHT="30" WIDTH="30" FIXEDSIZE="true"><IMG SCALE="true" SRC=".Hoed/wwwroot/faulty.png"/></TD><TD><FONT POINT-SIZE="30">reverseStack (Stack 'o' &quot;a&quot; &quot;ba&quot;) = Stack 'o' &quot;baa&quot; &quot;a&quot;</FONT></TD></TR></TABLE>>shape=none]
+v3 [label=<<TABLE BORDER="0" CELLBORDER="0"><TR><TD HEIGHT="30" WIDTH="30" FIXEDSIZE="true"><IMG SCALE="true" SRC=".Hoed/wwwroot/unassessed.png"/></TD><TD><FONT POINT-SIZE="30">swapDown (StackSet (Screen (Workspace (NonNegative 0) -2 ...</FONT></TD></TR></TABLE>>shape=none]
+v2 [label=<<TABLE BORDER="0" CELLBORDER="0"><TR><TD HEIGHT="30" WIDTH="30" FIXEDSIZE="true"><IMG SCALE="true" SRC=".Hoed/wwwroot/unassessed.png"/></TD><TD><FONT POINT-SIZE="30">swapDown (StackSet (Screen (Workspace (NonNegative 0) -2 ...</FONT></TD></TR></TABLE>>shape=none]
+v1 [label=<<TABLE BORDER="0" CELLBORDER="0"><TR><TD HEIGHT="30" WIDTH="30" FIXEDSIZE="true"><IMG SCALE="true" SRC=".Hoed/wwwroot/wrong.png"/></TD><TD><FONT POINT-SIZE="30">swapDown (StackSet (Screen (Workspace (NonNegative 0) -2 ...</FONT></TD></TR></TABLE>>shape=none fontcolor=blue]
+v0 [label="."shape=none]
+v0 -> v3 [label=""]
+v0 -> v2 [label=""]
+v1 -> v6 [label=""]
+v1 -> v5 [label=""]
+v1 -> v4 [label=""]
+v0 -> v1 [label=""]
+}

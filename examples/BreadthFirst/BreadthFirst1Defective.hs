@@ -1,10 +1,11 @@
 {-#  LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 import Debug.Hoed.Pure
+import Data.List(partition)
 
 ----------------------------------------------------------------------
 -- The tree library
 
-data Tree a = Node a (Tree a) (Tree a) | Leaf a
+data Tree a = Node a (Tree a) (Tree a) | Leaf
  deriving (Generic, Observable)
 
 breadthFirst :: Observable a => Tree a -> [a]
@@ -17,12 +18,11 @@ fold' queue = map nodeVal queue ++ concatMap (fold . subTrees) queue
 -- fold' queue = map nodeVal queue ++ fold (concatMap subTrees queue)
 
 nodeVal (Node x t1 t2) = x
-nodeVal (Leaf x) = x
 
 subTrees (Node x t1 t2) = [t1,t2]
-subTrees (Leaf x) = []
+subTrees Leaf = []
 
-depth :: Observable => Tree a -> Int -> [a]
+depth :: Observable a => Tree a -> Int -> [a]
 depth d = take ((d+1)*2) (drop (2^d-1) (breadthFirst (mkTree [])))
 
 ----------------------------------------------------------------------

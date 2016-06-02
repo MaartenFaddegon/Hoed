@@ -1,0 +1,7 @@
+diGraph G {
+v2 [label=<<TABLE BORDER="0" CELLBORDER="0"><TR><TD HEIGHT="30" WIDTH="30" FIXEDSIZE="true"><IMG SCALE="true" SRC=".Hoed/wwwroot/wrong.png"/></TD><TD><FONT POINT-SIZE="30">member 'w' (StackSet (Screen (Workspace (NonNegative 3) _...</FONT></TD></TR></TABLE>>shape=none]
+v1 [label=<<TABLE BORDER="0" CELLBORDER="0"><TR><TD HEIGHT="30" WIDTH="30" FIXEDSIZE="true"><IMG SCALE="true" SRC=".Hoed/wwwroot/wrong.png"/></TD><TD><FONT POINT-SIZE="30">insertUp 'w' (StackSet (Screen (Workspace (NonNegative 3)...</FONT></TD></TR></TABLE>>shape=none fontcolor=blue]
+v0 [label="."shape=none]
+v1 -> v2 [label=""]
+v0 -> v1 [label=""]
+}

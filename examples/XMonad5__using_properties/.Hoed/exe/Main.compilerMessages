@@ -1,0 +1,33 @@
+[7 of 7] Compiling Main             ( .Hoed/exe/Main.hs, .Hoed/exe/Main.o )
+
+.Hoed/exe/Main.hs:13:212: Not in scope: ‘x’
+
+.Hoed/exe/Main.hs:13:337: Not in scope: ‘x’
+
+.Hoed/exe/Main.hs:13:429: Not in scope: ‘x’
+
+.Hoed/exe/Main.hs:13:492: Not in scope: ‘x’
+
+.Hoed/exe/Main.hs:13:555: Not in scope: ‘x’
+
+.Hoed/exe/Main.hs:13:612: Not in scope: ‘x’
+
+.Hoed/exe/Main.hs:13:629: Not in scope: ‘x’
+
+.Hoed/exe/Main.hs:13:844: Not in scope: ‘x’
+
+.Hoed/exe/Main.hs:13:881: Not in scope: ‘%’
+
+.Hoed/exe/Main.hs:13:892: Not in scope: ‘%’
+
+.Hoed/exe/Main.hs:13:900: Not in scope: ‘%’
+
+.Hoed/exe/Main.hs:13:911: Not in scope: ‘%’
+
+.Hoed/exe/Main.hs:13:938: Not in scope: ‘%’
+
+.Hoed/exe/Main.hs:13:946: Not in scope: ‘%’
+
+.Hoed/exe/Main.hs:13:954: Not in scope: ‘%’
+
+.Hoed/exe/Main.hs:13:962: Not in scope: ‘%’

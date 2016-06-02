@@ -340,7 +340,7 @@ mkPropRes prop ExitSuccess out
   | out == "True\n"                       = Hold prop
   | out == "+++ OK, passed 100 tests.\n"  = HoldWeak prop
   | out == "False\n"                      = Disprove prop
-  | "Failed! Falsifiable" `isInfixOf` out = DisproveBy prop (reverse . tail . lines $ out)
+  | "Falsifiable" `isInfixOf` out         = DisproveBy prop (reverse . tail . lines $ out)
   | otherwise                             = Error prop out
 
 shorten s
@@ -373,13 +373,15 @@ liftPV :: (a -> b -> c) -> PropVarGen a -> PropVarGen b -> PropVarGen c
 liftPV f x y = comp x y f
 
 propVars0 :: PropVars
-propVars0 = ([], map (('x':) . show)  [1..])
+propVars0 = ([], map show [1..])
 
 propVarError :: PropVarGen String
-propVarError = propVarReturn "(error \"Request of value that was unevaluated in original program.\")"
+-- propVarError = propVarReturn "(error \"Request of value that was unevaluated in original program.\")"
+propVarError (bvs,v:fvs) = (x, (bvs,fvs)) 
+ where x = "(error \"Request of value that was unevaluated in original program (underscore " ++ v ++ " in computation statement).\")"
 
 propVarFresh :: PropVarGen String
-propVarFresh (bvs,v:fvs) = (v, (v:bvs,fvs))
+propVarFresh (bvs,v:fvs) = (x, (x:bvs,fvs)) where x = 'x':v
 
 propVarReturn :: String -> PropVarGen String
 propVarReturn s vs = (s,vs)

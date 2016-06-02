@@ -1,0 +1,9 @@
+0123456Falsifiable, after 6 tests:
+fromList [('p',RationalRect ((-1) % 1) ((-2) % 1) (0 % 1) ((-2) % 1)),('x',RationalRect (1 % 1) (2 % 1) (1 % 1) (1 % 1))]
+[Workspace {tag = NonNegative 1, layout = -1, stack = Just (Stack {focus = 'y', up = "", down = "e"})},Workspace {tag = NonNegative 1, layout = 2, stack = Just (Stack {focus = 'p', up = "", down = ""})}]
+"s"
+2
+2
+1
+0
+0

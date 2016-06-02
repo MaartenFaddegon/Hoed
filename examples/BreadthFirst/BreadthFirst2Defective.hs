@@ -4,7 +4,7 @@ import Debug.Hoed.Pure
 ----------------------------------------------------------------------
 -- The tree library
 
-data Tree a = Node a (Tree a) (Tree a) | Leaf a
+data Tree a = Node a (Tree a) (Tree a) | Leaf
 
 $(observedTypes "breadthFirst" [ [t| forall a . Tree a|], [t| forall a . [a] |] ])
 
@@ -17,10 +17,9 @@ breadthFirst = $(observeTempl "breadthFirst") (\tree -> fold [tree])
  -- fold queue = map nodeVal queue ++ fold (concatMap subTrees queue)
 
 nodeVal (Node x t1 t2) = x
-nodeVal (Leaf x) = x
 
 subTrees (Node x t1 t2) = [t1,t2]
-subTrees (Leaf x) = []
+subTrees Leaf = []
 
 data Coin = Head | Tail
  deriving (Eq)
