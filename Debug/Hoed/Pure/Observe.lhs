@@ -50,6 +50,7 @@ module Debug.Hoed.Pure.Observe
   
     observeTempl
   , observe
+  , withFree
   , observeCC
   , Observer(..)   -- contains a 'forall' typed observe (if supported).
   -- , Observing      -- a -> a
@@ -939,10 +940,11 @@ Our principle function and class
 -- @map (+2)@ to the consumer @map (+1)@.
 -- 
 -- 'observe' can also observe functions as well a structural values.
--- 
-{-# NOINLINE gobserve #-}
 gobserve :: (a->Parent->a) -> String -> a -> (a,Int)
-gobserve f name a = generateContext f name a
+gobserve f name a = generateContext f (Observe name) a
+
+gWithFree :: (a->Parent->a) -> String -> a -> (a,Int)
+gWithFree f name a = generateContext f (WithFree name) a
 
 {- | 
 Functions which you suspect of misbehaving are annotated with observe and
@@ -977,6 +979,10 @@ an Observable instance can be derived as follows:
 observe ::  (Observable a) => String -> a -> a
 observe lbl = fst . (gobserve observer lbl)
 
+{-# NOINLINE withFree #-}
+withFree ::  (Observable a) => String -> a -> a
+withFree lbl = fst . (gWithFree observer lbl)
+
 {- This gets called before observer, allowing us to mark
  - we are entering a, before we do case analysis on
  - our object.
@@ -1006,9 +1012,9 @@ unsafeWithUniq fn
 \end{code}
 
 \begin{code}
-generateContext :: (a->Parent->a) -> String -> a -> (a,Int)
-generateContext f {- tti -} label orig = unsafeWithUniq $ \node ->
-     do sendEvent node (Parent 0 0) (Observe label node)
+generateContext :: (a->Parent->a) -> Change -> a -> (a,Int)
+generateContext f {- tti -} change orig = unsafeWithUniq $ \node ->
+     do sendEvent node (Parent 0 0) change
         return (observer_ f orig (Parent
                       { parentUID      = node
                       , parentPosition = 0
@@ -1075,7 +1081,8 @@ data Event = Event
         deriving (Eq,Generic)
 
 data Change
-        = Observe       !String        !Int
+        = Observe       !String
+        | WithFree      !String
         | Cons    !Int  !String
         | Enter
         | NoEnter

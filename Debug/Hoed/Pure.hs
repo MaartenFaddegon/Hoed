@@ -99,6 +99,7 @@ module Debug.Hoed.Pure
   , runO
   , printO
   , testO
+  , withFree
 
   -- * Property-assisted algorithmic debugging
   , runOwp

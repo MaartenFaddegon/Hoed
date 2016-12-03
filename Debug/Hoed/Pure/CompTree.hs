@@ -381,6 +381,11 @@ traceInfo trc = foldl loop s0 trc
         loop :: TraceInfo -> Event -> TraceInfo
         loop s e = let loc = getLocation e s
                    in case change e of
+                        -- TODO: We do not do anything special for WithFree events for now,
+                        -- but we should so it becomes part of the computation statement it
+                        -- is nested in.
+                        WithFree{} -> setLocation e (\_->True) s
+
                         Observe{} -> setLocation e (\_->True) s
 
                         Fun{}     -> setLocation e (\q->case q of 0 -> not loc; 1 -> loc)
@@ -405,5 +410,3 @@ traceInfo trc = foldl loop s0 trc
                                    $ case loc of
                                        True  -> stop e s
                                        False -> resume e s
-
-                        evnt -> error $ "traceInfo.loop cannot handle " ++ show evnt

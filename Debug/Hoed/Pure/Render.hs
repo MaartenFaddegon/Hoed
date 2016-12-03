@@ -49,6 +49,10 @@ data CompStmt = CompStmt { stmtLabel      :: String
                          , stmtIdentifier :: UID
                          , stmtRes        :: String
                          }
+              | FreeVar  { varLabel :: String
+                         , varIdentifier :: UID
+                         }
+
                 deriving (Eq,Ord,Generic)
 
 instance Show CompStmt where
@@ -85,6 +89,16 @@ renderCompStmt (CDSNamed name uid set)
         mkStmt :: (String,UID) -> CompStmt
         mkStmt (s,i) = CompStmt name i s
 
+renderCompStmt (CDSWithFree name uid set)
+  = map mkVar values
+  where values :: [(String,UID)]
+        values   = map (\(d,i) -> (pretty statementWidth d,i)) doc
+        doc          = foldl (\a b -> a ++ renderNamedTop name uid b) [] output
+        output       = cdssToOutput set
+
+        mkVar :: (String,UID) -> CompStmt
+        mkVar (s,i) = FreeVar name i s
+
 renderNamedTop :: String -> UID -> Output -> [(Doc,UID)]
 renderNamedTop name observeUid(OutData cds)
   =  map f pairs
@@ -109,6 +123,7 @@ nubSorted (a:as)              = a : nub as
 
 
 data CDS = CDSNamed      String UID CDSSet
+         | CDSWithFree   String UID CDSSet
          | CDSCons       UID    String   [CDSSet]
          | CDSFun        UID             CDSSet CDSSet
          | CDSEntered    UID
@@ -139,8 +154,10 @@ eventsToCDS pairs = getChild 0 0
      getNode'' ::  Int -> Event -> Change -> CDS
      getNode'' node e change =
        case change of
-        (Observe str i) -> let chd = getChild node 0
-                               in CDSNamed str (getId chd i) chd
+        (Observe str)       -> let chd = getChild node 0
+                               in CDSNamed str (getId chd node) chd
+        (WithFree str)      -> let chd = getChild node 0
+                               in CDSWithFree str (getId chd node) chd
         (Enter)             -> CDSEntered node
         (NoEnter)           -> CDSTerminated node
         Fun                 -> CDSFun node (getChild node 0) (getChild node 1)
@@ -255,6 +272,7 @@ findFn' other rest = ([],[other], Nothing) : rest
 
 rmEntry :: CDS -> CDS
 rmEntry (CDSNamed str i set) = CDSNamed str i (rmEntrySet set)
+rmEntry (CDSWithFree str i set) = CDSWithFree str i (rmEntrySet set)
 rmEntry (CDSCons i str sets) = CDSCons i str (map rmEntrySet sets)
 rmEntry (CDSFun i a b)       = CDSFun i (rmEntrySet a) (rmEntrySet b)
 rmEntry (CDSTerminated i)    = CDSTerminated i
@@ -267,6 +285,7 @@ rmEntrySet = map rmEntry . filter noEntered
 
 simplifyCDS :: CDS -> CDS
 simplifyCDS (CDSNamed str i set) = CDSNamed str i (simplifyCDSSet set)
+simplifyCDS (CDSWithFree str i set) = CDSWithFree str i (simplifyCDSSet set)
 simplifyCDS (CDSCons _ "throw"
                   [[CDSCons _ "ErrorCall" set]]
             ) = simplifyCDS (CDSCons 0 "error" set)
@@ -306,6 +325,13 @@ data Output = OutLabel String CDSSet [Output]
 
 cdssToOutput :: CDSSet -> [Output]
 cdssToOutput =  map cdsToOutput
+
+cdsToOutput (CDSWithFree name _ cdsset)
+            = OutLabel name res1 res2
+  where
+      res1 = [ cdss | (OutData cdss) <- res ]
+      res2 = [ out  | out@(OutLabel {}) <- res ]
+      res  = cdssToOutput cdsset
 
 cdsToOutput (CDSNamed name _ cdsset)
             = OutLabel name res1 res2
