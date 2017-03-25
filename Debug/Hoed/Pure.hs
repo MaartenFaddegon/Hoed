@@ -131,10 +131,6 @@ module Debug.Hoed.Pure
   , Judge(..)
   , Verbosity(..)
 
-  -- * Alternative template Haskell annotations
-  , observeTempl
-  , observedTypes
-
   -- * API to test Hoed itself
   , logO
   , logOwp
@@ -161,7 +157,7 @@ import Debug.Hoed.Pure.Observe
 import Debug.Hoed.Pure.Render
 import Debug.Hoed.Pure.EventForest
 import Debug.Hoed.Pure.CompTree
-import Debug.Hoed.Pure.DemoGUI
+import Debug.Hoed.Pure.Console
 import Debug.Hoed.Pure.Prop
 import Debug.Hoed.Pure.Serialize
 import Paths_Hoed(getDataDir)
@@ -184,7 +180,6 @@ import GHC.Generics
 import Data.IORef
 import System.IO.Unsafe
 import Data.Graph.Libgraph
-import Graphics.UI.Threepenny(startGUI,defaultConfig,Config(..))
 
 import System.Directory(createDirectoryIfMissing)
 
@@ -350,17 +345,3 @@ logOwp handler filePath properties program = do
         showVertex v       = ("\"" ++ (escape . showCompStmt) v ++ "\"", "")
         showArc _          = ""
         showCompStmt s     = (show . vertexJmt) s ++ ": " ++ (show . vertexStmt) s
-
-------------------------------------------------------------------------
--- Algorithmic Debugging
-
-debugSession :: Trace -> TraceInfo -> CompTree -> EventForest -> [Propositions] -> IO ()
-debugSession trace traceInfo tree frt ps
-  = do createDirectoryIfMissing True ".Hoed/wwwroot/css"
-       dataDir <- getDataDir
-       system $ "cp " ++ dataDir ++ "/img/*png .Hoed/wwwroot/"
-       system $ "cp " ++ dataDir ++ "/img/*gif .Hoed/wwwroot/"
-       startGUI defaultConfig
-           { jsPort       = Just 10000
-           , jsStatic     = Just "./.Hoed/wwwroot"
-           } (guiMain trace tree frt ps)

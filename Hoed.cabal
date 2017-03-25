@@ -50,17 +50,14 @@ Source-repository head
     location:           git://github.com/MaartenFaddegon/Hoed.git
 
 library
-  exposed-modules:     Debug.Hoed.Stk
-                       , Debug.Hoed.Pure
+  exposed-modules:     Debug.Hoed.Pure
                        , Debug.Hoed.NoTrace
-  other-modules:       Debug.Hoed.Stk.Observe
-                       , Debug.Hoed.Stk.Render
-                       , Debug.Hoed.Stk.DemoGUI
-                       , Debug.Hoed.Pure.Observe
+  other-modules:       Debug.Hoed.Pure.Observe
                        , Debug.Hoed.Pure.EventForest
                        , Debug.Hoed.Pure.CompTree
                        , Debug.Hoed.Pure.Render
-                       , Debug.Hoed.Pure.DemoGUI
+                       , Debug.Hoed.Pure.ReadLine
+                       , Debug.Hoed.Pure.Console
                        , Debug.Hoed.Pure.Prop
                        , Debug.Hoed.Pure.Serialize
                        , Paths_Hoed
@@ -68,7 +65,6 @@ library
                        , template-haskell
                        , array, containers
                        , process
-                       , threepenny-gui == 0.6.0.5
                        , filepath
                        , libgraph == 1.11
                        , RBTree == 0.0.5
