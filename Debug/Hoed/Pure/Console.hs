@@ -35,8 +35,8 @@ debugSession trace traceInfo tree frt ps
 help :: IO ()
 help = putStr
   $  "help              Print this help message.\n"
-  ++ "observe [regexp]  Print computation statements that matching a regular\n"
-  ++ "                  expression. The empty expression matches all statements.\n"
+  ++ "observe [regexp]  Print computation statements that match the regular\n"
+  ++ "                  expression. Omitting the expression prints all statements.\n"
   ++ "adb               Start algorithmic debugging.\n"
   ++ "exit              leave debugging session\n"
 
