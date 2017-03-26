@@ -17,7 +17,7 @@ readLine ps completions = do
     case c of
       '\n'   -> return curLine
       '\DEL' -> do putStr "\b\b\b   \b\b\b"
-                   loop (init curLine)
+                   loop (case curLine of [] -> []; _ -> init curLine)
       '\t'   -> case filter (isPrefixOf curLine) completions of
                   [cmd] -> do
                     putStr $ drop (length curLine) cmd
