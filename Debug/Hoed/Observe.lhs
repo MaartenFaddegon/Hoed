@@ -1,6 +1,5 @@
 \begin{code}
 {-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeOperators #-}
@@ -48,11 +47,8 @@ module Debug.Hoed.Observe
   (
    -- * The main Hood API
   
-    observeTempl
   , observe
-  , observeCC
   , Observer(..)   -- contains a 'forall' typed observe (if supported).
-  -- , Observing      -- a -> a
   , Observable(..) -- Class
 
    -- * For advanced users, that want to render their own datatypes.
@@ -137,7 +133,7 @@ infixl 9 <<
 %*                                                                      *
 %************************************************************************
 
-he generic implementation of the observer function.
+The generic implementation of the observer function.
 
 \begin{code}
 class Observable a where
@@ -157,6 +153,13 @@ class GObservable f where
 constrainBase :: (Show a, Eq a) => a -> a -> a
 constrainBase x c | x == c = x
                   | otherwise = error $ show x ++ " constrained by " ++ show c
+\end{code}
+
+
+\begin{code}
+instance {-# OVERLAPPABLE #-} Observable a where 
+  observer = observeOpaque "<?>"
+  constrain _ _ = error "contrained by untraced value"
 \end{code}
 
 A type generic definition of constrain
