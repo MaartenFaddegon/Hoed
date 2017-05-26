@@ -1,7 +1,7 @@
 {-|
-Module      : Debug.Hoed.Pure
+Module      : Debug.Hoed
 Description : Lighweight algorithmic debugging based on observing intermediate values.
-Copyright   : (c) 2000 Andy Gill, (c) 2010 University of Kansas, (c) 2013-2015 Maarten Faddegon
+Copyright   : (c) 2000 Andy Gill, (c) 2010 University of Kansas, (c) 2013-2017 Maarten Faddegon
 License     : BSD3
 Maintainer  : hoed@maartenfaddegon.nl
 Stability   : experimental
@@ -9,9 +9,9 @@ Portability : POSIX
 
 Hoed is a tracer and debugger for the programming language Haskell.
 
-Hoed.Pure is recommended over Hoed.Stk: in contrast to Hoed.Stk you can optimize your program and do not need to enable profiling when using Hoed.Pure.
+Hoed is recommended over Hoed.Stk: in contrast to Hoed.Stk you can optimize your program and do not need to enable profiling when using Hoed.
 
-To locate a defect with Hoed.Pure you annotate suspected functions and compile as usual. Then you run your program, information about the annotated functions is collected. Finally you connect to a debugging session using a webbrowser.
+To locate a defect with Hoed you annotate suspected functions and compile as usual. Then you run your program, information about the annotated functions is collected. Finally you connect to a debugging session using a webbrowser.
 
 Let us consider the following program, a defective implementation of a parity function with a test property.
 
@@ -45,7 +45,7 @@ Using the property-based test tool QuickCheck we find the counter example `1` fo
 
 Hoed can help us determine which function is defective. We annotate the functions `isOdd`, `isEven`, `plusOne` and `mod2` as follows:
 
-> import Debug.Hoed.Pure
+> import Debug.Hoed
 >
 > isOdd :: Int -> Bool
 > isOdd = observe "isOdd" isOdd'
@@ -93,7 +93,7 @@ I am keen to hear about your experience with Hoed: where did you find it useful 
 
 {-# LANGUAGE CPP #-}
 
-module Debug.Hoed.Pure
+module Debug.Hoed
   ( -- * Basic annotations
     observe
   , runO
@@ -153,13 +153,13 @@ module Debug.Hoed.Pure
   ) where
 
 
-import Debug.Hoed.Pure.Observe
-import Debug.Hoed.Pure.Render
-import Debug.Hoed.Pure.EventForest
-import Debug.Hoed.Pure.CompTree
-import Debug.Hoed.Pure.Console
-import Debug.Hoed.Pure.Prop
-import Debug.Hoed.Pure.Serialize
+import Debug.Hoed.Observe
+import Debug.Hoed.Render
+import Debug.Hoed.EventForest
+import Debug.Hoed.CompTree
+import Debug.Hoed.Console
+import Debug.Hoed.Prop
+import Debug.Hoed.Serialize
 import Paths_Hoed(getDataDir)
 
 import Prelude hiding (Right)

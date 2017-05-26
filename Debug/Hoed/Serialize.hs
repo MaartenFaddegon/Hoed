@@ -3,7 +3,7 @@
 -- Copyright (c) Maarten Faddegon, 2016
 {-# LANGUAGE DeriveGeneric #-}
 
-module Debug.Hoed.Pure.Serialize
+module Debug.Hoed.Serialize
 ( storeJudgements
 , restoreJudgements
 , storeTree
@@ -11,11 +11,11 @@ module Debug.Hoed.Pure.Serialize
 , storeTrace
 , restoreTrace
 ) where
-import Debug.Hoed.Pure.Observe
+import Debug.Hoed.Observe
 import Prelude hiding (lookup,Right)
 import qualified Prelude as Prelude
-import Debug.Hoed.Pure.CompTree
-import Debug.Hoed.Pure.Render(CompStmt(..))
+import Debug.Hoed.CompTree
+import Debug.Hoed.Render(CompStmt(..))
 import Data.Serialize
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS

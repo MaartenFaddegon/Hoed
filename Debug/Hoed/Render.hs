@@ -3,7 +3,7 @@
 -- Copyright (c) Maarten Faddegon, 2014
 {-# LANGUAGE CPP, DeriveGeneric #-}
 
-module Debug.Hoed.Pure.Render
+module Debug.Hoed.Render
 (CompStmt(..)
 ,renderCompStmts
 ,CDS
@@ -12,11 +12,11 @@ module Debug.Hoed.Pure.Render
 ,simplifyCDSSet
 ,noNewlines
 ) where
-import Debug.Hoed.Pure.EventForest
+import Debug.Hoed.EventForest
 
 import Text.PrettyPrint.FPretty hiding (sep)
 import Prelude hiding(lookup)
-import Debug.Hoed.Pure.Observe
+import Debug.Hoed.Observe
 import Data.List(sort,sortBy,partition,nub
 #if __GLASGOW_HASKELL__ >= 710
                 , sortOn

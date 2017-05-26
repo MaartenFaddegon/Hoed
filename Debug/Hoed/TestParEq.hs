@@ -1,6 +1,6 @@
 {-# LANGUAGE DefaultSignatures, TypeOperators, FlexibleContexts, FlexibleInstances, StandaloneDeriving, CPP, DeriveGeneric #-}
 
-import Debug.Hoed.Pure.Prop
+import Debug.Hoed.Prop
 import GHC.Generics hiding (moduleName)
 
 data A = A                 deriving (Eq, Generic)

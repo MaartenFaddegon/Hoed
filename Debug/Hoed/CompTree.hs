@@ -4,7 +4,7 @@
 
 {-# LANGUAGE CPP, DeriveGeneric #-}
 
-module Debug.Hoed.Pure.CompTree
+module Debug.Hoed.CompTree
 ( CompTree
 , Vertex(..)
 , mkCompTree
@@ -32,9 +32,9 @@ module Debug.Hoed.Pure.CompTree
 , Graph(..) -- re-export from LibGraph
 )where
 
-import Debug.Hoed.Pure.Render
-import Debug.Hoed.Pure.Observe
-import Debug.Hoed.Pure.EventForest
+import Debug.Hoed.Render
+import Debug.Hoed.Observe
+import Debug.Hoed.EventForest
 
 import Prelude hiding (Right)
 import Data.Graph.Libgraph

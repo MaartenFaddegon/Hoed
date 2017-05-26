@@ -1,16 +1,17 @@
 -- This file is part of the Haskell debugger Hoed.
 --
 -- Copyright (c) Maarten Faddegon, 2014-2017
-{-# LANGUAGE CPP #-}module Debug.Hoed.Pure.Console(debugSession) where
+{-# LANGUAGE CPP #-}
+module Debug.Hoed.Console(debugSession) where
 import qualified Prelude
 import Prelude hiding(Right)
-import Debug.Hoed.Pure.ReadLine
-import Debug.Hoed.Pure.Observe
-import Debug.Hoed.Pure.Render
-import Debug.Hoed.Pure.EventForest
-import Debug.Hoed.Pure.CompTree
-import Debug.Hoed.Pure.Prop
-import Debug.Hoed.Pure.Serialize
+import Debug.Hoed.ReadLine
+import Debug.Hoed.Observe
+import Debug.Hoed.Render
+import Debug.Hoed.EventForest
+import Debug.Hoed.CompTree
+import Debug.Hoed.Prop
+import Debug.Hoed.Serialize
 import Text.Regex.Posix.String as Regex
 import Text.Regex.Posix
 import Text.Regex.Posix.String

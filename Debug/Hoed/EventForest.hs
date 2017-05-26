@@ -2,7 +2,7 @@
 --
 -- Copyright (c) Maarten Faddegon, 2015
 
-module Debug.Hoed.Pure.EventForest 
+module Debug.Hoed.EventForest 
 ( EventForest(..)
 , mkEventForest
 , parentUIDLookup
@@ -20,7 +20,7 @@ module Debug.Hoed.Pure.EventForest
 , dfsChildren
 , elems
 ) where
-import Debug.Hoed.Pure.Observe
+import Debug.Hoed.Observe
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 

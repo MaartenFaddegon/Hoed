@@ -1,4 +1,4 @@
-module Debug.Hoed.Pure.ReadLine where
+module Debug.Hoed.ReadLine where
 import System.IO
 import Data.List
 

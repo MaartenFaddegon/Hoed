@@ -1,12 +1,10 @@
 name:                Hoed
-version:             0.3.6
+version:             0.3.7
 synopsis:            Lightweight algorithmic debugging.
 description:
     Hoed is a tracer and debugger for the programming language Haskell.
     .
     To locate a defect with Hoed you annotate suspected functions and compile as usual. Then you run your program, information about the annotated functions is collected. Finally you connect to a debugging session using a webbrowser.
-    .
-    Hoed comes in two flavours: Hoed.Pure and Hoed.Stk. Hoed.Stk uses the cost-centre stacks of the GHC profiling environment to construct the information needed for debugging. Hoed.Pure is recommended over Hoed.Stk: to debug your program with Hoed.Pure you can optimize your program and do not need to enable profiling.
     .
 homepage:            https://wiki.haskell.org/Hoed
 license:             BSD3
@@ -17,7 +15,7 @@ copyright:           (c) 2000 Andy Gill, (c) 2010 University of Kansas, (c) 2013
 category:            Debug, Trace
 build-type:          Simple
 cabal-version:       >=1.10
-extra-source-files:  changelog, README.md, configure.Demo, configure.Generic, configure.Profiling, configure.Prop, configure.Pure, configure.Stk, run, test.Generic, test.Pure, test.Stk
+extra-source-files:  changelog, README.md, configure.Demo, configure.Generic, configure.Profiling, configure.Prop, configure.Pure, run, test.Generic, test.Pure
 data-files:          img/*.png, img/*.gif
 
 
@@ -33,10 +31,6 @@ flag validatePure
   description: Build test cases to validate Hoed-pure.
   default: False
 
-flag validateStk
-  description: Build test cases to validate Hoed-stk.
-  default: False
-
 flag validateGeneric
   description: Build test cases to validate deriving Observable for Generic types.
   default: False
@@ -50,16 +44,16 @@ Source-repository head
     location:           git://github.com/MaartenFaddegon/Hoed.git
 
 library
-  exposed-modules:     Debug.Hoed.Pure
-                       , Debug.Hoed.NoTrace
-  other-modules:       Debug.Hoed.Pure.Observe
-                       , Debug.Hoed.Pure.EventForest
-                       , Debug.Hoed.Pure.CompTree
-                       , Debug.Hoed.Pure.Render
-                       , Debug.Hoed.Pure.ReadLine
-                       , Debug.Hoed.Pure.Console
-                       , Debug.Hoed.Pure.Prop
-                       , Debug.Hoed.Pure.Serialize
+  exposed-modules:     Debug.Hoed
+                       , Debug.NoHoed
+  other-modules:       Debug.Hoed.Observe
+                       , Debug.Hoed.EventForest
+                       , Debug.Hoed.CompTree
+                       , Debug.Hoed.Render
+                       , Debug.Hoed.ReadLine
+                       , Debug.Hoed.Console
+                       , Debug.Hoed.Prop
+                       , Debug.Hoed.Serialize
                        , Paths_Hoed
   build-depends:       base >= 4 && <5
                        , template-haskell
@@ -892,7 +886,7 @@ Executable hoed-tests-ParEq
                          , bytestring
   else
     buildable: False
-  main-is:             Debug/Hoed/Pure/TestParEq.hs
+  main-is:             Debug/Hoed/TestParEq.hs
   default-language:    Haskell2010
 
 
@@ -1041,84 +1035,3 @@ Executable hoed-tests-Pure-t7
   main-is:             t7.hs
   hs-source-dirs:      tests/Pure
   default-language:    Haskell2010
-
----------------------------------------------------------------------------
-
-Executable hoed-tests-Stk-DoublingServer
-  if flag(validateStk)
-    build-depends:       base >= 4 && < 5
-                         , Hoed
-                         , threepenny-gui == 0.6.0.5
-                         , filepath
-                         , network
-  else
-    buildable: False
-  main-is:             DoublingServer.hs
-  hs-source-dirs:      tests/Stk
-  default-language:    Haskell2010
-  ghc-options:         -O0
-
-Executable hoed-tests-Stk-Insort2
-  if flag(validateStk)
-    build-depends:       base >= 4 && < 5
-                         , Hoed
-                         , threepenny-gui == 0.6.0.5
-                         , filepath
-  else
-    buildable: False
-  main-is:             Insort2.hs
-  hs-source-dirs:      tests/Stk
-  default-language:    Haskell2010
-  ghc-options:         -O0
-
-Executable hoed-tests-Stk-Example1
-  if flag(validateStk)
-    build-depends:       base >= 4 && < 5
-                         , Hoed
-                         , threepenny-gui == 0.6.0.5
-                         , filepath
-  else
-    buildable: False
-  main-is:             Example1.hs
-  hs-source-dirs:      tests/Stk
-  default-language:    Haskell2010
-  ghc-options:         -O0
-
-Executable hoed-tests-Stk-Example3
-  if flag(validateStk)
-    build-depends:       base >= 4 && < 5
-                         , Hoed
-                         , threepenny-gui == 0.6.0.5
-                         , filepath
-  else
-    buildable: False
-  main-is:             Example3.lhs
-  hs-source-dirs:      tests/Stk
-  default-language:    Haskell2010
-  ghc-options:         -O0
-
-Executable hoed-tests-Stk-Example4
-  if flag(validateStk)
-    build-depends:       base >= 4 && < 5
-                         , Hoed
-                         , threepenny-gui == 0.6.0.5
-                         , filepath
-  else
-    buildable: False
-  main-is:             Example4.hs
-  hs-source-dirs:      tests/Stk
-  default-language:    Haskell2010
-  ghc-options:         -O0
-
-Executable hoed-tests-Stk-IndirectRecursion
-  if flag(validateStk)
-    build-depends:       base >= 4 && < 5
-                         , Hoed
-                         , threepenny-gui == 0.6.0.5
-                         , filepath
-  else
-    buildable: False
-  main-is:             IndirectRecursion.lhs
-  hs-source-dirs:      tests/Stk
-  default-language:    Haskell2010
-  ghc-options:         -O0

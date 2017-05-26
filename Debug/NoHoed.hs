@@ -20,7 +20,7 @@ I am keen to hear about your experience with Hoed: where did you find it useful 
 
 {-# LANGUAGE DefaultSignatures, CPP #-}
 
-module Debug.Hoed.NoTrace
+module Debug.NoHoed
 ( observe
 , runO
 , printO
