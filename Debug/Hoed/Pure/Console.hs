@@ -1,7 +1,9 @@
 -- This file is part of the Haskell debugger Hoed.
 --
--- Copyright (c) Maarten Faddegon, 2014-2016
+-- Copyright (c) Maarten Faddegon, 2014-2017
 {-# LANGUAGE CPP #-}module Debug.Hoed.Pure.Console(debugSession) where
+import qualified Prelude
+import Prelude hiding(Right)
 import Debug.Hoed.Pure.ReadLine
 import Debug.Hoed.Pure.Observe
 import Debug.Hoed.Pure.Render
@@ -12,6 +14,7 @@ import Debug.Hoed.Pure.Serialize
 import Text.Regex.Posix.String as Regex
 import Text.Regex.Posix
 import Text.Regex.Posix.String
+import Data.Graph.Libgraph
 import Data.List(findIndex,intersperse,nub,sort,sortBy
 #if __GLASGOW_HASKELL__ >= 710
                 , sortOn
@@ -28,9 +31,29 @@ sortOn' f = sortBy (\x y -> compare (f x) (f y))
 
 
 debugSession :: Trace -> TraceInfo -> CompTree -> EventForest -> [Propositions] -> IO ()
-debugSession trace traceInfo tree frt ps
-  = do noBuffering
-       mainLoop trace traceInfo tree frt ps
+debugSession trace traceInfo tree frt ps =
+  case filter (not . isRootVertex) $ vs of 
+    []    -> putStrLn $ "No functions annotated with 'observe' expressions"
+                        ++ "or annotated functions not evaluated"
+    (v:_) -> do noBuffering
+                mainLoop v trace traceInfo tree frt ps
+  where
+  (Graph _ vs _) = tree
+
+--------------------------------------------------------------------------------
+-- main menu
+
+mainLoop :: Vertex -> Trace -> TraceInfo -> CompTree -> EventForest -> [Propositions] -> IO ()
+mainLoop cv trace traceInfo compTree frt ps = do
+  i <- readLine "hdb> " ["adb", "observe", "help"]
+  case words i of
+    ["adb"]             -> adb cv trace traceInfo compTree frt ps
+    ["observe", regexp] -> do printStmts compTree regexp; loop
+    ["observe"]         -> do printStmts compTree ""; loop
+    ["exit"]            -> return ()
+    _                   -> do help; loop
+  where
+  loop = mainLoop cv trace traceInfo compTree frt ps
 
 help :: IO ()
 help = putStr
@@ -40,17 +63,8 @@ help = putStr
   ++ "adb               Start algorithmic debugging.\n"
   ++ "exit              leave debugging session\n"
 
-mainLoop :: Trace -> TraceInfo -> CompTree -> EventForest -> [Propositions] -> IO ()
-mainLoop trace traceInfo compTree frt ps = do
-  i <- readLine "hdb> " ["adb", "observe", "help"]
-  case words i of
-    ["adb", n]          -> adb n trace traceInfo compTree frt ps
-    ["observe", regexp] -> do printStmts compTree regexp; loop
-    ["observe"]         -> do printStmts compTree ""; loop
-    ["exit"]            -> return ()
-    _                   -> do help; loop
-  where
-  loop = mainLoop trace traceInfo compTree frt ps
+--------------------------------------------------------------------------------
+-- observe
 
 printStmts :: CompTree -> String -> IO ()
 printStmts (Graph _ vs _) regexp = do
@@ -76,11 +90,47 @@ printStmts' vs = do
     putStrLn $ "--- stmt-" ++ show n ++ " ------------------------------------------"
     (putStrLn . show . vertexStmt) v
 
-adb :: String -> Trace -> TraceInfo -> CompTree -> EventForest -> [Propositions] -> IO ()
-adb n trace traceInfo compTree frt ps = do
-  putStr "<statement> ? "
-  i <- getLine
+--------------------------------------------------------------------------------
+-- algorithmic debugging
+
+adb :: Vertex -> Trace -> TraceInfo -> CompTree -> EventForest -> [Propositions] -> IO ()
+adb cv trace traceInfo compTree frt ps = do
+  print $ vertexStmt cv
+  i <- readLine "? " ["right", "wrong", "prop", "exit"]
   case i of
-    "exit" -> mainLoop trace traceInfo compTree frt ps
-    _      -> adb n trace traceInfo compTree frt ps
+    "right" -> adb_judge cv Right trace traceInfo compTree frt ps
+    "wrong" -> adb_judge cv Wrong trace traceInfo compTree frt ps
+    "exit"  -> mainLoop cv trace traceInfo compTree frt ps
+    _       -> adb cv trace traceInfo compTree frt ps
+
+
+adb_judge :: Vertex -> Judgement -> Trace -> TraceInfo -> CompTree -> EventForest -> [Propositions] -> IO ()
+adb_judge cv jmt trace traceInfo compTree frt ps = case faultyVertices compTree' of
+  (v:_) -> do putStrLn $ " Fault detected in: " ++ vertexRes v
+              mainLoop cv trace traceInfo compTree' frt ps
+  []    -> adb cv'' trace traceInfo compTree' frt ps
+  where
+  compTree'   = mapGraph replaceCV compTree'
+  replaceCV v = if vertexUID v === vertexUID cv' then cv' else v
+  cv'         = setJudgement cv jmt
+  cv''        = next cv' compTree'
+
+faultyVertices :: CompTree -> [Vertex]
+faultyVertices = findFaulty_dag getJudgement
+
+next :: Vertex -> CompTree -> Vertex
+next v ct = case getJudgement v of
+  Right -> up
+  Wrong -> down
+  _     -> v
+  where
+  (up:_)   = preds ct v
+  (down:_) = filter unjudged (succs ct v)
+
+unjudged :: Vertex -> Bool
+unjudged = unjudged' . getJudgement
+  where 
+  unjudged' Right = False
+  unjudged' Wrong = False
+  unjudged' _     = True
 
