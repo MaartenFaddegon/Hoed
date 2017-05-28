@@ -2,7 +2,7 @@
 
 module Types where
 import Test.QuickCheck hiding ((===))
-import Debug.Hoed.Pure
+import Debug.Hoed
 
 data Board = B [Int] deriving (Eq, Show, Generic)
 

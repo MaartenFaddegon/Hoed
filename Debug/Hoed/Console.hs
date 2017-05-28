@@ -102,19 +102,28 @@ adb cv trace traceInfo compTree frt ps = do
     "right" -> adb_judge cv Right trace traceInfo compTree frt ps
     "wrong" -> adb_judge cv Wrong trace traceInfo compTree frt ps
     "exit"  -> mainLoop cv trace traceInfo compTree frt ps
-    _       -> adb cv trace traceInfo compTree frt ps
+    _       -> do adb_help
+                  adb cv trace traceInfo compTree frt ps
 
+adb_help :: IO ()
+adb_help = putStr
+  $  "help              Print this help message.\n"
+  ++ "right             Judge computation statements right according to the\n"
+  ++ "                  intentioned behaviour/specification of the function\n"
+  ++ "wrong             Judge computation statements wrong according to the\n"
+  ++ "                  intentioned behaviour/specification of the function\n"
+  ++ "exit              Return to main menu\n"
 
 adb_judge :: Vertex -> Judgement -> Trace -> TraceInfo -> CompTree -> EventForest -> [Propositions] -> IO ()
 adb_judge cv jmt trace traceInfo compTree frt ps = case faultyVertices compTree' of
   (v:_) -> do putStrLn $ " Fault detected in: " ++ vertexRes v
               mainLoop cv trace traceInfo compTree' frt ps
-  []    -> adb cv'' trace traceInfo compTree' frt ps
+  []    -> adb cv_next trace traceInfo compTree' frt ps
   where
-  compTree'   = mapGraph replaceCV compTree'
+  cv_next     = next cv' compTree'
+  compTree'   = mapGraph replaceCV compTree
   replaceCV v = if vertexUID v === vertexUID cv' then cv' else v
   cv'         = setJudgement cv jmt
-  cv''        = next cv' compTree'
 
 faultyVertices :: CompTree -> [Vertex]
 faultyVertices = findFaulty_dag getJudgement

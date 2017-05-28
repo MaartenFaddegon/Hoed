@@ -1,5 +1,5 @@
 module Properties where
-import Debug.Hoed.Pure
+import Debug.Hoed
 import Data.List
 import Data.Maybe
 import Test.QuickCheck hiding ((===))

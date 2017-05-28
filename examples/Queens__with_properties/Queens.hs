@@ -1,6 +1,6 @@
 module Queens where
 -- The queens problem made famous by Wirth.
-import Debug.Hoed.Pure
+import Debug.Hoed
 import Data.List
 import Test.QuickCheck
 import Data.Maybe
@@ -12,7 +12,7 @@ import Properties
 import Types
 
 doit :: IO ()
-doit = testOwp properties (prop_queens_set queens) 4
+doit = testOwp properties (prop_queens_set queens) 6
 
 queens :: Int -> [Board]
 queens = observe "queens" (\n -> valid n n)
