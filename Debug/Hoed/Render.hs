@@ -165,7 +165,7 @@ render prec par (CDSCons _ ":" [cds1,cds2]) =
         then doc -- dont use paren (..) because we dont want a grp here!
         else paren needParen doc
    where
-        doc = grp (brk <> renderSet' 5 False cds1 <> text " : ") <>
+        doc = grp (sep <> renderSet' 5 False cds1 <> text " : ") <>
               renderSet' 4 True cds2
         needParen = prec > 4
 render prec par (CDSCons _ "," cdss) | length cdss > 0 =

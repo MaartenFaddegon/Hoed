@@ -96,6 +96,7 @@ printStmts' vs = do
 
 adb :: Vertex -> Trace -> TraceInfo -> CompTree -> EventForest -> [Propositions] -> IO ()
 adb cv trace traceInfo compTree frt ps = do
+  adb_stats compTree
   print $ vertexStmt cv
   i <- readLine "? " ["right", "wrong", "prop", "exit"]
   case i of
@@ -114,9 +115,20 @@ adb_help = putStr
   ++ "                  intentioned behaviour/specification of the function\n"
   ++ "exit              Return to main menu\n"
 
+adb_stats :: CompTree -> IO ()
+adb_stats compTree = putStrLn
+  $  "======================================================================= [" 
+  ++ show (length vs_w) ++ "-" ++ show (length vs_r) ++ "/" ++ show (length vs) ++ "]"
+  where
+  vs   = filter (not . isRootVertex) (vertices compTree)
+  vs_r = filter isRight vs
+  vs_w = filter isWrong vs
+
+
 adb_judge :: Vertex -> Judgement -> Trace -> TraceInfo -> CompTree -> EventForest -> [Propositions] -> IO ()
 adb_judge cv jmt trace traceInfo compTree frt ps = case faultyVertices compTree' of
-  (v:_) -> do putStrLn $ " Fault detected in: " ++ vertexRes v
+  (v:_) -> do adb_stats compTree'
+              putStrLn $ "Fault located! In:\n" ++ vertexRes v
               mainLoop cv trace traceInfo compTree' frt ps
   []    -> adb cv_next trace traceInfo compTree' frt ps
   where
