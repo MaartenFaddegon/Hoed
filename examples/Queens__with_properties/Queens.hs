@@ -12,7 +12,7 @@ import Properties
 import Types
 
 doit :: IO ()
-doit = testOwp properties (prop_queens_set queens) 6
+doit = testOwp properties (prop_queens_set queens) 8
 
 queens :: Int -> [Board]
 queens = observe "queens" (\n -> valid n n)
@@ -46,7 +46,7 @@ no_threat' a (B (b:y)) m
  -- A correct definition:
  -- = a /= b && a+m /= b && a-m /= b && no_threat a (B y) (m+1)
  -- A defective definition:
-    = a+m /= b && a-m /= b && no_threat a (B y) (m+1)
+  = a+m /= b && a-m /= b && no_threat a (B y) (m+1)
 
 --------------------------------------------------------------------------------
 -- demonstrating the need for parallel equality

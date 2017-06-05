@@ -98,6 +98,28 @@ adb :: Vertex -> Trace -> TraceInfo -> CompTree -> EventForest -> [Propositions]
 adb cv trace traceInfo compTree frt ps = do
   adb_stats compTree
   print $ vertexStmt cv
+  case lookupPropositions ps cv of 
+    Nothing     -> adb_interactive cv trace traceInfo compTree frt ps
+    (Just prop) -> do
+      judgement <- judge trace prop cv unjudgedCharacterCount compTree
+      case judgement of
+        (Judge Right)                    -> adb_judge cv Right trace traceInfo compTree frt ps
+        (Judge Wrong)                    -> adb_judge cv Wrong trace traceInfo compTree frt ps
+        (Judge (Assisted msgs))          -> adb_advice msgs cv trace traceInfo compTree frt ps
+        -- TODO: traceInfo ...?
+        -- (AlternativeTree newCompTree newTrace) -> do
+        --   putStrLn "Discovered simpler tree!"
+        --   let cv' = next RootVertex newCompTree
+        --   adb cv' newTrace newTrace
+
+adb_advice msgs cv trace traceInfo compTree frt ps = do
+  mapM_ putStrLn (map toString msgs)
+  adb_interactive cv trace traceInfo compTree frt ps
+    where 
+    toString (InconclusiveProperty s) = "inconclusive property: " ++ s
+    toString (PassingProperty s)      = "passing property: "      ++ s
+
+adb_interactive cv trace traceInfo compTree frt ps = do
   i <- readLine "? " ["right", "wrong", "prop", "exit"]
   case i of
     "right" -> adb_judge cv Right trace traceInfo compTree frt ps
@@ -105,6 +127,8 @@ adb cv trace traceInfo compTree frt ps = do
     "exit"  -> mainLoop cv trace traceInfo compTree frt ps
     _       -> do adb_help
                   adb cv trace traceInfo compTree frt ps
+
+
 
 adb_help :: IO ()
 adb_help = putStr
