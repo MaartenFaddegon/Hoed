@@ -229,7 +229,7 @@ debugO program =
 runO :: IO a -> IO ()
 runO program = do
   (trace,traceInfo,compTree,frt) <- runO' Verbose program
-  debugSession trace compTree frt []
+  debugSession trace compTree []
   return ()
 
 
@@ -251,7 +251,7 @@ runOwp :: [Propositions] -> IO a -> IO ()
 runOwp ps program = do
   (trace,traceInfo,compTree,frt) <- runO' Verbose program
   let compTree' = compTree
-  debugSession trace compTree' frt ps
+  debugSession trace compTree' ps
   return ()
 
 -- | Repeat and trace a failing testcase

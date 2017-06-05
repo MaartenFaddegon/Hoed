@@ -8,7 +8,6 @@ import Prelude hiding(Right)
 import Debug.Hoed.ReadLine
 import Debug.Hoed.Observe
 import Debug.Hoed.Render
-import Debug.Hoed.EventForest
 import Debug.Hoed.CompTree
 import Debug.Hoed.Prop
 import Debug.Hoed.Serialize
@@ -31,30 +30,30 @@ sortOn' f = sortBy (\x y -> compare (f x) (f y))
 #endif
 
 
-debugSession :: Trace -> CompTree -> EventForest -> [Propositions] -> IO ()
-debugSession trace tree frt ps =
+debugSession :: Trace -> CompTree -> [Propositions] -> IO ()
+debugSession trace tree ps =
   case filter (not . isRootVertex) $ vs of 
     []    -> putStrLn $ "No functions annotated with 'observe' expressions"
                         ++ "or annotated functions not evaluated"
     (v:_) -> do noBuffering
-                mainLoop v trace tree frt ps
+                mainLoop v trace tree ps
   where
   (Graph _ vs _) = tree
 
 --------------------------------------------------------------------------------
 -- main menu
 
-mainLoop :: Vertex -> Trace -> CompTree -> EventForest -> [Propositions] -> IO ()
-mainLoop cv trace compTree frt ps = do
+mainLoop :: Vertex -> Trace -> CompTree -> [Propositions] -> IO ()
+mainLoop cv trace compTree ps = do
   i <- readLine "hdb> " ["adb", "observe", "help"]
   case words i of
-    ["adb"]             -> adb cv trace compTree frt ps
+    ["adb"]             -> adb cv trace compTree ps
     ["observe", regexp] -> do printStmts compTree regexp; loop
     ["observe"]         -> do printStmts compTree ""; loop
     ["exit"]            -> return ()
     _                   -> do help; loop
   where
-  loop = mainLoop cv trace compTree frt ps
+  loop = mainLoop cv trace compTree ps
 
 help :: IO ()
 help = putStr
@@ -94,39 +93,38 @@ printStmts' vs = do
 --------------------------------------------------------------------------------
 -- algorithmic debugging
 
-adb :: Vertex -> Trace -> CompTree -> EventForest -> [Propositions] -> IO ()
-adb cv trace compTree frt ps = do
+adb :: Vertex -> Trace -> CompTree -> [Propositions] -> IO ()
+adb cv trace compTree ps = do
   adb_stats compTree
   print $ vertexStmt cv
   case lookupPropositions ps cv of 
-    Nothing     -> adb_interactive cv trace compTree frt ps
+    Nothing     -> adb_interactive cv trace compTree ps
     (Just prop) -> do
       judgement <- judge trace prop cv unjudgedCharacterCount compTree
       case judgement of
-        (Judge Right)                    -> adb_judge cv Right trace compTree frt ps
-        (Judge Wrong)                    -> adb_judge cv Wrong trace compTree frt ps
-        (Judge (Assisted msgs))          -> adb_advice msgs cv trace compTree frt ps
-        -- TODO: traceInfo ...?
-        -- (AlternativeTree newCompTree newTrace) -> do
-        --   putStrLn "Discovered simpler tree!"
-        --   let cv' = next RootVertex newCompTree
-        --   adb cv' newTrace newTrace
+        (Judge Right)                    -> adb_judge cv Right trace compTree ps
+        (Judge Wrong)                    -> adb_judge cv Wrong trace compTree ps
+        (Judge (Assisted msgs))          -> adb_advice msgs cv trace compTree ps
+        (AlternativeTree newCompTree newTrace) -> do
+           putStrLn "Discovered simpler tree!"
+           let cv' = next RootVertex newCompTree
+           adb cv' newTrace newCompTree ps
 
-adb_advice msgs cv trace compTree frt ps = do
+adb_advice msgs cv trace compTree ps = do
   mapM_ putStrLn (map toString msgs)
-  adb_interactive cv trace compTree frt ps
+  adb_interactive cv trace compTree ps
     where 
     toString (InconclusiveProperty s) = "inconclusive property: " ++ s
     toString (PassingProperty s)      = "passing property: "      ++ s
 
-adb_interactive cv trace compTree frt ps = do
+adb_interactive cv trace compTree ps = do
   i <- readLine "? " ["right", "wrong", "prop", "exit"]
   case i of
-    "right" -> adb_judge cv Right trace compTree frt ps
-    "wrong" -> adb_judge cv Wrong trace compTree frt ps
-    "exit"  -> mainLoop cv trace compTree frt ps
+    "right" -> adb_judge cv Right trace compTree ps
+    "wrong" -> adb_judge cv Wrong trace compTree ps
+    "exit"  -> mainLoop cv trace compTree ps
     _       -> do adb_help
-                  adb cv trace compTree frt ps
+                  adb cv trace compTree ps
 
 
 
@@ -149,12 +147,12 @@ adb_stats compTree = putStrLn
   vs_w = filter isWrong vs
 
 
-adb_judge :: Vertex -> Judgement -> Trace -> CompTree -> EventForest -> [Propositions] -> IO ()
-adb_judge cv jmt trace compTree frt ps = case faultyVertices compTree' of
+adb_judge :: Vertex -> Judgement -> Trace -> CompTree -> [Propositions] -> IO ()
+adb_judge cv jmt trace compTree ps = case faultyVertices compTree' of
   (v:_) -> do adb_stats compTree'
               putStrLn $ "Fault located! In:\n" ++ vertexRes v
-              mainLoop cv trace compTree' frt ps
-  []    -> adb cv_next trace compTree' frt ps
+              mainLoop cv trace compTree' ps
+  []    -> adb cv_next trace compTree' ps
   where
   cv_next     = next cv' compTree'
   compTree'   = mapGraph replaceCV compTree
