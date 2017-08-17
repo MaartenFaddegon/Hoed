@@ -68,10 +68,10 @@ library
                        , template-haskell
                        , array, containers
                        , process
-                       , threepenny-gui == 0.6.0.5
+                       , threepenny-gui
                        , filepath
-                       , libgraph == 1.11
-                       , RBTree == 0.0.5
+                       , libgraph
+                       , RBTree
                        , regex-posix
                        , mtl
                        , directory
@@ -226,23 +226,6 @@ Executable hoed-examples-Queens_v3__with_properties
     buildable: False
   main-is:             Main3.hs
   hs-source-dirs:      examples/Queens__with_properties
-  default-language:    Haskell2010
-
-Executable hoed-examples-Queens_v4_defect_in_filter__with_properties
-  if flag(buildPropExamples)
-    build-depends:       base >= 4 && < 5
-                         , Hoed
-                         , threepenny-gui == 0.6.0.5
-                         , filepath
-                         , containers
-                         , deepseq
-                         , array
-                         , QuickCheck
-                         , mtl
-  else
-    buildable: False
-  main-is:             Main.hs
-  hs-source-dirs:      examples/Queens_defective_filter__with_properties
   default-language:    Haskell2010
 
 Executable hoed-examples-filter__with_properties
