@@ -68,10 +68,10 @@ library
                        , template-haskell
                        , array, containers
                        , process
-                       , threepenny-gui == 0.6.0.5
+                       , threepenny-gui
                        , filepath
-                       , libgraph == 1.11
-                       , RBTree == 0.0.5
+                       , libgraph
+                       , RBTree
                        , regex-posix
                        , mtl
                        , directory
