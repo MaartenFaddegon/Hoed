@@ -190,7 +190,8 @@ render prec par (CDSCons _ "," cdss) | length cdss > 0 =
                             (map renderSet cdss) <>
                 text ")")
 render prec par (CDSCons _ name cdss)
-  | (not . isAlpha . head) name && length cdss > 1 = -- render as infix
+  | _:_ <- name
+  , (not . isAlpha . head) name && length cdss > 1 = -- render as infix
         paren (prec /= 0)
                   (grp
                     (renderSet' 10 False (head cdss)

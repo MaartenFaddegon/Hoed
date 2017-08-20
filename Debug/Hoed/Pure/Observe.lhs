@@ -8,7 +8,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE CPP #-}
-
+{-# LANGUAGE ConstrainedClassMethods #-}
 \end{code}
 
 The file is part of the Haskell Object Observation Debugger,
@@ -111,7 +111,7 @@ import qualified Control.Concurrent as Concurrent
 
 For the TracedMonad instance of IO:
 \begin{code}
-import GHC.Base hiding (mapM)
+import GHC.Base hiding (mapM, Type)
 \end{code}
 
 \begin{code}
@@ -424,7 +424,7 @@ gobservableInstance s qt
        c  <- case t of 
                 (ForallT _ c' _)   -> return c'
                 _                  -> return []
-       return [InstanceD (updateContext cn c) n m]
+       return [InstanceD Nothing (updateContext cn c) n m]
 
 #if __GLASGOW_HASKELL__ >= 710
 updateContext :: Name -> [Pred] -> [Pred]
@@ -454,7 +454,7 @@ gobservableBaseInstance s qt
        c  <- case t of 
                 (ForallT _ c' _)   -> return c'
                 _                  -> return []
-       return [InstanceD c n m]
+       return [InstanceD Nothing c n m]
 
 gobservableListInstance :: String -> Q [Dec]
 gobservableListInstance s
@@ -469,7 +469,7 @@ gobservableListInstance s
        c  <- case t of 
                 (ForallT _ c' _)   -> return c'
                 _                  -> return []
-       return [InstanceD c n m]
+       return [InstanceD Nothing c n m]
 
 -- MF TODO: what do we do with this?
 -- gListObserver :: String -> Q [Dec]
@@ -525,7 +525,7 @@ gfunObserver s
        c <- return [p,q]
        n <- [t| $ct $f |]
        m <- gobserverFun (methodName s)
-       return [InstanceD c n m]
+       return [InstanceD Nothing c n m]
 
 \end{code}
 
@@ -662,7 +662,7 @@ getTvbs :: Q Name -> Q [TyVarBndr]
 getTvbs name = do n <- name
                   i <- reify n
                   case i of
-                    TyConI (DataD _ _ tvbs _ _) 
+                    TyConI (DataD _ _ tvbs _ _ _) 
                       -> return tvbs
                     i
                       -> error ("getTvbs: can't reify " ++ show i)
@@ -703,7 +703,7 @@ getTvs t = do {(ForallT tvs _ _) <- t; return tvs }
 -- Given a type, get a list of constructors.
 
 getConstructors :: Q Name -> Q [Con]
-getConstructors name = do {n <- name; TyConI (DataD _ _ _ cs _)  <- reify n; return cs}
+getConstructors name = do {n <- name; TyConI (DataD _ _ _ _ cs _)  <- reify n; return cs}
 
 guniqueVariables :: Int -> Q [Name]
 guniqueVariables n = replicateM n (newName "x")
