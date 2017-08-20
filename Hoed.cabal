@@ -11,7 +11,7 @@ license:             BSD3
 license-file:        LICENSE
 author:              Maarten Faddegon
 maintainer:          hoed@maartenfaddegon.nl
-copyright:           (c) 2000 Andy Gill, (c) 2010 University of Kansas, (c) 2013-2016 Maarten Faddegon
+copyright:           (c) 2000 Andy Gill, (c) 2010 University of Kansas, (c) 2013-2017 Maarten Faddegon
 category:            Debug, Trace
 build-type:          Simple
 cabal-version:       >=1.10
@@ -60,7 +60,7 @@ library
                        , array, containers
                        , process
                        , filepath
-                       , libgraph == 1.11
+                       , libgraph == 1.13
                        , RBTree == 0.0.5
                        , regex-posix
                        , mtl

@@ -314,7 +314,10 @@ reEvalProposition (DisproveBy prop values) trc v ms = do
 
 clean = system $ "rm -f " ++ sourceFile ++ " " ++ exeFile ++ " " ++ buildFiles
 
-compile prop = system $ "ghc  -i" ++ (searchPath . propModule) prop ++ " -o " ++ exeFile ++ " " ++ sourceFile ++ " > " ++ errFile ++ " 2>&1"
+compile prop = do
+  putStrLn cmd
+  system cmd
+  where cmd = "ghc -dynamic -i" ++ (searchPath . propModule) prop ++ " -o " ++ exeFile ++ " " ++ sourceFile ++ " > " ++ errFile ++ " 2>&1"
 
 run = system $ exeFile ++ " > " ++ outFile ++ " 2>&1"
 
