@@ -52,6 +52,7 @@ Source-repository head
 library
   exposed-modules:     Debug.Hoed.Stk
                        , Debug.Hoed.Pure
+                       , Debug.Hoed.Pure.TH
                        , Debug.Hoed.NoTrace
   other-modules:       Debug.Hoed.Stk.Observe
                        , Debug.Hoed.Stk.Render
