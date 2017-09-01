@@ -36,11 +36,6 @@ script:
  - bash -x configure.Generic
  - cabal build
  - bash test.Generic
- # Test deriving a Computation Tree using the Cost Centre Stack
- - cabal clean
- - bash -x configure.Stk
- - cabal build
- - bash test.Stk
  # Test deriving a Computation Tree using the order of the list of Event
  - cabal clean
  - bash -x configure.Pure
