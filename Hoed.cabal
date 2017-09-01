@@ -876,7 +876,7 @@ Executable hoed-tests-ParEq
                          , process
                          , threepenny-gui == 0.6.0.5
                          , filepath
-                         , libgraph == 1.11
+                         , libgraph == 1.13
                          , RBTree == 0.0.5
                          , regex-posix
                          , mtl
