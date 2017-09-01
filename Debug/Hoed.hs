@@ -174,7 +174,6 @@ import Data.Char
 import System.Environment
 import System.Directory(createDirectoryIfMissing)
 
-import Language.Haskell.TH
 import GHC.Generics
 
 import Data.IORef

@@ -94,7 +94,6 @@ import Data.List
 import Data.Char
 import System.Environment
 
-import Language.Haskell.TH
 import GHC.Generics
 
 import Data.IORef

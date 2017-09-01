@@ -56,7 +56,6 @@ library
                        , Debug.Hoed.Serialize
                        , Paths_Hoed
   build-depends:       base >= 4 && <5
-                       , template-haskell
                        , array, containers
                        , process
                        , filepath
@@ -84,25 +83,25 @@ library
 --
 ---------------------------------------------------------------------------
 
-Executable hoed-examples-Raincat
-  if flag(buildExamples)
-    build-depends:      base >= 3 && < 5,
-                        containers,
-                        extensible-exceptions,
-                        mtl,
-                        random,
-                        time,
-                        GLUT,
-                        OpenGL,
-                        SDL,
-                        SDL-image,
-                        SDL-mixer,
-                        Hoed
-  else
-    buildable: False
-  main-is:             Main.hs
-  hs-source-dirs:      examples/Raincat/src
-  default-language:    Haskell2010
+-- Executable hoed-examples-Raincat
+--   if flag(buildExamples)
+--     build-depends:      base >= 3 && < 5,
+--                         containers,
+--                         extensible-exceptions,
+--                         mtl,
+--                         random,
+--                         time,
+--                         GLUT,
+--                         OpenGL,
+--                         SDL,
+--                         SDL-image,
+--                         SDL-mixer,
+--                         Hoed
+--   else
+--     buildable: False
+--   main-is:             Main.hs
+--   hs-source-dirs:      examples/Raincat/src
+--   default-language:    Haskell2010
 
 Executable hoed-examples-FPretty_indents_too_much
   if flag(buildExamples)
@@ -871,10 +870,8 @@ Executable hoed-tests-Prop-t5
 Executable hoed-tests-ParEq
   if flag(validateGeneric)
     build-depends:       base >= 4 && <5
-                         , template-haskell
                          , array, containers
                          , process
-                         , threepenny-gui == 0.6.0.5
                          , filepath
                          , libgraph == 1.13
                          , RBTree == 0.0.5
