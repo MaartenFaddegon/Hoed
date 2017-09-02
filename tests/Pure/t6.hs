@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Main where
-import Debug.Hoed.Pure
+import Debug.Hoed
 
 -- This test demonstrates that using the FPretty library we pretty print
 -- much bigger computation statements than with the previous implementation

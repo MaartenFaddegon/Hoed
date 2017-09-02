@@ -1,4 +1,4 @@
-import Debug.Hoed.Pure
+import Debug.Hoed
 
 data D = D D | C Int 
   deriving Show

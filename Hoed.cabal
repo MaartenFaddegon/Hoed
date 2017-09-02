@@ -18,6 +18,9 @@ cabal-version:       >=1.10
 extra-source-files:  changelog, README.md, configure.Demo, configure.Generic, configure.Profiling, configure.Prop, configure.Pure, run, test.Generic, test.Pure
 data-files:          img/*.png, img/*.gif
 
+source-repository head
+  type:     git
+  location: https://github.com/MaartenFaddegon/Hoed.git
 
 flag buildPropExamples
   description: Build example executables.
@@ -60,7 +63,6 @@ library
                        , process
                        , filepath
                        , libgraph == 1.13
-                       , RBTree == 0.0.5
                        , regex-posix
                        , mtl
                        , directory
@@ -874,7 +876,6 @@ Executable hoed-tests-ParEq
                          , process
                          , filepath
                          , libgraph == 1.13
-                         , RBTree == 0.0.5
                          , regex-posix
                          , mtl
                          , directory

@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
-import Debug.Hoed.Pure
+import Debug.Hoed
 
 data D = D Int 
   deriving (Show,Generic)

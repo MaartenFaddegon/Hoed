@@ -1,4 +1,4 @@
-import Debug.Hoed.Pure
+import Debug.Hoed
 
 data Expr = Mul Expr Expr | Const Int | Exc
   deriving Show

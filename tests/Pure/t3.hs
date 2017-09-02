@@ -2,7 +2,7 @@
 -- A Declarative Debugging Scheme.
 
 {-# LANGUAGE StandaloneDeriving #-}
-import Debug.Hoed.Pure
+import Debug.Hoed
 
 -- Insertion sort.
 isort :: [Int] -> [Int]

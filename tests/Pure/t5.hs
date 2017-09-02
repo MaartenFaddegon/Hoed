@@ -1,4 +1,4 @@
-import Debug.Hoed.Pure
+import Debug.Hoed
 
 f :: Maybe Int -> Int
 f = observe "f" f'

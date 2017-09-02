@@ -1,6 +1,6 @@
 -- A defective implementation of a parity function with a test property.
 
-import Debug.Hoed.Pure
+import Debug.Hoed
 
 isOdd :: Int -> Bool
 isOdd = observe "isOdd" isOdd'

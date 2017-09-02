@@ -1,4 +1,4 @@
-import Debug.Hoed.Pure
+import Debug.Hoed
 
 k :: Int -> Int
 k  = observe "k" k'

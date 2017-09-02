@@ -1,4 +1,4 @@
-import Debug.Hoed.Pure
+import Debug.Hoed
 
 plus :: Int -> Int -> Int
 plus = {- observe "plus"-} (+)
