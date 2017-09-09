@@ -57,16 +57,16 @@ library
                        , Debug.Hoed.Console
                        , Debug.Hoed.Prop
                        , Debug.Hoed.Serialize
+                       , Text.PrettyPrint.FPretty
                        , Paths_Hoed
   build-depends:       base >= 4 && <5
                        , array, containers
                        , process
                        , filepath
-                       , libgraph == 1.13
+                       , libgraph == 1.14
                        , regex-posix
                        , mtl
                        , directory
-                       , FPretty
                        , cereal, bytestring
                        , time
   default-language:    Haskell2010
@@ -875,7 +875,7 @@ Executable hoed-tests-ParEq
                          , array, containers
                          , process
                          , filepath
-                         , libgraph == 1.13
+                         , libgraph == 1.14
                          , regex-posix
                          , mtl
                          , directory
