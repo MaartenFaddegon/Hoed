@@ -657,7 +657,11 @@ instance (GParEq a, GParEq b) => GParEq (a :*: b) where
 
 -- Unit: used for constructors without arguments
 instance GParEq U1 where
+#if __GLASGOW_HASKELL__ >= 710
   gParEq x y = catchEq x y
+#else
+  gParEq _ _ = false -- err on the cautious side...
+#endif
 
 -- Constants: additional parameters and recursion of kind *
 instance (ParEq a) => GParEq (K1 i a) where
