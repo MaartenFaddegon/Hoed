@@ -657,8 +657,7 @@ instance (GParEq a, GParEq b) => GParEq (a :*: b) where
 
 -- Unit: used for constructors without arguments
 instance GParEq U1 where
-  gParEq x y = let r = gParEq_ x y in r
-    where gParEq_ x y = catchEq x y
+  gParEq x y = catchEq x y
 
 -- Constants: additional parameters and recursion of kind *
 instance (ParEq a) => GParEq (K1 i a) where
