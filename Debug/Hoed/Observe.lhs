@@ -156,9 +156,11 @@ constrainBase x c | x == c = x
 
 
 \begin{code}
+#if __GLASGOW_HASKELL__ >= 710
 instance {-# OVERLAPPABLE #-} Observable a where 
   observer = observeOpaque "<?>"
   constrain _ _ = error "contrained by untraced value"
+#endif
 \end{code}
 
 A type generic definition of constrain
