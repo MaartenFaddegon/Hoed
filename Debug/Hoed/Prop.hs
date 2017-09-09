@@ -660,7 +660,7 @@ instance GParEq U1 where
 #if __GLASGOW_HASKELL__ >= 710
   gParEq x y = catchEq x y
 #else
-  gParEq _ _ = False -- err on the cautious side...
+  gParEq _ _ = Nothing
 #endif
 
 -- Constants: additional parameters and recursion of kind *
