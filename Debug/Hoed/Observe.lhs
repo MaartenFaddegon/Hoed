@@ -1,4 +1,5 @@
 \begin{code}
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -638,13 +639,8 @@ endEventStream =
 
 sendEvent :: Int -> Parent -> Change -> IO ()
 sendEvent nodeId parent change =
-        do { nodeId `seq` parent `seq` return ()
-           ; change `seq` return ()
-           ; takeMVar sendSem
-           ; es <- readIORef events
-           ; let event = Event nodeId parent change
-           ; writeIORef events (event `seq` (event : es))
-           ; putMVar sendSem ()
+        do { let !event = Event nodeId parent change
+           ; atomicModifyIORef' events (\es -> (event : es, ()))
            }
 
 -- local
@@ -654,11 +650,6 @@ events = unsafePerformIO $ newIORef badEvents
 badEvents :: Trace
 badEvents = error "Bad Event Stream"
 
--- use as a trivial semiphore
-{-# NOINLINE sendSem #-}
-sendSem :: MVar ()
-sendSem = unsafePerformIO $ newMVar ()
--- end local
 \end{code}
 
 
@@ -677,13 +668,7 @@ initUniq :: IO ()
 initUniq = writeIORef uniq 1
 
 getUniq :: IO UID
-getUniq
-    = do { takeMVar uniqSem
-         ; n <- readIORef uniq
-         ; writeIORef uniq $! (n + 1)
-         ; putMVar uniqSem ()
-         ; return n
-         }
+getUniq = atomicModifyIORef' uniq (\n -> (n+1,n))
 
 peepUniq :: IO UID
 peepUniq = readIORef uniq
@@ -693,9 +678,6 @@ peepUniq = readIORef uniq
 uniq :: IORef UID
 uniq = unsafePerformIO $ newIORef 1
 
-{-# NOINLINE uniqSem #-}
-uniqSem :: MVar ()
-uniqSem = unsafePerformIO $ newMVar ()
 \end{code}
 
 
