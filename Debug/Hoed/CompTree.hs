@@ -1,8 +1,10 @@
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 -- This file is part of the Haskell debugger Hoed.
 --
 -- Copyright (c) Maarten Faddegon, 2015
 
-{-# LANGUAGE CPP, DeriveGeneric #-}
+{-# LANGUAGE CPP           #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Debug.Hoed.CompTree
 ( CompTree
@@ -32,18 +34,16 @@ module Debug.Hoed.CompTree
 , Graph(..) -- re-export from LibGraph
 )where
 
-import Debug.Hoed.Render
-import Debug.Hoed.Observe
-import Debug.Hoed.EventForest
+import           Debug.Hoed.EventForest
+import           Debug.Hoed.Observe
+import           Debug.Hoed.Render
 
-import Prelude hiding (Right)
-import Data.Graph.Libgraph
-import Data.List(nub,delete,(\\))
-import Data.IntMap.Strict (IntMap)
-import qualified Data.IntMap.Strict as IntMap
-import Data.IntSet (IntSet)
-import qualified Data.IntSet as IntSet
-import GHC.Generics
+import           Data.Graph.Libgraph
+import           Data.IntMap.Strict     (IntMap)
+import qualified Data.IntMap.Strict     as IntMap
+import           Data.List              (nub)
+import           GHC.Generics
+import           Prelude                hiding (Right)
 
 data Vertex = RootVertex | Vertex {vertexStmt :: CompStmt, vertexJmt :: Judgement}
   deriving (Eq,Show,Ord,Generic)
@@ -56,22 +56,30 @@ setJudgement :: Vertex -> Judgement -> Vertex
 setJudgement RootVertex _ = RootVertex
 setJudgement v          j = v{vertexJmt=j}
 
+isRight :: Vertex -> Bool
 isRight v      = getJudgement v == Right
+isWrong :: Vertex -> Bool
 isWrong v      = getJudgement v == Wrong
+isUnassessed :: Vertex -> Bool
 isUnassessed v = getJudgement v == Unassessed
+isAssisted :: Vertex -> Bool
 isAssisted v   = case getJudgement v of (Assisted _) -> True; _ -> False
 
+isInconclusive :: Vertex -> Bool
 isInconclusive v = case getJudgement v of
   (Assisted ms) -> any isInconclusive' ms
   _             -> False
+isInconclusive' :: AssistedMessage -> Bool
 isInconclusive' (InconclusiveProperty _) = True
 isInconclusive' _                        = False
 
+isPassing :: Vertex -> Bool
 isPassing v = case getJudgement v of
   (Assisted ms) -> any isPassing' ms
   _             -> False
+isPassing' :: AssistedMessage -> Bool
 isPassing' (PassingProperty _) = True
-isPassing' _                        = False
+isPassing' _                   = False
 
 vertexUID :: Vertex -> UID
 vertexUID RootVertex   = -1
@@ -89,21 +97,23 @@ isRootVertex RootVertex = True
 isRootVertex _          = False
 
 leafs :: CompTree -> [Vertex]
-leafs g = filter (\v -> succs g v == []) (vertices g)
+leafs g = filter (null . succs g) (vertices g)
 
 -- | Approximates the complexity of a computation tree by summing the length
 -- of the unjudged computation statements (i.e not Right or Wrong) in the tree.
 unjudgedCharacterCount :: CompTree -> Int
-unjudgedCharacterCount = sum . (map characterCount) . (filter unjudged) . vertices
+unjudgedCharacterCount = sum . map characterCount . filter unjudged . vertices
   where characterCount = length . stmtLabel . vertexStmt
 
+unjudged :: Vertex -> Bool
 unjudged = not . judged
-judged v = (isRight v || isWrong v)
+judged :: Vertex -> Bool
+judged v = isRight v || isWrong v
 
 replaceVertex :: CompTree -> Vertex -> CompTree
 replaceVertex g v = mapGraph f g
   where f RootVertex = RootVertex
-        f v' | (vertexUID v') == (vertexUID v) = v
+        f v' | vertexUID v' == vertexUID v = v
              | otherwise                       = v'
 
 --------------------------------------------------------------------------------
@@ -114,9 +124,9 @@ replaceVertex g v = mapGraph f g
 -- know. With nub we remove the duplicates.
 
 mkCompTree :: [CompStmt] -> [(UID,UID)] -> CompTree
-mkCompTree cs ds = Graph RootVertex (vs) as
+mkCompTree cs ds = Graph RootVertex vs as
 
-  where vs = RootVertex : map (\cs -> Vertex cs Unassessed) cs
+  where vs = RootVertex : map (`Vertex` Unassessed) cs
         as = map (\(i,j) -> Arc (findVertex i) (findVertex j) ()) (nub ds)
 
         -- A mapping from stmtUID to Vertex of all CompStmts in cs
@@ -156,19 +166,19 @@ insertCon k x = IntMap.insertWith (\[x'] xs->x':xs) k [x] -- where x == x'
 ------------------------------------------------------------------------------------------------------------------------
 
 data TraceInfo = TraceInfo
-  { topLvlFun      :: IntMap UID
+  { topLvlFun    :: IntMap UID
                    -- references from the UID of an event to the UID of the corresponding top-level Fun event
-  , locations      :: IntMap (ParentPosition -> Bool)
+  , locations    :: IntMap (ParentPosition -> Bool)
                    -- reference from parent UID and position to location
-  , computations   :: Nesting
+  , computations :: Nesting
                    -- UIDs of active and paused computations of arguments/results of Fun events
 #if defined(TRANSCRIPT)
-  , messages       :: IntMap String
+  , messages     :: IntMap String
                    -- stored depth of the stack for every event
 #endif
-  , storedStack    :: IntMap [UID]
+  , storedStack  :: IntMap [UID]
                    -- reference from parent UID and position to previous stack
-  , dependencies   :: [(UID,UID)]
+  , dependencies :: [(UID,UID)]
   }                -- the result
 
 
@@ -195,7 +205,7 @@ getTranscript es t = foldl (\acc e -> (show e ++ m e) ++ "\n" ++ acc) "" es
   where m e = case IntMap.lookup (eventUID e) ms of
           Nothing    -> ""
           (Just msg) -> "\n  " ++ msg
-        
+
         ms = messages t
 #endif
 ------------------------------------------------------------------------------------------------------------------------
@@ -204,8 +214,8 @@ getLocation :: Event -> TraceInfo -> Bool
 getLocation e s = getLocation' p
 
   where p = parentPosition . eventParent $ e
-        j = (parentUID . eventParent $ e)
-        (Just getLocation') = (IntMap.lookup j (locations s))
+        j = parentUID . eventParent $ e
+        (Just getLocation') = IntMap.lookup j (locations s)
 
 setLocation :: Event -> (ParentPosition -> Bool) -> TraceInfo -> TraceInfo
 setLocation e getLoc s = s{locations=IntMap.insert i getLoc (locations s)}
@@ -248,11 +258,7 @@ instance Show Span where
   show (Computing i) = show i
   show (Paused i)    = "(" ++ show i ++ ")"
 
-showCs :: [Span] -> String
-showCs []  = "< >"
-showCs [c] = "< " ++ show c ++ " >"
-showCs (c:cs) = foldl (\s c' -> s ++ ", " ++ show c') ("< " ++ show c) cs ++ " >"
-
+getSpanUID :: Span -> UID
 getSpanUID (Computing j) = j
 getSpanUID (Paused j)    = j
 
@@ -292,7 +298,7 @@ pause e s = m s{computations=cs}
   where i  = getTopLvlFun e s
         cs = case cs_post of
                []      -> cs_pre
-               (c:cs') -> cs_pre ++ (Paused i) : cs'
+               (_:cs') -> cs_pre ++ Paused i : cs'
         (cs_pre,cs_post)           = break isComputingI (computations s)
         isComputingI (Computing j) = i == j
         isComputingI _             = False
@@ -308,7 +314,7 @@ resume e s = m s{computations=cs}
   where i  = getTopLvlFun e s
         cs = case cs_post of
                []      -> cs_pre
-               (c:cs') -> cs_pre ++ (Computing i) : cs'
+               (_:cs') -> cs_pre ++ Computing i : cs'
         (cs_pre,cs_post)     = break isPausedI (computations s)
         isPausedI (Paused j) = i == j
         isPausedI _          = False
@@ -327,12 +333,12 @@ activeComputations s = map getSpanUID . filter isActive $ computations s
 ------------------------------------------------------------------------------------------------------------------------
 
 addDependency :: Event -> TraceInfo -> TraceInfo
-addDependency e s = m s{dependencies = case d of (Just d') -> d':dependencies s; Nothing -> dependencies s}
+addDependency _ s = m s{dependencies = case d of (Just d') -> d':dependencies s; Nothing -> dependencies s}
 
   where d = case activeComputations s of
-              []       -> Nothing
-              [n]      -> Just (-1,n)  -- top-level function detected (may later add dependency from Root)
-              (n:m:_)  -> Just (m,n)
+              []      -> Nothing
+              [n]     -> Just (-1,n)  -- top-level function detected (may later add dependency from Root)
+              (n:m:_) -> Just (m,n)
 
 #if defined(TRANSCRIPT)
         m = case d of
@@ -360,7 +366,7 @@ corToCons :: ConsMap -> Event -> Bool
 corToCons cs e = case IntMap.lookup j cs of
                     Nothing   -> False
                     (Just ps) -> p `elem` ps
-  where j = (parentUID . eventParent $ e)
+  where j = parentUID . eventParent $ e
         p = parentPosition . eventParent $ e
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -369,7 +375,7 @@ traceInfo :: Trace -> TraceInfo
 traceInfo trc = foldl loop s0 trc
 
   where s0 :: TraceInfo
-        s0 = TraceInfo IntMap.empty IntMap.empty [] 
+        s0 = TraceInfo IntMap.empty IntMap.empty []
 #if defined(TRANSCRIPT)
                        IntMap.empty
 #endif
@@ -381,27 +387,23 @@ traceInfo trc = foldl loop s0 trc
         loop :: TraceInfo -> Event -> TraceInfo
         loop s e = let loc = getLocation e s
                    in case change e of
-                        Observe{} -> setLocation e (\_->True) s
+                        Observe{} -> setLocation e (const True) s
 
-                        Fun{}     -> setLocation e (\q->case q of 0 -> not loc; 1 -> loc)
+                        Fun{}     -> setLocation e (\q-> case q of 0 -> not loc; 1 -> loc)
                                      . seeFun e $ s
 
                         -- Span start
                         Enter{}   -> if not . corToCons cs $ e then s else cpyTopLvlFun e
-                                     $ case loc of
-                                          True  -> addDependency e
-                                                   $ start e s
-                                          False -> pause e s
+                                     $ if loc then addDependency e
+                                                $ start e s else pause e s
 
                         NoEnter{} -> if not . corToCons cs $ e then s else cpyTopLvlFun e
-                                     $ case loc of
-                                          True  -> addDependency e
-                                                   $ start e s
-                                          False -> pause e s
+                                     $ if loc then addDependency e
+                                                $ start e s else pause e s
 
                         -- Span end
                         Cons{} ->  cpyTopLvlFun e
-                                   . setLocation e (\_->loc)
-                                   $ case loc of
-                                       True  -> stop e s
-                                       False -> resume e s
+                                   . setLocation e (const loc)
+                                   $ if loc then stop e s else resume e s
+
+
