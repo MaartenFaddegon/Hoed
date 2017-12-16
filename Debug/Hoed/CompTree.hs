@@ -215,7 +215,11 @@ getLocation e s = getLocation' p
 
   where p = parentPosition . eventParent $ e
         j = parentUID . eventParent $ e
-        (Just getLocation') = IntMap.lookup j (locations s)
+        getLocation' =
+          case IntMap.lookup j (locations s) of
+            Just f -> f
+            Nothing -> error $ "Could not find location for j = " ++ show j ++
+                               "\nKnown locations are: " ++ show (IntMap.keys (locations s))
 
 setLocation :: Event -> (ParentPosition -> Bool) -> TraceInfo -> TraceInfo
 setLocation e getLoc s = s{locations=IntMap.insert i getLoc (locations s)}
