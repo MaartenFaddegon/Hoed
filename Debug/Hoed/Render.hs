@@ -1,7 +1,8 @@
 -- This file is part of the Haskell debugger Hoed.
 --
 -- Copyright (c) Maarten Faddegon, 2014
-{-# LANGUAGE CPP, DeriveGeneric #-}
+{-# LANGUAGE CPP           #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Debug.Hoed.Render
 (CompStmt(..)
@@ -12,20 +13,20 @@ module Debug.Hoed.Render
 ,simplifyCDSSet
 ,noNewlines
 ) where
-import Debug.Hoed.EventForest
+import           Debug.Hoed.EventForest
 
-import Text.PrettyPrint.FPretty hiding (sep)
-import Prelude hiding(lookup)
-import Debug.Hoed.Observe
-import Data.List(sort,sortBy,partition,nub
+import           Data.Array               as Array
+import           Data.Char                (isAlpha)
+import           Data.Graph.Libgraph
+import           Data.List(sort,sortBy,partition,nub
 #if __GLASGOW_HASKELL__ >= 710
-                , sortOn
+                          , sortOn
 #endif
-                )
-import Data.Graph.Libgraph
-import Data.Array as Array
-import Data.Char(isAlpha)
-import GHC.Generics
+                          )
+import           Debug.Hoed.Observe
+import           GHC.Generics
+import           Prelude                  hiding (lookup)
+import           Text.PrettyPrint.FPretty hiding (sep)
 
 #if __GLASGOW_HASKELL__ < 710
 sortOn :: Ord b => (a -> b) -> [a] -> [a]
@@ -97,9 +98,9 @@ renderNamedTop name observeUid(OutData cds)
 
 -- local nub for sorted lists
 nubSorted :: Eq a => [a] -> [a]
-nubSorted []                  = []
+nubSorted []        = []
 nubSorted (a:a':as) | a == a' = nub (a' : as)
-nubSorted (a:as)              = a : nub as
+nubSorted (a:as)    = a : nub as
 
 -- %************************************************************************
 -- %*                                                                   *
@@ -217,9 +218,9 @@ renderSet' prec par cdss                   =
         findFn_noUIDs c = map (\(a,r,_) -> (a,r)) (findFn c)
         pairs = nub (sort (findFn_noUIDs cdss))
         -- local nub for sorted lists
-        nub []                  = []
+        nub []        = []
         nub (a:a':as) | a == a' = nub (a' : as)
-        nub (a:as)              = a : nub as
+        nub (a:as)    = a : nub as
 
 renderFn :: ([CDSSet],CDSSet) -> Doc
 renderFn (args, res)
@@ -274,7 +275,7 @@ simplifyCDS (CDSCons _ "throw"
 simplifyCDS cons@(CDSCons i str sets) =
         case spotString [cons] of
           Just str | not (null str) -> CDSCons 0 (show str) []
-          _ -> CDSCons 0 str (map simplifyCDSSet sets)
+          _        -> CDSCons 0 str (map simplifyCDSSet sets)
 
 simplifyCDS (CDSFun i a b) = CDSFun i (simplifyCDSSet a) (simplifyCDSSet b)
 
@@ -290,7 +291,7 @@ spotString [CDSCons _ ":"
            ]
         = do { ch <- case reads str of
                        [(ch,"")] -> return ch
-                       _ -> Nothing
+                       _         -> Nothing
              ; more <- spotString rest
              ; return (ch : more)
              }
@@ -319,7 +320,7 @@ cdsToOutput    fn@(CDSFun {}) = OutData fn
 
 nil = Text.PrettyPrint.FPretty.empty
 grp = Text.PrettyPrint.FPretty.group
-brk = softbreak -- Nothing, if the following still fits on the current line, otherwise newline. 
-sep = softline  -- A space, if the following still fits on the current line, otherwise newline. 
+brk = softbreak -- Nothing, if the following still fits on the current line, otherwise newline.
+sep = softline  -- A space, if the following still fits on the current line, otherwise newline.
 sp :: Doc
 sp = text " "   -- A space, always.
