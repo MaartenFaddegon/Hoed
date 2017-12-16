@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+{-# OPTIONS_GHC -fno-warn-type-defaults #-}
 {-|
 Module      : Debug.Hoed
 Description : Lighweight algorithmic debugging based on observing intermediate values.
@@ -125,7 +127,7 @@ module Debug.Hoed
   , runO'
   , judge
   , unjudgedCharacterCount
-  , CompTree(..)
+  , CompTree
   , Vertex(..)
   , CompStmt(..)
   , Judge(..)
@@ -148,39 +150,29 @@ module Debug.Hoed
   , observeBase
   , constrainBase
   , debugO
-  , CDS(..)
+  , CDS
   , Generic
   ) where
 
 
-import Debug.Hoed.Observe
-import Debug.Hoed.Render
-import Debug.Hoed.EventForest
-import Debug.Hoed.CompTree
-import Debug.Hoed.Console
-import Debug.Hoed.Prop
-import Debug.Hoed.Serialize
-import Paths_Hoed(getDataDir)
+import           Debug.Hoed.CompTree
+import           Debug.Hoed.Console
+import           Debug.Hoed.EventForest
+import           Debug.Hoed.Observe
+import           Debug.Hoed.Prop
+import           Debug.Hoed.Render
+import           Debug.Hoed.Serialize
 
-import Prelude hiding (Right)
-import qualified Prelude
-import System.Process(system)
-import System.IO
-import Data.Maybe
-import Control.Monad
-import Data.List
-import Data.Ord
-import Data.Char
-import System.Environment
-import System.Directory(createDirectoryIfMissing)
+import           Data.IORef
+import           Prelude                hiding (Right)
+import           System.Directory       (createDirectoryIfMissing)
+import           System.IO
+import           System.IO.Unsafe
 
-import GHC.Generics
+import           GHC.Generics
 
-import Data.IORef
-import System.IO.Unsafe
-import Data.Graph.Libgraph
+import           Data.Graph.Libgraph
 
-import System.Directory(createDirectoryIfMissing)
 
 
 -- %************************************************************************
@@ -195,10 +187,12 @@ import System.Directory(createDirectoryIfMissing)
 runOnce :: IO ()
 runOnce = do
   f <- readIORef firstRun
-  case f of True  -> writeIORef firstRun False
-            False -> error "It is best not to run Hoed more that once (maybe you want to restart GHCI?)"
+  if f
+    then writeIORef firstRun False
+    else error "It is best not to run Hoed more that once (maybe you want to restart GHCI?)"
 
 firstRun :: IORef Bool
+{-# NOINLINE firstRun #-}
 firstRun = unsafePerformIO $ newIORef True
 
 
@@ -209,7 +203,7 @@ debugO program =
         ; initUniq
         ; startEventStream
         ; let errorMsg e = "[Escaping Exception in Code : " ++ show e ++ "]"
-        ; ourCatchAllIO (do { program ; return () })
+        ; ourCatchAllIO (do { _ <- program ; return () })
                         (hPutStrLn stderr . errorMsg)
         ; endEventStream
         }
@@ -227,36 +221,36 @@ debugO program =
 
 runO :: IO a -> IO ()
 runO program = do
-  (trace,traceInfo,compTree,frt) <- runO' Verbose program
+  (trace,_traceInfo,compTree,_frt) <- runO' Verbose program
   debugSession trace compTree []
   return ()
 
 
 -- | Hoed internal function that stores a serialized version of the tree on disk (assisted debugging spawns new instances of Hoed).
 runOstore :: String -> IO a -> IO ()
-runOstore tag program = do 
-  (trace,traceInfo,compTree,frt) <- runO' Silent program
+runOstore tag program = do
+  (trace,_traceInfo,compTree,_frt) <- runO' Silent program
   storeTree (treeFilePath ++ tag) compTree
   storeTrace (traceFilePath ++ tag) trace
 
 -- | Repeat and trace a failing testcase
 testO :: Show a => (a->Bool) -> a -> IO ()
-testO p x = runO $ putStrLn $ if (p x) then "Passed 1 test."
-                                       else " *** Failed! Falsifiable: " ++ show x
+testO p x = runO $ putStrLn $ if p x then "Passed 1 test."
+                                     else " *** Failed! Falsifiable: " ++ show x
 
 -- | Use property based judging.
 
 runOwp :: [Propositions] -> IO a -> IO ()
 runOwp ps program = do
-  (trace,traceInfo,compTree,frt) <- runO' Verbose program
+  (trace,_traceInfo,compTree,_frt) <- runO' Verbose program
   let compTree' = compTree
   debugSession trace compTree' ps
   return ()
 
 -- | Repeat and trace a failing testcase
 testOwp :: Show a => [Propositions] -> (a->Bool) -> a -> IO ()
-testOwp ps p x = runOwp ps $ putStrLn $ 
-  if (p x) then "Passed 1 test."
+testOwp ps p x = runOwp ps $ putStrLn $
+  if p x then "Passed 1 test."
   else " *** Failed! Falsifiable: " ++ show x
 
 -- | Short for @runO . print@.
@@ -270,14 +264,14 @@ printOwp ps expr = runOwp ps (print expr)
 -- | Only produces a trace. Useful for performance measurements.
 traceOnly :: IO a -> IO ()
 traceOnly program = do
-  debugO program
+  _ <- debugO program
   return ()
 
 
 data Verbosity = Verbose | Silent
 
 condPutStrLn :: Verbosity -> String -> IO ()
-condPutStrLn Silent _  = return ()
+condPutStrLn Silent _    = return ()
 condPutStrLn Verbose msg = hPutStrLn stderr msg
 
 -- |Entry point giving you access to the internals of Hoed. Also see: runO.
@@ -303,7 +297,7 @@ runO' verbose program = do
 #if defined(TRANSCRIPT)
   writeFile ".Hoed/Transcript" (getTranscript events ti)
 #endif
-  
+
   condPutStrLn verbose "\n=== Statistics ===\n"
   let e  = length events
       n  = length eqs
@@ -333,7 +327,7 @@ logO filePath program = {- SCC "logO" -} do
 -- | As logO, but with property-based judging.
 logOwp :: UnevalHandler -> FilePath -> [Propositions] -> IO a -> IO ()
 logOwp handler filePath properties program = do
-  (trace,traceInfo,compTree,frt) <- runO' Verbose program
+  (trace,_traceInfo,compTree,_frt) <- runO' Verbose program
   hPutStrLn stderr "\n=== Evaluating assigned properties ===\n"
   compTree' <- judgeAll handler unjudgedCharacterCount trace properties compTree
   writeFile filePath (showGraph compTree')
@@ -344,3 +338,4 @@ logOwp handler filePath properties program = do
         showVertex v       = ("\"" ++ (escape . showCompStmt) v ++ "\"", "")
         showArc _          = ""
         showCompStmt s     = (show . vertexJmt) s ++ ": " ++ (show . vertexStmt) s
+
