@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 -- This file is part of the Haskell debugger Hoed.
 --
 -- Copyright (c) Maarten Faddegon, 2014
@@ -13,12 +14,10 @@ module Debug.Hoed.Render
 ,simplifyCDSSet
 ,noNewlines
 ) where
-import           Debug.Hoed.EventForest
-
+import           Control.Arrow
 import           Data.Array               as Array
 import           Data.Char                (isAlpha)
-import           Data.Graph.Libgraph
-import           Data.List(sort,sortBy,partition,nub
+import           Data.List(sort,sortBy,nub
 #if __GLASGOW_HASKELL__ >= 710
                           , sortOn
 #endif
@@ -58,15 +57,17 @@ instance Show CompStmt where
 
 noNewlines :: String -> String
 noNewlines = noNewlines' False
+noNewlines' :: Bool -> String -> String
 noNewlines' _ [] = []
 noNewlines' w (s:ss)
  | w       && (s == ' ' || s == '\n') =       noNewlines' True ss
- | (not w) && (s == ' ' || s == '\n') = ' ' : noNewlines' True ss
+ | not w && (s == ' ' || s == '\n') = ' ' : noNewlines' True ss
  | otherwise                          = s   : noNewlines' False ss
 
 ------------------------------------------------------------------------
 -- Render equations from CDS set
 
+statementWidth :: Int
 statementWidth = 110 -- 110 is good for papers (maybe make this configurable from the GUI?)
 
 renderCompStmts :: CDSSet -> [CompStmt]
@@ -79,7 +80,7 @@ renderCompStmt :: CDS -> [CompStmt]
 renderCompStmt (CDSNamed name uid set)
   = map mkStmt statements
   where statements :: [(String,UID)]
-        statements   = map (\(d,i) -> (pretty statementWidth d,i)) doc
+        statements   = map (first (pretty statementWidth)) doc
         doc          = foldl (\a b -> a ++ renderNamedTop name uid b) [] output
         output       = cdssToOutput set
 
@@ -122,7 +123,7 @@ eventsToCDS :: [Event] -> CDSSet
 eventsToCDS pairs = getChild 0 0
    where
 
-     res i = (!) out_arr i
+     res = (!) out_arr
 
      bnds = (0, length pairs)
 
@@ -138,19 +139,19 @@ eventsToCDS pairs = getChild 0 0
                 ]
 
      getNode'' ::  Int -> Event -> Change -> CDS
-     getNode'' node e change =
+     getNode'' node _e change =
        case change of
         (Observe str i) -> let chd = getChild node 0
                                in CDSNamed str (getId chd i) chd
-        (Enter)             -> CDSEntered node
-        (NoEnter)           -> CDSTerminated node
+        Enter             -> CDSEntered node
+        NoEnter           -> CDSTerminated node
         Fun                 -> CDSFun node (getChild node 0) (getChild node 1)
         (Cons portc cons)
                             -> CDSCons node cons
                                   [ getChild node n | n <- [0..(portc-1)]]
 
      getId []                  i = i
-     getId ((CDSFun i _ _ ):_) _ = i
+     getId (CDSFun i _ _:_) _    = i
      getId (_:cs)              i = getId cs i
 
      getChild :: Int -> Int -> CDSSet
@@ -162,18 +163,18 @@ eventsToCDS pairs = getChild 0 0
 
 render  :: Int -> Bool -> CDS -> Doc
 render prec par (CDSCons _ ":" [cds1,cds2]) =
-        if (par && not needParen)
+        if par && not needParen
         then doc -- dont use paren (..) because we dont want a grp here!
         else paren needParen doc
    where
         doc = grp (sep <> renderSet' 5 False cds1 <> text " : ") <>
               renderSet' 4 True cds2
         needParen = prec > 4
-render prec par (CDSCons _ "," cdss) | length cdss > 0 =
+render _prec _par (CDSCons _ "," cdss) | not (null cdss) =
         nest 2 (text "(" <> foldl1 (\ a b -> a <> text ", " <> b)
                             (map renderSet cdss) <>
                 text ")")
-render prec par (CDSCons _ name cdss)
+render prec _par (CDSCons _ name cdss)
   | _:_ <- name
   , (not . isAlpha . head) name && length cdss > 1 = -- render as infix
         paren (prec /= 0)
@@ -181,14 +182,14 @@ render prec par (CDSCons _ name cdss)
                     (renderSet' 10 False (head cdss)
                      <> sep <> text name
                      <> nest 2 (foldr (<>) nil
-                                 [ if cds == [] then nil else sep <> renderSet' 10 False cds
+                                 [ if null cds then nil else sep <> renderSet' 10 False cds
                                  | cds <- tail cdss
                                  ]
                               )
                     )
                   )
   | otherwise = -- render as prefix
-        paren (length cdss > 0 && prec /= 0)
+        paren (not (null cdss) && prec /= 0)
                  ( grp
                    (text name <> nest 2 (foldr (<>) nil
                                           [ sep <> renderSet' 10 False cds
@@ -206,12 +207,12 @@ renderSet = renderSet' 0 False
 
 renderSet' :: Int -> Bool -> CDSSet -> Doc
 renderSet' _ _      [] = text "_"
-renderSet' prec par [cons@(CDSCons {})]    = render prec par cons
-renderSet' prec par cdss                   =
-         (text "{ " <> foldl1 (\ a b -> a <> line <>
+renderSet' prec par [cons@CDSCons {}]    = render prec par cons
+renderSet' _prec _par cdss                   =
+         text "{ " <> foldl1 (\ a b -> a <> line <>
                                     text ", " <> b)
                                     (map renderFn pairs) <>
-                line <> text "}")
+                line <> text "}"
 
    where
         findFn_noUIDs :: CDSSet -> [([CDSSet],CDSSet)]
@@ -242,13 +243,14 @@ renderNamedCons name cons
 renderNamedFn :: String -> ([CDSSet],CDSSet) -> Doc
 renderNamedFn name (args,res)
   = text name <> nest 2
-     ( sep <> (foldr (\ a b -> grp (renderSet' 10 False a) <> line <> b) nil args)
+     ( sep <> foldr (\ a b -> grp (renderSet' 10 False a) <> line <> b) nil args
        <> linebreak <> grp (text "= " <> renderSet' 0 False res)
      )
 
 findFn :: CDSSet -> [([CDSSet],CDSSet, Maybe UID)]
 findFn = foldr findFn' []
 
+findFn' :: CDS -> [([CDSSet], CDSSet, Maybe UID)] -> [([CDSSet], CDSSet, Maybe UID)]
 findFn' (CDSFun i arg res) rest =
     case findFn res of
        [(args',res',_)] -> (arg : args', res', Just i) : rest
@@ -260,8 +262,9 @@ rmEntry (CDSNamed str i set) = CDSNamed str i (rmEntrySet set)
 rmEntry (CDSCons i str sets) = CDSCons i str (map rmEntrySet sets)
 rmEntry (CDSFun i a b)       = CDSFun i (rmEntrySet a) (rmEntrySet b)
 rmEntry (CDSTerminated i)    = CDSTerminated i
-rmEntry (CDSEntered i)       = error "found bad CDSEntered"
+rmEntry (CDSEntered _i)      = error "found bad CDSEntered"
 
+rmEntrySet :: [CDS] -> [CDS]
 rmEntrySet = map rmEntry . filter noEntered
   where
         noEntered (CDSEntered _) = False
@@ -272,15 +275,16 @@ simplifyCDS (CDSNamed str i set) = CDSNamed str i (simplifyCDSSet set)
 simplifyCDS (CDSCons _ "throw"
                   [[CDSCons _ "ErrorCall" set]]
             ) = simplifyCDS (CDSCons 0 "error" set)
-simplifyCDS cons@(CDSCons i str sets) =
+simplifyCDS cons@(CDSCons _i str sets) =
         case spotString [cons] of
           Just str | not (null str) -> CDSCons 0 (show str) []
           _        -> CDSCons 0 str (map simplifyCDSSet sets)
 
 simplifyCDS (CDSFun i a b) = CDSFun i (simplifyCDSSet a) (simplifyCDSSet b)
 
-simplifyCDS (CDSTerminated i) = (CDSCons i "<?>" [])
+simplifyCDS (CDSTerminated i) = CDSCons i "<?>" []
 
+simplifyCDSSet :: [CDS] -> [CDS]
 simplifyCDSSet = map simplifyCDS
 
 spotString :: CDSSet -> Maybe String
@@ -296,11 +300,11 @@ spotString [CDSCons _ ":"
              ; return (ch : more)
              }
 spotString [CDSCons _ "[]" []] = return []
-spotString other = Nothing
+spotString _other = Nothing
 
 paren :: Bool -> Doc -> Doc
-paren False doc = grp ( doc)
-paren True  doc = grp ( (text "(" <> doc <> text ")"))
+paren False doc = grp doc
+paren True  doc = grp ( text "(" <> doc <> text ")")
 
 data Output = OutLabel String CDSSet [Output]
             | OutData  CDS
@@ -309,18 +313,21 @@ data Output = OutLabel String CDSSet [Output]
 cdssToOutput :: CDSSet -> [Output]
 cdssToOutput =  map cdsToOutput
 
+cdsToOutput :: CDS -> Output
 cdsToOutput (CDSNamed name _ cdsset)
             = OutLabel name res1 res2
   where
       res1 = [ cdss | (OutData cdss) <- res ]
-      res2 = [ out  | out@(OutLabel {}) <- res ]
+      res2 = [ out  | out@OutLabel {} <- res ]
       res  = cdssToOutput cdsset
-cdsToOutput cons@(CDSCons {}) = OutData cons
-cdsToOutput    fn@(CDSFun {}) = OutData fn
+cdsToOutput cons@CDSCons {} = OutData cons
+cdsToOutput    fn@CDSFun {} = OutData fn
 
+nil :: Doc
 nil = Text.PrettyPrint.FPretty.empty
+grp :: Doc -> Doc
 grp = Text.PrettyPrint.FPretty.group
-brk = softbreak -- Nothing, if the following still fits on the current line, otherwise newline.
+sep :: Doc
 sep = softline  -- A space, if the following still fits on the current line, otherwise newline.
 sp :: Doc
 sp = text " "   -- A space, always.
