@@ -3,23 +3,22 @@
 -- Copyright (c) Maarten Faddegon, 2014-2017
 {-# LANGUAGE CPP #-}
 module Debug.Hoed.Console(debugSession) where
+import           Data.Graph.Libgraph
+import           Data.List               (findIndex, intersperse, nub, sort,
+                                          sortBy, sortOn)
+import           Debug.Hoed.CompTree
+import           Debug.Hoed.Observe
+import           Debug.Hoed.Prop
+import           Debug.Hoed.ReadLine
+import           Debug.Hoed.Render
+import           Debug.Hoed.Serialize
+import           Prelude                 hiding (Right)
 import qualified Prelude
-import Prelude hiding(Right)
-import Debug.Hoed.ReadLine
-import Debug.Hoed.Observe
-import Debug.Hoed.Render
-import Debug.Hoed.CompTree
-import Debug.Hoed.Prop
-import Debug.Hoed.Serialize
-import Text.Regex.Posix.String as Regex
-import Text.Regex.Posix
-import Text.Regex.Posix.String
-import Data.Graph.Libgraph
-import Data.List(findIndex,intersperse,nub,sort,sortBy
-#if __GLASGOW_HASKELL__ >= 710
-                , sortOn
-#endif
-                )
+import           Text.Regex.Posix
+import           Text.Regex.Posix.String as Regex
+
+
+{-# ANN module "HLint: ignore Use camelCase" #-}
 
 #if __GLASGOW_HASKELL__ < 710
 sortOn :: Ord b => (a -> b) -> [a] -> [a]
@@ -32,7 +31,7 @@ sortOn' f = sortBy (\x y -> compare (f x) (f y))
 
 debugSession :: Trace -> CompTree -> [Propositions] -> IO ()
 debugSession trace tree ps =
-  case filter (not . isRootVertex) $ vs of 
+  case filter (not . isRootVertex) vs of
     []    -> putStrLn $ "No functions annotated with 'observe' expressions"
                         ++ "or annotated functions not evaluated"
     (v:_) -> do noBuffering
@@ -72,23 +71,23 @@ printStmts (Graph _ vs _) regexp = do
   case rComp of Prelude.Left  (_, errorMessage) -> printL errorMessage
                 Prelude.Right _                 -> printR
   where
-  printL errorMessage = putStrLn errorMessage
+  printL = putStrLn
   printR
-    | vs_filtered == []  = printL $ "There are no computation statements matching \"" ++ regexp ++ "\"."
+    | null vs_filtered  = printL $ "There are no computation statements matching \"" ++ regexp ++ "\"."
     | otherwise          = printStmts' vs_filtered
   vs_filtered
     | regexp == "" = vs_sorted
     | otherwise    = filter (\v -> (noNewlines . vertexRes $ v) =~ regexp) vs_sorted
-  vs_sorted = sortOn (vertexRes) . filter (not . isRootVertex) $ vs
+  vs_sorted = sortOn vertexRes . filter (not . isRootVertex) $ vs
 
 printStmts' :: [Vertex] -> IO ()
 printStmts' vs = do
-  mapM_ print (zip [1..] vs)
+  mapM_ outp (zip [1..] vs)
   putStrLn "--------------------------------------------------------------------"
   where
-  print (n,v) = do 
+  outp (n,v) = do
     putStrLn $ "--- stmt-" ++ show n ++ " ------------------------------------------"
-    (putStrLn . show . vertexStmt) v
+    (print . vertexStmt) v
 
 --------------------------------------------------------------------------------
 -- algorithmic debugging
@@ -97,7 +96,7 @@ adb :: Vertex -> Trace -> CompTree -> [Propositions] -> IO ()
 adb cv trace compTree ps = do
   adb_stats compTree
   print $ vertexStmt cv
-  case lookupPropositions ps cv of 
+  case lookupPropositions ps cv of
     Nothing     -> adb_interactive cv trace compTree ps
     (Just prop) -> do
       judgement <- judge trace prop cv unjudgedCharacterCount compTree
@@ -111,9 +110,9 @@ adb cv trace compTree ps = do
            adb cv' newTrace newCompTree ps
 
 adb_advice msgs cv trace compTree ps = do
-  mapM_ putStrLn (map toString msgs)
+  mapM_ (putStrLn . toString) msgs
   adb_interactive cv trace compTree ps
-    where 
+    where
     toString (InconclusiveProperty s) = "inconclusive property: " ++ s
     toString (PassingProperty s)      = "passing property: "      ++ s
 
@@ -139,7 +138,7 @@ adb_help = putStr
 
 adb_stats :: CompTree -> IO ()
 adb_stats compTree = putStrLn
-  $  "======================================================================= [" 
+  $  "======================================================================= ["
   ++ show (length vs_w) ++ "-" ++ show (length vs_r) ++ "/" ++ show (length vs) ++ "]"
   where
   vs   = filter (not . isRootVertex) (vertices compTree)
@@ -173,8 +172,11 @@ next v ct = case getJudgement v of
 
 unjudged :: Vertex -> Bool
 unjudged = unjudged' . getJudgement
-  where 
+  where
   unjudged' Right = False
   unjudged' Wrong = False
   unjudged' _     = True
+
+
+
 
