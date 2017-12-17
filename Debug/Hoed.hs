@@ -294,6 +294,11 @@ runO' verbose program = do
       ct   = mkCompTree eqs ds
 
   writeFile ".Hoed/Events"     (unlines . map show . reverse $ events)
+#if defined(DEBUG)
+  writeFile ".Hoed/Cdss"       (unlines . map show $ cdss2)
+  writeFile ".Hoed/Eqs"        (unlines . map show $ eqs)
+  writeFile ".Hoed/compTree"   (unlines . map show $ eqs)
+#endif
 #if defined(TRANSCRIPT)
   writeFile ".Hoed/Transcript" (getTranscript events ti)
 #endif
