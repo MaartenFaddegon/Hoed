@@ -3,7 +3,7 @@
 {-# LANGUAGE LambdaCase                #-}
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE RecordWildCards           #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
 -- This file is part of the Haskell debugger Hoed.
 --
 -- Copyright (c) Maarten Faddegon, 2014-2017
@@ -11,9 +11,10 @@ module Debug.Hoed.Console(debugSession) where
 
 import           Control.Monad
 import           Data.Graph.Libgraph
-import           Data.List            (findIndex, intersperse, nub, sort,
-                                       sortBy, sortOn)
-import qualified Data.Map.Strict as Map
+import           Data.List                as List (findIndex, group,
+                                                   intersperse, nub, sort,
+                                                   sortBy, sortOn)
+import qualified Data.Map.Strict          as Map
 import           Data.Maybe
 import           Debug.Hoed.CompTree
 import           Debug.Hoed.Observe
@@ -21,7 +22,7 @@ import           Debug.Hoed.Prop
 import           Debug.Hoed.ReadLine
 import           Debug.Hoed.Render
 import           Debug.Hoed.Serialize
-import           Prelude              hiding (Right)
+import           Prelude                  hiding (Right)
 import qualified Prelude
 import           Text.PrettyPrint.FPretty
 import           Text.Regex.TDFA
@@ -54,10 +55,10 @@ debugSession trace tree ps =
 type Args = [String]
 
 data Run = Run
-  { cv        :: Vertex
-  , trace     :: Trace
-  , compTree  :: CompTree
-  , ps        :: [Propositions]
+  { cv       :: Vertex
+  , trace    :: Trace
+  , compTree :: CompTree
+  , ps       :: [Propositions]
   }
 
 data Command = Command
@@ -82,6 +83,11 @@ observeCommand =
     [regexp] -> Just $ \Run {..} -> True <$ printStmts compTree regexp
     _ -> Nothing
 
+listCommand =
+  Command "list" [] "List all the observables collected." $ \case
+    [] -> Just $ \Run{..} -> True <$ listStmts compTree
+    _ -> Nothing
+
 exitCommand =
   Command "exit" [] "Leave the debugging session." $ \case
     [] -> Just $ \_ -> pure False
@@ -92,7 +98,14 @@ helpCommand commands =
     [] -> Just $ \_ -> True <$ showHelp commands
     _  -> Nothing
 
-allCommands = [adbCommand, observeCommand, exitCommand, helpCommand allCommands]
+allCommands =
+  sortOn name
+    [ adbCommand
+    , listCommand
+    , observeCommand
+    , exitCommand
+    , helpCommand allCommands
+    ]
 
 showHelp commands =
   putStrLn (pretty 80 $ vcat $ zipWith compose commandsBlock descriptionsBlock)
@@ -128,6 +141,12 @@ mainLoop cv trace compTree ps = do
 
 --------------------------------------------------------------------------------
 -- observe
+
+listStmts :: CompTree -> IO ()
+listStmts (Graph _ vs _) =
+  putStrLn $ unlines $ snub [stmtLabel v | Vertex {vertexStmt = v} <- vs]
+  where
+    snub = map head . List.group . sort
 
 printStmts :: CompTree -> String -> IO ()
 printStmts (Graph _ vs _) regexp
