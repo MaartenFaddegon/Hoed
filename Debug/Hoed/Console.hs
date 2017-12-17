@@ -13,7 +13,7 @@ import           Control.Monad
 import           Data.Graph.Libgraph
 import           Data.List                as List (findIndex, group,
                                                    intersperse, nub, sort,
-                                                   sortBy, sortOn)
+                                                   sortBy)
 import qualified Data.Map.Strict          as Map
 import           Data.Maybe
 import           Debug.Hoed.CompTree
@@ -50,62 +50,46 @@ debugSession trace tree ps =
   (Graph _ vs _) = tree
 
 --------------------------------------------------------------------------------
--- main menu
+-- Execution loop
+
+type Frame state = state -> IO (Transition state)
+
+data Transition state
+  = Down (Frame state)
+  | Up   (Maybe state)
+  | Next state
+  | Same
+
+executionLoop :: [Frame state] -> state -> IO ()
+executionLoop [] _ = return ()
+executionLoop stack@(current : previous) state = do
+  transition <- current state
+  case transition of
+    Same         -> executionLoop stack state
+    Next st      -> executionLoop stack st
+    Up Nothing   -> executionLoop previous state
+    Up (Just st) -> executionLoop previous st
+    Down loop    -> executionLoop (loop : stack) state
+
+--------------------------------------------------------------------------------
+-- Commands
 
 type Args = [String]
 
-data Run = Run
-  { cv       :: Vertex
-  , trace    :: Trace
-  , compTree :: CompTree
-  , ps       :: [Propositions]
-  }
-
-data Command = Command
+data Command state = Command
   { name        :: String
   , argsDesc    :: [String]
   , commandDesc :: Doc
-  , parse       :: Args -> Maybe (Run -> IO Bool)
+  , parse       :: Args -> Maybe (state -> IO (Transition state))
   }
 
-adbCommand =
-  Command "adb" [] "Start algorithmic debugging." $ \case
-    [] -> Just $ \Run {..} -> False <$ adb cv trace compTree ps
-    _  -> Nothing
-
-observeCommand =
-  Command
-    "observe"
-    ["[regexp]"]
-    ("Print computation statements that match the regular expression." </>
-     "Omitting the expression prints all the statements.") $ \case
-    [] -> Just $ \Run {..} -> True <$ printStmts compTree ".*"
-    [regexp] -> Just $ \Run {..} -> True <$ printStmts compTree regexp
-    _ -> Nothing
-
-listCommand =
-  Command "list" [] "List all the observables collected." $ \case
-    [] -> Just $ \Run{..} -> True <$ listStmts compTree
-    _ -> Nothing
-
-exitCommand =
-  Command "exit" [] "Leave the debugging session." $ \case
-    [] -> Just $ \_ -> pure False
-    _  -> Nothing
-
-helpCommand commands =
-  Command "help" [] "Shows this help screen." $ \case
-    [] -> Just $ \_ -> True <$ showHelp commands
-    _  -> Nothing
-
-allCommands =
-  sortOn name
-    [ adbCommand
-    , listCommand
-    , observeCommand
-    , exitCommand
-    , helpCommand allCommands
-    ]
+interactiveFrame :: String -> [Command state] -> Frame state
+interactiveFrame prompt commands state = do
+  input <- readLine (prompt ++ " ") (map name commands)
+  let run = fromMaybe (\_ -> Same <$ showHelp commands) $ selectCommand input
+  run state
+  where
+    selectCommand = selectFrom commands
 
 showHelp commands =
   putStrLn (pretty 80 $ vcat $ zipWith compose commandsBlock descriptionsBlock)
@@ -117,7 +101,12 @@ showHelp commands =
     pad x = take (colWidth + 1) $ x ++ spaces
     spaces = repeat ' '
 
-selectFrom :: [Command] -> String -> Maybe (Run -> IO Bool)
+helpCommand commands =
+  Command "help" [] "Shows this help screen." $ \case
+    [] -> Just $ \_ -> Same <$ showHelp commands
+    _  -> Nothing
+
+selectFrom :: [Command state] -> String -> Maybe (state -> IO (Transition state))
 selectFrom commands =
   \case
     "" -> Nothing
@@ -128,16 +117,55 @@ selectFrom commands =
   where
     commandsMap = Map.fromList [(name c, c) | c <- commands]
 
-mainLoop :: Vertex -> Trace -> CompTree -> [Propositions] -> IO ()
-mainLoop cv trace compTree ps = do
-  i <- readLine "hdb> " (map name allCommands)
-  let run = fromMaybe (\_ -> True <$ showHelp allCommands) $ selectFromAllCommands i
-  repeat <- run runEnv
-  when repeat loop
-  where
-    runEnv = Run cv trace compTree ps
-    selectFromAllCommands = selectFrom allCommands
-    loop = mainLoop cv trace compTree ps
+
+--------------------------------------------------------------------------------
+-- main menu
+
+data State = State
+  { cv       :: Vertex
+  , trace    :: Trace
+  , compTree :: CompTree
+  , ps       :: [Propositions]
+  }
+
+adbCommand, observeCommand, listCommand, exitCommand :: Command State
+adbCommand =
+  Command "adb" [] "Start algorithmic debugging." $ \case
+    [] -> Just $ \_ -> pure $ Down adbFrame
+    _  -> Nothing
+
+observeCommand =
+  Command
+    "observe"
+    ["[regexp]"]
+    ("Print computation statements that match the regular expression." </>
+     "Omitting the expression prints all the statements.") $ \case
+    [] -> Just $ \State {..} -> Same <$ printStmts compTree ".*"
+    [regexp] -> Just $ \State {..} -> Same <$ printStmts compTree regexp
+    _ -> Nothing
+
+listCommand =
+  Command "list" [] "List all the observables collected." $ \case
+    [] -> Just $ \State{..} -> Same <$ listStmts compTree
+    _ -> Nothing
+
+exitCommand =
+  Command "exit" [] "Leave the debugging session." $ \case
+    [] -> Just $ \_ -> pure (Up Nothing)
+    _  -> Nothing
+
+mainLoopCommands =
+  sortOn name
+    [ adbCommand
+    , listCommand
+    , observeCommand
+    , exitCommand
+    , helpCommand mainLoopCommands
+    ]
+
+mainLoop cv trace compTree ps =
+  executionLoop [interactiveFrame "hdb>" mainLoopCommands] $
+  State cv trace compTree ps
 
 --------------------------------------------------------------------------------
 -- observe
@@ -176,49 +204,42 @@ printStmts' vs = do
 --------------------------------------------------------------------------------
 -- algorithmic debugging
 
-adb :: Vertex -> Trace -> CompTree -> [Propositions] -> IO ()
-adb cv trace compTree ps = do
-  adb_stats compTree
-  print $ vertexStmt cv
-  case lookupPropositions ps cv of
-    Nothing     -> adb_interactive cv trace compTree ps
-    (Just prop) -> do
-      judgement <- judge trace prop cv unjudgedCharacterCount compTree
-      case judgement of
-        (Judge Right)                    -> adb_judge cv Right trace compTree ps
-        (Judge Wrong)                    -> adb_judge cv Wrong trace compTree ps
-        (Judge (Assisted msgs))          -> adb_advice msgs cv trace compTree ps
-        (AlternativeTree newCompTree newTrace) -> do
-           putStrLn "Discovered simpler tree!"
-           let cv' = next RootVertex newCompTree
-           adb cv' newTrace newCompTree ps
+adbCommands = [judgeCommand Right, judgeCommand Wrong]
 
-adb_advice msgs cv trace compTree ps = do
-  mapM_ (putStrLn . toString) msgs
-  adb_interactive cv trace compTree ps
-    where
+judgeCommand judgement =
+  Command
+    verbatim
+    []
+    ("Judge computation statements" </>
+     text verbatim </>
+     " according to the intended behaviour/specification of the function.") $ \case
+    [] -> Just $ \st -> adb_judge judgement st
+    _  -> Nothing
+  where
+    verbatim | Right <- judgement = "right"
+             | Wrong <- judgement = "wrong"
+
+adbFrame st@State{..} = do
+      adb_stats compTree
+      print $ vertexStmt cv
+      case lookupPropositions ps cv of
+        Nothing   -> interactive st
+        Just prop -> do
+          judgement <- judge trace prop cv unjudgedCharacterCount compTree
+          case judgement of
+            (Judge Right)                    -> adb_judge Right st
+            (Judge Wrong)                    -> adb_judge Wrong st
+            (Judge (Assisted msgs))          -> do
+              mapM_ (putStrLn . toString) msgs
+              interactive st
+            (AlternativeTree newCompTree newTrace) -> do
+              putStrLn "Discovered simpler tree!"
+              let cv' = next RootVertex newCompTree
+              return $ Next $ State cv' newTrace newCompTree ps
+  where
+    interactive = interactiveFrame "?" adbCommands
     toString (InconclusiveProperty s) = "inconclusive property: " ++ s
     toString (PassingProperty s)      = "passing property: "      ++ s
-
-adb_interactive cv trace compTree ps = do
-  i <- readLine "? " ["right", "wrong", "prop", "exit"]
-  case i of
-    "right" -> adb_judge cv Right trace compTree ps
-    "wrong" -> adb_judge cv Wrong trace compTree ps
-    "exit"  -> mainLoop cv trace compTree ps
-    _       -> do adb_help
-                  adb cv trace compTree ps
-
-
-
-adb_help :: IO ()
-adb_help = putStr
-  $  "help              Print this help message.\n"
-  ++ "right             Judge computation statements right according to the\n"
-  ++ "                  intentioned behaviour/specification of the function\n"
-  ++ "wrong             Judge computation statements wrong according to the\n"
-  ++ "                  intentioned behaviour/specification of the function\n"
-  ++ "exit              Return to main menu\n"
 
 adb_stats :: CompTree -> IO ()
 adb_stats compTree = putStrLn
@@ -229,13 +250,12 @@ adb_stats compTree = putStrLn
   vs_r = filter isRight vs
   vs_w = filter isWrong vs
 
-
-adb_judge :: Vertex -> Judgement -> Trace -> CompTree -> [Propositions] -> IO ()
-adb_judge cv jmt trace compTree ps = case faultyVertices compTree' of
+adb_judge :: Judgement -> State -> IO (Transition State)
+adb_judge jmt State{..} = case faultyVertices compTree' of
   (v:_) -> do adb_stats compTree'
               putStrLn $ "Fault located! In:\n" ++ vertexRes v
-              mainLoop cv trace compTree' ps
-  []    -> adb cv_next trace compTree' ps
+              return $ Up $ Just $ State cv trace compTree' ps
+  []    -> return $ Next $ State cv_next trace compTree' ps
   where
   cv_next     = next cv' compTree'
   compTree'   = mapGraph replaceCV compTree

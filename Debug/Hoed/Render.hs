@@ -13,6 +13,7 @@ module Debug.Hoed.Render
 ,rmEntrySet
 ,simplifyCDSSet
 ,noNewlines
+,sortOn
 ) where
 import           Control.Arrow
 import           Data.Array               as Array
