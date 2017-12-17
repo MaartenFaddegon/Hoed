@@ -1,12 +1,20 @@
+{-# LANGUAGE CPP                       #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE LambdaCase                #-}
+{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 -- This file is part of the Haskell debugger Hoed.
 --
 -- Copyright (c) Maarten Faddegon, 2014-2017
-{-# LANGUAGE CPP #-}
 module Debug.Hoed.Console(debugSession) where
+
+import           Control.Monad
 import           Data.Graph.Libgraph
 import           Data.List            (findIndex, intersperse, nub, sort,
                                        sortBy, sortOn)
+import qualified Data.Map.Strict as Map
+import           Data.Maybe
 import           Debug.Hoed.CompTree
 import           Debug.Hoed.Observe
 import           Debug.Hoed.Prop
@@ -15,10 +23,11 @@ import           Debug.Hoed.Render
 import           Debug.Hoed.Serialize
 import           Prelude              hiding (Right)
 import qualified Prelude
+import           Text.PrettyPrint.FPretty
 import           Text.Regex.TDFA
 
 
-{-# ANN module "HLint: ignore Use camelCase" #-}
+{-# ANN module ("HLint: ignore Use camelCase" :: String) #-}
 
 #if __GLASGOW_HASKELL__ < 710
 sortOn :: Ord b => (a -> b) -> [a] -> [a]
@@ -42,25 +51,80 @@ debugSession trace tree ps =
 --------------------------------------------------------------------------------
 -- main menu
 
+type Args = [String]
+
+data Run = Run
+  { cv        :: Vertex
+  , trace     :: Trace
+  , compTree  :: CompTree
+  , ps        :: [Propositions]
+  }
+
+data Command = Command
+  { name        :: String
+  , argsDesc    :: [String]
+  , commandDesc :: Doc
+  , parse       :: Args -> Maybe (Run -> IO Bool)
+  }
+
+adbCommand =
+  Command "adb" [] "Start algorithmic debugging." $ \case
+    [] -> Just $ \Run {..} -> False <$ adb cv trace compTree ps
+    _  -> Nothing
+
+observeCommand =
+  Command
+    "observe"
+    ["[regexp]"]
+    ("Print computation statements that match the regular expression." </>
+     "Omitting the expression prints all the statements.") $ \case
+    [] -> Just $ \Run {..} -> True <$ printStmts compTree ".*"
+    [regexp] -> Just $ \Run {..} -> True <$ printStmts compTree regexp
+    _ -> Nothing
+
+exitCommand =
+  Command "exit" [] "Leave the debugging session." $ \case
+    [] -> Just $ \_ -> pure False
+    _  -> Nothing
+
+helpCommand commands =
+  Command "help" [] "Shows this help screen." $ \case
+    [] -> Just $ \_ -> True <$ showHelp commands
+    _  -> Nothing
+
+allCommands = [adbCommand, observeCommand, exitCommand, helpCommand allCommands]
+
+showHelp commands =
+  putStrLn (pretty 80 $ vcat $ zipWith compose commandsBlock descriptionsBlock)
+  where
+    compose c d = text (pad c) <+> align d
+    commandsBlock = [unwords (name : argsDesc) | Command {..} <- commands]
+    descriptionsBlock = map commandDesc commands
+    colWidth = maximum $ map length commandsBlock
+    pad x = take (colWidth + 1) $ x ++ spaces
+    spaces = repeat ' '
+
+selectFrom :: [Command] -> String -> Maybe (Run -> IO Bool)
+selectFrom commands =
+  \case
+    "" -> Nothing
+    xx -> do
+      let (h:t) = words xx
+      c <- Map.lookup h commandsMap
+      parse c t
+  where
+    commandsMap = Map.fromList [(name c, c) | c <- commands]
+
 mainLoop :: Vertex -> Trace -> CompTree -> [Propositions] -> IO ()
 mainLoop cv trace compTree ps = do
-  i <- readLine "hdb> " ["adb", "observe", "help"]
-  case words i of
-    ["adb"]             -> adb cv trace compTree ps
-    ["observe", regexp] -> do printStmts compTree regexp; loop
-    ["observe"]         -> do printStmts compTree ".*"; loop
-    ["exit"]            -> return ()
-    _                   -> do help; loop
+  i <- readLine "hdb> " (map name allCommands)
+  let run = fromMaybe (\_ -> True <$ showHelp allCommands) $ selectFromAllCommands i
+  repeat <- run runEnv
+  when repeat loop
   where
-  loop = mainLoop cv trace compTree ps
-
-help :: IO ()
-help = putStr
-  $  "help              Print this help message.\n"
-  ++ "observe [regexp]  Print computation statements that match the regular\n"
-  ++ "                  expression. Omitting the expression prints all statements.\n"
-  ++ "adb               Start algorithmic debugging.\n"
-  ++ "exit              leave debugging session\n"
+    runEnv = Run cv trace compTree ps
+    selectFromAllCommands = selectFrom allCommands
+    loop = mainLoop cv trace compTree ps
 
 --------------------------------------------------------------------------------
 -- observe
@@ -70,6 +134,7 @@ printStmts (Graph _ vs _) regexp
     | null vs_filtered  =
       putStrLn $ "There are no computation statements matching \"" ++ regexp ++ "\"."
     | otherwise         =
+
       printStmts' vs_filtered
   where
   rComp :: Regex = makeRegex regexp
@@ -176,6 +241,7 @@ unjudged = unjudged' . getJudgement
   unjudged' Right = False
   unjudged' Wrong = False
   unjudged' _     = True
+
 
 
 

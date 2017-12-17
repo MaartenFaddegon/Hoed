@@ -122,6 +122,7 @@ import qualified Data.Sequence as Dequeue (empty)
   -- on Functional Data Structures.
   -- Efficiency probably similar, but Data.Sequence is part of the standard Haskell 
   -- libraries.
+import Data.String
 
 infixr 6 <>,<+>
 infixr 5 <$>,<$$>,</>,<//>
@@ -247,6 +248,9 @@ data Doc = Text Int String  -- includes length of text string
          | Nest Int Doc     -- increase current indentation
          | Align Int Doc    -- set indentation to current column plus increment
   deriving Show
+
+instance IsString Doc where
+  fromString = text
 
 empty = Nil
 text t = Text (length t) t
