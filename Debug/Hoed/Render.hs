@@ -71,7 +71,7 @@ statementWidth :: Int
 statementWidth = 110 -- 110 is good for papers (maybe make this configurable from the GUI?)
 
 renderCompStmts :: CDSSet -> [CompStmt]
-renderCompStmts = foldl (\acc set -> acc ++ renderCompStmt set) []
+renderCompStmts = concatMap renderCompStmt
 
 -- renderCompStmt: an observed function can be applied multiple times, each application
 -- is rendered to a computation statement
@@ -81,21 +81,22 @@ renderCompStmt (CDSNamed name uid set)
   = map mkStmt statements
   where statements :: [(String,UID)]
         statements   = map (first (pretty statementWidth)) doc
-        doc          = foldl (\a b -> a ++ renderNamedTop name uid b) [] output
+        doc          = concatMap (renderNamedTop name uid) output
         output       = cdssToOutput set
 
         mkStmt :: (String,UID) -> CompStmt
         mkStmt (s,i) = CompStmt name i s
+renderCompStmt other = error $ show other
 
 renderNamedTop :: String -> UID -> Output -> [(Doc,UID)]
-renderNamedTop name observeUid(OutData cds)
+renderNamedTop name observeUid (OutData cds)
   =  map f pairs
   where f (args,res,Just i) = (renderNamedFn name (args,res), i)
         f (_,cons,Nothing)  = (renderNamedCons name cons, observeUid)
         pairs  = (nubSorted . sortOn argAndRes) pairs'
         pairs' = findFn [cds]
         argAndRes (arg,res,_) = (arg,res)
-
+renderNamedTop name _ other = error $ show other
 
 -- local nub for sorted lists
 nubSorted :: Eq a => [a] -> [a]
