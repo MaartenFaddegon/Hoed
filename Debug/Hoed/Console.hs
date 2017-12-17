@@ -1,21 +1,21 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 -- This file is part of the Haskell debugger Hoed.
 --
 -- Copyright (c) Maarten Faddegon, 2014-2017
 {-# LANGUAGE CPP #-}
 module Debug.Hoed.Console(debugSession) where
 import           Data.Graph.Libgraph
-import           Data.List               (findIndex, intersperse, nub, sort,
-                                          sortBy, sortOn)
+import           Data.List            (findIndex, intersperse, nub, sort,
+                                       sortBy, sortOn)
 import           Debug.Hoed.CompTree
 import           Debug.Hoed.Observe
 import           Debug.Hoed.Prop
 import           Debug.Hoed.ReadLine
 import           Debug.Hoed.Render
 import           Debug.Hoed.Serialize
-import           Prelude                 hiding (Right)
+import           Prelude              hiding (Right)
 import qualified Prelude
-import           Text.Regex.Posix
-import           Text.Regex.Posix.String as Regex
+import           Text.Regex.TDFA
 
 
 {-# ANN module "HLint: ignore Use camelCase" #-}
@@ -66,19 +66,19 @@ help = putStr
 -- observe
 
 printStmts :: CompTree -> String -> IO ()
-printStmts (Graph _ vs _) regexp = do
-  rComp <- Regex.compile defaultCompOpt defaultExecOpt regexp
-  case rComp of Prelude.Left  (_, errorMessage) -> printL errorMessage
-                Prelude.Right _                 -> printR
+printStmts (Graph _ vs _) regexp
+    | null vs_filtered  =
+      putStrLn $ "There are no computation statements matching \"" ++ regexp ++ "\"."
+    | otherwise         =
+      printStmts' vs_filtered
   where
-  printL = putStrLn
-  printR
-    | null vs_filtered  = printL $ "There are no computation statements matching \"" ++ regexp ++ "\"."
-    | otherwise          = printStmts' vs_filtered
+  rComp :: Regex = makeRegex regexp
   vs_filtered
     | regexp == "" = vs_sorted
-    | otherwise    = filter (\v -> (noNewlines . vertexRes $ v) =~ regexp) vs_sorted
+    | otherwise    = filter (\v -> (noNewlines . vertexRes $ v) =~ rComp) vs_sorted
   vs_sorted = sortOn vertexRes . filter (not . isRootVertex) $ vs
+
+  str =~ reg = match reg str
 
 printStmts' :: [Vertex] -> IO ()
 printStmts' vs = do

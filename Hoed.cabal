@@ -41,7 +41,7 @@ library
                        , process
                        , filepath
                        , libgraph == 1.14
-                       , regex-posix
+                       , regex-tdfa
                        , mtl
                        , directory
                        , cereal, bytestring
