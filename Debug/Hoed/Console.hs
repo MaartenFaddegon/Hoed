@@ -48,7 +48,7 @@ mainLoop cv trace compTree ps = do
   case words i of
     ["adb"]             -> adb cv trace compTree ps
     ["observe", regexp] -> do printStmts compTree regexp; loop
-    ["observe"]         -> do printStmts compTree ""; loop
+    ["observe"]         -> do printStmts compTree ".*"; loop
     ["exit"]            -> return ()
     _                   -> do help; loop
   where
