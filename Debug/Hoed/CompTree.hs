@@ -41,7 +41,7 @@ import           Debug.Hoed.Render
 import           Data.Graph.Libgraph
 import           Data.IntMap.Strict     (IntMap)
 import qualified Data.IntMap.Strict     as IntMap
-import           Data.List              (nub)
+import           Data.List              (group, sort)
 import           GHC.Generics
 import           Prelude                hiding (Right)
 
@@ -127,7 +127,9 @@ mkCompTree :: [CompStmt] -> [(UID,UID)] -> CompTree
 mkCompTree cs ds = Graph RootVertex vs as
 
   where vs = RootVertex : map (`Vertex` Unassessed) cs
-        as = map (\(i,j) -> Arc (findVertex i) (findVertex j) ()) (nub ds)
+        as = map (\(i,j) -> Arc (findVertex i) (findVertex j) ()) (snub ds)
+
+        snub = map head . group . sort
 
         -- A mapping from stmtUID to Vertex of all CompStmts in cs
         vMap :: IntMap Vertex
