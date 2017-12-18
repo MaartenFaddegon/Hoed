@@ -219,7 +219,12 @@ judgeCommand judgement =
     verbatim | Right <- judgement = "right"
              | Wrong <- judgement = "wrong"
 
-adbFrame st@State{..} = do
+adbFrame st@State{..} =
+  case cv of
+    RootVertex -> do
+      putStrLn "Out of vertexes"
+      return $ Up Nothing
+    _ -> do
       adb_stats compTree
       print $ vertexStmt cv
       case lookupPropositions ps cv of
