@@ -2,7 +2,6 @@
 -- This file is part of the Haskell debugger Hoed.
 --
 -- Copyright (c) Maarten Faddegon, 2014
-{-# LANGUAGE CPP           #-}
 {-# LANGUAGE DeriveGeneric #-}
 
 module Debug.Hoed.Render
@@ -18,23 +17,13 @@ module Debug.Hoed.Render
 import           Control.Arrow
 import           Data.Array               as Array
 import           Data.Char                (isAlpha)
-import           Data.List(sort,sortBy,nub
-#if __GLASGOW_HASKELL__ >= 710
-                          , sortOn
-#endif
-                          )
+import           Data.List(sort,sortBy,nub)
+import           Debug.Hoed.Compat
 import           Debug.Hoed.Observe
 import           GHC.Generics
 import           Prelude                  hiding (lookup)
 import           Text.PrettyPrint.FPretty hiding (sep)
 
-#if __GLASGOW_HASKELL__ < 710
-sortOn :: Ord b => (a -> b) -> [a] -> [a]
-sortOn f  = map snd . sortOn' fst .  map (\x -> (f x, x))
-
-sortOn' :: Ord b => (a -> b) -> [a] -> [a]
-sortOn' f = sortBy (\x y -> compare (f x) (f y))
-#endif
 
 ------------------------------------------------------------------------
 -- The CompStmt type

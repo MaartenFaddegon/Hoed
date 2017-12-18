@@ -5,6 +5,7 @@ module Debug.Hoed.TH where
 
 import           Control.Monad
 import           Debug.Hoed
+import           Debug.Hoed.Compat
 import           Language.Haskell.TH
 
 -- | A handy TH wrapper for observing functions.

@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP                       #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE LambdaCase                #-}
 {-# LANGUAGE OverloadedStrings         #-}
@@ -16,6 +15,7 @@ import           Data.List                as List (findIndex, group,
                                                    sortBy)
 import qualified Data.Map.Strict          as Map
 import           Data.Maybe
+import           Debug.Hoed.Compat
 import           Debug.Hoed.CompTree
 import           Debug.Hoed.Observe
 import           Debug.Hoed.Prop
@@ -29,15 +29,6 @@ import           Text.Regex.TDFA
 
 
 {-# ANN module ("HLint: ignore Use camelCase" :: String) #-}
-
-#if __GLASGOW_HASKELL__ < 710
-sortOn :: Ord b => (a -> b) -> [a] -> [a]
-sortOn f  = map snd . sortOn' fst .  map (\x -> (f x, x))
-
-sortOn' :: Ord b => (a -> b) -> [a] -> [a]
-sortOn' f = sortBy (\x y -> compare (f x) (f y))
-#endif
-
 
 debugSession :: Trace -> CompTree -> [Propositions] -> IO ()
 debugSession trace tree ps =
@@ -62,13 +53,13 @@ data Transition state
 
 executionLoop :: [Frame state] -> state -> IO ()
 executionLoop [] _ = return ()
-executionLoop stack@(current : previous) state = do
-  transition <- current state
+executionLoop stack@(runFrame : parents) state = do
+  transition <- runFrame state
   case transition of
     Same         -> executionLoop stack state
     Next st      -> executionLoop stack st
-    Up Nothing   -> executionLoop previous state
-    Up (Just st) -> executionLoop previous st
+    Up Nothing   -> executionLoop parents state
+    Up (Just st) -> executionLoop parents st
     Down loop    -> executionLoop (loop : stack) state
 
 --------------------------------------------------------------------------------
@@ -131,7 +122,7 @@ data State = State
 adbCommand, observeCommand, listCommand, exitCommand :: Command State
 adbCommand =
   Command "adb" [] "Start algorithmic debugging." $ \case
-    [] -> Just $ \_ -> pure $ Down adbFrame
+    [] -> Just $ \_ -> return $ Down adbFrame
     _  -> Nothing
 
 observeCommand =
@@ -151,7 +142,7 @@ listCommand =
 
 exitCommand =
   Command "exit" [] "Leave the debugging session." $ \case
-    [] -> Just $ \_ -> pure (Up Nothing)
+    [] -> Just $ \_ -> return (Up Nothing)
     _  -> Nothing
 
 mainLoopCommands =
