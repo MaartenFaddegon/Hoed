@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 -- This file is part of the Haskell debugger Hoed.
 --
@@ -6,6 +7,8 @@
 
 module Debug.Hoed.Render
 (CompStmt(..)
+,StmtDetails(..)
+,stmtRes
 ,renderCompStmts
 ,CDS
 ,eventsToCDS
@@ -37,9 +40,22 @@ import           Text.PrettyPrint.FPretty hiding (sep)
 
 data CompStmt = CompStmt { stmtLabel      :: String
                          , stmtIdentifier :: UID
-                         , stmtRes        :: String
+                         , stmtDetails    :: StmtDetails
                          }
-                deriving (Eq,Ord,Generic)
+                deriving (Generic)
+
+instance Eq CompStmt where c1 == c2 = stmtIdentifier c1 == stmtIdentifier c2
+instance Ord CompStmt where
+  compare c1 c2 = compare (stmtIdentifier c1) (stmtIdentifier c2)
+
+data StmtDetails
+  = StmtCon !String
+  | StmtLam !String
+  deriving (Generic)
+
+stmtRes :: CompStmt -> String
+stmtRes CompStmt {stmtDetails = StmtLam x} = x
+stmtRes CompStmt {stmtDetails = StmtCon x} = x
 
 instance Show CompStmt where
   show = stmtRes
@@ -67,25 +83,27 @@ renderCompStmts = concatMap renderCompStmt
 -- is rendered to a computation statement
 
 renderCompStmt :: CDS -> [CompStmt]
-renderCompStmt (CDSNamed name uid set)
-  = map mkStmt statements
-  where statements :: [(String,UID)]
-        statements   = map (first (pretty statementWidth)) doc
-        doc          = concatMap (renderNamedTop name uid) output
+renderCompStmt (CDSNamed name uid set) = statements
+  where statements :: [CompStmt]
+        statements   = concatMap (renderNamedTop name uid) output
         output       = cdssToOutput set
 
-        mkStmt :: (String,UID) -> CompStmt
+        mkStmt :: (StmtDetails,UID) -> CompStmt
         mkStmt (s,i) = CompStmt name i s
 renderCompStmt other = error $ show other
 
-renderNamedTop :: String -> UID -> Output -> [(Doc,UID)]
-renderNamedTop name observeUid (OutData cds)
-  =  map f pairs
-  where f (args,res,Just i) = (renderNamedFn name (args,res), i)
-        f (_,cons,Nothing)  = (renderNamedCons name cons, observeUid)
-        pairs  = (nubSorted . sortOn argAndRes) pairs'
-        pairs' = findFn [cds]
-        argAndRes (arg,res,_) = (arg,res)
+renderNamedTop :: String -> UID -> Output -> [CompStmt]
+renderNamedTop name observeUid (OutData cds) = map f pairs
+  where
+    f (args, res, Just i) =
+      CompStmt name i $
+      StmtLam $ pretty statementWidth $ renderNamedFn name (args, res)
+    f (_, cons, Nothing) =
+      CompStmt name observeUid $
+      StmtCon $ pretty statementWidth $ renderSet' 0 False cons
+    pairs = (nubSorted . sortOn argAndRes) pairs'
+    pairs' = findFn [cds]
+    argAndRes (arg, res, _) = (arg, res)
 renderNamedTop name _ other = error $ show other
 
 -- local nub for sorted lists
@@ -158,13 +176,13 @@ render prec par (CDSCons _ ":" [cds1,cds2]) =
         then doc -- dont use paren (..) because we dont want a grp here!
         else paren needParen doc
    where
-        doc = grp (sep <> renderSet' 5 False cds1 <> text " : ") <>
+        doc = grp (sep <> renderSet' 5 False cds1 <> " : ") <>
               renderSet' 4 True cds2
         needParen = prec > 4
 render _prec _par (CDSCons _ "," cdss) | not (null cdss) =
-        nest 2 (text "(" <> foldl1 (\ a b -> a <> text ", " <> b)
+        nest 2 ("(" <> foldl1 (\ a b -> a <> ", " <> b)
                             (map renderSet cdss) <>
-                text ")")
+                ")")
 render prec _par (CDSCons _ name cdss)
   | _:_ <- name
   , (not . isAlpha . head) name && length cdss > 1 = -- render as infix
@@ -197,13 +215,13 @@ renderSet :: CDSSet -> Doc
 renderSet = renderSet' 0 False
 
 renderSet' :: Int -> Bool -> CDSSet -> Doc
-renderSet' _ _      [] = text "_"
+renderSet' _ _      [] = "_"
 renderSet' prec par [cons@CDSCons {}]    = render prec par cons
 renderSet' _prec _par cdss                   =
-         text "{ " <> foldl1 (\ a b -> a <> line <>
-                                    text ", " <> b)
+         "{ " <> foldl1 (\ a b -> a <> line <>
+                                    ", " <> b)
                                     (map renderFn pairs) <>
-                line <> text "}"
+                line <> "}"
 
    where
         findFn_noUIDs :: CDSSet -> [([CDSSet],CDSSet)]
@@ -217,27 +235,26 @@ renderSet' _prec _par cdss                   =
 renderFn :: ([CDSSet],CDSSet) -> Doc
 renderFn (args, res)
         = grp  (nest 3
-                (text "\\ " <>
+                ("\\ " <>
                  foldr (\ a b -> nest 0 (renderSet' 10 False a) <> sp <> b)
                        nil
                        args <> sep <>
-                 text "-> " <> renderSet' 0 False res
+                 "-> " <> renderSet' 0 False res
                 )
                )
-
-renderNamedCons :: String -> CDSSet -> Doc
-renderNamedCons name cons
-  = text name <> nest 2
-     ( sep <> linebreak <> grp (text "= " <> renderSet' 0 False cons)
-     )
 
 renderNamedFn :: String -> ([CDSSet],CDSSet) -> Doc
 renderNamedFn name (args,res)
   = text name <> nest 2
      ( sep <> foldr (\ a b -> grp (renderSet' 10 False a) <> line <> b) nil args
-       <> linebreak <> grp (text "= " <> renderSet' 0 False res)
+       <> linebreak <> grp ("= " <> renderSet' 0 False res)
      )
 
+-- | Reconstructs functional values from a CDSSet.
+--   Returns a triple containing:
+--    1. The arguments, if any, or an empty list for non function values
+--    2. The result
+--    3. The id of the CDSFun, if a functional value.
 findFn :: CDSSet -> [([CDSSet],CDSSet, Maybe UID)]
 findFn = foldr findFn' []
 
@@ -295,7 +312,7 @@ spotString _other = Nothing
 
 paren :: Bool -> Doc -> Doc
 paren False doc = grp doc
-paren True  doc = grp ( text "(" <> doc <> text ")")
+paren True  doc = grp ( "(" <> doc <> ")")
 
 data Output = OutLabel String CDSSet [Output]
             | OutData  CDS
@@ -321,4 +338,4 @@ grp = Text.PrettyPrint.FPretty.group
 sep :: Doc
 sep = softline  -- A space, if the following still fits on the current line, otherwise newline.
 sp :: Doc
-sp = text " "   -- A space, always.
+sp = " "   -- A space, always.

@@ -1,5 +1,6 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE LambdaCase                #-}
+{-# LANGUAGE NamedFieldPuns            #-}
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
@@ -9,12 +10,13 @@
 module Debug.Hoed.Console(debugSession) where
 
 import           Control.Monad
-import           Data.Graph.Libgraph
+import           Data.Graph.Libgraph      as G
 import           Data.List                as List (findIndex, group,
                                                    intersperse, nub, sort,
                                                    sortBy)
 import qualified Data.Map.Strict          as Map
 import           Data.Maybe
+import qualified Data.Set                 as Set
 import           Debug.Hoed.Compat
 import           Debug.Hoed.CompTree
 import           Debug.Hoed.Observe
@@ -163,34 +165,67 @@ mainLoop cv trace compTree ps =
 
 listStmts :: CompTree -> IO ()
 listStmts (Graph _ vs _) =
-  putStrLn $ unlines $ snub [stmtLabel v | Vertex {vertexStmt = v} <- vs]
+  putStrLn $
+  unlines $
+  snub
+    [ stmtLabel v
+    | Vertex {vertexStmt = v@CompStmt {stmtDetails = StmtLam {}}} <- vs
+    ]
   where
     snub = map head . List.group . sort
 
 printStmts :: CompTree -> String -> IO ()
-printStmts (Graph _ vs _) regexp
+printStmts g regexp
     | null vs_filtered  =
       putStrLn $ "There are no computation statements matching \"" ++ regexp ++ "\"."
-    | otherwise         =
-
-      printStmts' vs_filtered
+    | otherwise         = printStmts' vs_filtered
   where
-  rComp :: Regex = makeRegex regexp
-  vs_filtered
-    | regexp == "" = vs_sorted
-    | otherwise    = filter (\v -> (noNewlines . vertexRes $ v) =~ rComp) vs_sorted
-  vs_sorted = sortOn vertexRes . filter (not . isRootVertex) $ vs
+  vs_filtered = nodesMatching regexp g
 
-  str =~ reg = match reg str
-
-printStmts' :: [Vertex] -> IO ()
-printStmts' vs = do
-  mapM_ outp (zip [1..] vs)
-  putStrLn "--------------------------------------------------------------------"
+nodesMatching :: String -> CompTree -> [CompTree]
+nodesMatching regexp g@(Graph _ vs _) = map (`subGraphFrom` g) vsFiltered
   where
-  outp (n,v) = do
-    putStrLn $ "--- stmt-" ++ show n ++ " ------------------------------------------"
-    (print . vertexStmt) v
+    vsFiltered
+      | regexp == "" = vs_sorted
+      | otherwise =
+        filter (\v -> (noNewlines . vertexRes $ v) =~ rComp) vs_sorted
+    rComp :: Regex = makeRegex regexp
+    vs_sorted = sortOn vertexRes . filter vertexOfInterest $ vs
+    vertexOfInterest Vertex{vertexStmt=CompStmt{stmtDetails=StmtLam{}}} = True
+    vertexOfInterest _ = False
+    str =~ reg = match reg str
+
+subGraphFrom :: Ord v => v -> Graph v a -> Graph v a
+subGraphFrom v g = Graph {root = v, vertices = filteredV, arcs = filteredA}
+  where
+    filteredV = getPreorder $ getDfs g {G.root = v}
+    filteredSet = Set.fromList filteredV
+    filteredA =
+      [ a
+      | a <- arcs g
+      , Set.member (source a) filteredSet && Set.member (target a) filteredSet
+      ]
+
+printStmts' :: [CompTree] -> IO ()
+printStmts' gs = do
+  forM_ (zip [1 ..] gs) $ \(n, g) -> do
+    putStrLn $
+      "--- stmt-" ++ show n ++ " ------------------------------------------"
+    (print . vertexStmt) (G.root g)
+    let locals =
+          [ (stmtLabel, c)
+          | Vertex {vertexStmt = CompStmt {stmtDetails = StmtCon c, stmtLabel}} <-
+              succs g (G.root g)
+          ]
+    unless (null locals) $ do
+      putStrLn "  where"
+      forM_ (succs g (G.root g)) $ \v ->
+        case v of
+          Vertex {vertexStmt = CompStmt {stmtDetails = StmtCon c, stmtLabel}} ->
+            putStrLn ("    " ++ stmtLabel ++ " = " ++ c)
+          _ -> return ()
+  putStrLn
+    "--------------------------------------------------------------------"
 
 --------------------------------------------------------------------------------
 -- algorithmic debugging
