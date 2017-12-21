@@ -48,5 +48,6 @@ library
                        , cereal, bytestring
                        , template-haskell
                        , time
+                       , uniplate
   default-language:    Haskell2010
   cpp-options:         -DDEBUG
