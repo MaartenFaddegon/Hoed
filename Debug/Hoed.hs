@@ -400,12 +400,6 @@ logO filePath program = {- SCC "logO" -} do
   writeFile filePath (showGraph hoedCompTree)
   return ()
 
-  where showGraph g        = showWith g showVertex showArc
-        showVertex RootVertex = ("\".\"","shape=none")
-        showVertex v       = ("\"" ++ (escape . showCompStmt) v ++ "\"", "")
-        showArc _          = ""
-        showCompStmt       = show . vertexStmt
-
 -- | As logO, but with property-based judging.
 logOwp :: UnevalHandler -> FilePath -> [Propositions] -> IO a -> IO ()
 logOwp handler filePath properties program = do

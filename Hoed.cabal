@@ -50,6 +50,7 @@ library
                        , directory
                        , cereal, bytestring
                        , QuickCheck
+                       , open-browser
                        , primitive
                        , semigroups
                        , strict

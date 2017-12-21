@@ -1,15 +1,15 @@
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE LambdaCase                #-}
-{-# LANGUAGE NamedFieldPuns            #-}
-{-# LANGUAGE OverloadedStrings         #-}
-{-# LANGUAGE RecordWildCards           #-}
-{-# LANGUAGE ScopedTypeVariables       #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE NamedFieldPuns    #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE ViewPatterns      #-}
 -- This file is part of the Haskell debugger Hoed.
 --
 -- Copyright (c) Maarten Faddegon, 2014-2017
-module Debug.Hoed.Console(debugSession) where
+module Debug.Hoed.Console(debugSession, showGraph) where
 
 import           Control.Monad
+import           Data.Char
 import           Data.Graph.Libgraph      as G
 import           Data.List                as List (group, nub, sort)
 import qualified Data.Map.Strict          as Map
@@ -21,9 +21,16 @@ import           Debug.Hoed.Observe
 import           Debug.Hoed.Prop
 import           Debug.Hoed.ReadLine
 import           Debug.Hoed.Render
+import           Debug.Hoed.Serialize
+import           Prelude                  hiding (Right)
+import           System.Directory
+import           System.Exit
+import           System.IO
+import           System.Process
 import           Text.PrettyPrint.FPretty
 import           Text.Regex.TDFA
-import           Prelude                  hiding (Right)
+import           Web.Browser
+
 
 {-# ANN module ("HLint: ignore Use camelCase" :: String) #-}
 
@@ -118,7 +125,7 @@ data State = State
   , ps       :: [Propositions]
   }
 
-adbCommand, observeCommand, listCommand, exitCommand :: Command State
+adbCommand, graphCommand, observeCommand, listCommand, exitCommand :: Command State
 adbCommand =
   Command "adb" [] "Start algorithmic debugging." $ \case
     [] -> Just $ \_ -> return $ Down adbFrame
@@ -140,6 +147,13 @@ listCommand =
       let regexp = makeRegex $ case args of [] -> ".*" ; _ -> unwords args
       in Same <$ listStmts compTree regexp
 
+graphCommand =
+  Command "graph" ["regexp"]
+    ("Show the computation graph of an expression." </>
+     "Requires graphviz dotp.") $ \case
+        regexp -> Just $ \State{..} -> Same <$ graphStmts (unwords regexp) compTree
+
+
 exitCommand =
   Command "exit" [] "Leave the debugging session." $ \case
     [] -> Just $ \_ -> return (Up Nothing)
@@ -149,6 +163,7 @@ mainLoopCommands :: [Command State]
 mainLoopCommands =
   sortOn name
     [ adbCommand
+    , graphCommand
     , listCommand
     , observeCommand
     , exitCommand
@@ -207,6 +222,8 @@ subGraphFrom v g = Graph {root = v, vertices = filteredV, arcs = filteredA}
 
 --------------------------------------------------------------------------------
 -- observe
+
+
 printStmts :: CompTree -> String -> IO ()
 printStmts g regexp
     | null vs_filtered  =
@@ -242,6 +259,43 @@ printStmt g = unlines $
           | Vertex {vertexStmt = c@CompStmt {stmtDetails = StmtLam{}}} <-
               succs g (G.root g)
           ]
+
+--------------------------------------------------------------------------
+-- graph
+graphStmts :: String -> CompTree -> IO ()
+graphStmts "" g = renderAndOpen g
+graphStmts (makeRegex -> r) g = do
+          let matches =
+                map subGraphFromRoot $
+                selectVertices (\v -> matchRegex r v && isRelevantToUser g v) g
+          case matches of
+            [one] -> renderAndOpen one
+            _ ->
+              putStrLn "More than one match, please select only one expression."
+
+renderAndOpen g = do
+  tempDir <- getTemporaryDirectory
+  (tempFile, hTempFile) <- openTempFile tempDir "hoed.png"
+  hClose hTempFile
+  cmd "dot" ["-Tpng", "-o", tempFile] (showGraph g)
+  _success <- openBrowser ("file:///" ++ tempFile)
+  return ()
+
+showGraph g = showWith g showVertex showArc
+  where
+    showVertex RootVertex = ("\".\"", "shape=none")
+    showVertex v          = ("\"" ++ (escape . showCompStmt) v ++ "\"", "")
+    showArc _ = ""
+    showCompStmt = show . vertexStmt
+
+cmd line args inp = do
+  putStrLn $ unwords (line:args)
+  (exit, stdout, stderr) <- readProcessWithExitCode line args inp
+  unless (exit == ExitSuccess) $ do
+    putStrLn $ "Failed with code: " ++ show exit
+    putStrLn stdout
+    putStrLn stderr
+  return exit
 
 --------------------------------------------------------------------------------
 -- algorithmic debugging
