@@ -133,13 +133,15 @@ observeCommand =
     ["[regexp]"]
     ("Print computation statements that match the regular expression." </>
      "Omitting the expression prints all the statements.") $ \case
-    [] -> Just $ \State {..} -> Same <$ printStmts compTree ".*"
-    regexp -> Just $ \State {..} -> Same <$ printStmts compTree (unwords regexp)
+    args -> Just $ \State {..} ->
+      let regexp = case args of [] -> ".*" ; _ -> unwords args
+      in Same <$ printStmts compTree regexp
 
 listCommand =
-  Command "list" [] "List all the observables collected." $ \case
-    [] -> Just $ \State{..} -> Same <$ listStmts compTree
-    _ -> Nothing
+  Command "list" [] "List all the observables collected." $
+    \args -> Just $ \State{..} ->
+      let regexp = makeRegex $ case args of [] -> ".*" ; _ -> unwords args
+      in Same <$ listStmts compTree regexp
 
 exitCommand =
   Command "exit" [] "Leave the debugging session." $ \case
@@ -160,42 +162,37 @@ mainLoop cv trace compTree ps =
   State cv trace compTree ps
 
 --------------------------------------------------------------------------------
--- observe
+-- list
 
-listStmts :: CompTree -> IO ()
-listStmts (Graph _ vs _) =
+listStmts :: CompTree -> Regex -> IO ()
+listStmts g regex =
   putStrLn $
   unlines $
-  snub
-    [ stmtLabel v
-    | Vertex {vertexStmt = v@CompStmt {stmtDetails = StmtLam {}}} <- vs
-    ]
+  snub $
+  map (stmtLabel . vertexStmt . G.root) $
+  selectVertices (\v -> matchLabel v && isRelevantToUser g v) g
   where
+    matchLabel RootVertex = False
+    matchLabel v          = match regex (stmtLabel $ vertexStmt v)
     snub = map head . List.group . sort
 
-printStmts :: CompTree -> String -> IO ()
-printStmts g regexp
-    | null vs_filtered  =
-      putStrLn $ "There are no computation statements matching \"" ++ regexp ++ "\"."
-    | otherwise         = printStmts' vs_filtered
-  where
-  vs_filtered = nodesMatching regexp g
+-- Restricted to statements for lambda functions or top level constants.
+-- Discards nested constant bindings
+isRelevantToUser _ Vertex {vertexStmt = CompStmt {stmtDetails = StmtLam {}}} =
+    True
+isRelevantToUser g v@Vertex {vertexStmt = CompStmt {stmtDetails = StmtCon {}}} =
+    RootVertex `elem` preds g v
+isRelevantToUser _ RootVertex = False
 
-nodesMatching :: String -> CompTree -> [CompTree]
-nodesMatching regexp g@(Graph _ vs _) = map (`subGraphFrom` g) vsFiltered
-  where
-    vsFiltered
-      | regexp == "" = vs_sorted
-      | otherwise =
-        filter (\v -> (noNewlines . vertexRes $ v) =~ rComp) vs_sorted
-    rComp :: Regex = makeRegex regexp
-    vs_sorted = sortOn vertexRes . filter vertexOfInterest $ vs
-    -- Restricted to statements for lambda functions or top level constants.
-    vertexOfInterest Vertex{vertexStmt=CompStmt{stmtDetails=StmtLam{}}} = True
-    vertexOfInterest v@Vertex{vertexStmt=CompStmt{stmtDetails=StmtCon{}}} =
-      RootVertex `elem` concatMap (preds g) (preds g v)
-    vertexOfInterest _ = False
-    str =~ reg = match reg str
+-- | Returns the vertices satisfying the predicate. Doesn't alter the graph.
+selectVertices :: (Vertex->Bool) -> CompTree -> [CompTree]
+selectVertices pred g = [ g{G.root = v} | v <- vertices g, pred v]
+
+matchRegex :: Regex -> Vertex -> Bool
+matchRegex regex v = match regex $ noNewlines (vertexRes v)
+
+subGraphFromRoot :: Ord v => Graph v a -> Graph v a
+subGraphFromRoot g = subGraphFrom (G.root g) g
 
 subGraphFrom :: Ord v => v -> Graph v a -> Graph v a
 subGraphFrom v g = Graph {root = v, vertices = filteredV, arcs = filteredA}
@@ -207,6 +204,21 @@ subGraphFrom v g = Graph {root = v, vertices = filteredV, arcs = filteredA}
       | a <- arcs g
       , Set.member (source a) filteredSet && Set.member (target a) filteredSet
       ]
+
+--------------------------------------------------------------------------------
+-- observe
+printStmts :: CompTree -> String -> IO ()
+printStmts g regexp
+    | null vs_filtered  =
+      putStrLn $ "There are no computation statements matching \"" ++ regexp ++ "\"."
+    | otherwise         = printStmts' vs_filtered
+  where
+  vs_filtered =
+    map subGraphFromRoot .
+    sortOn (vertexRes . G.root) .
+    selectVertices (\v -> matchRegex r v && isRelevantToUser g v) $
+    g
+  r = makeRegex regexp
 
 printStmts' :: [CompTree] -> IO ()
 printStmts' gs = do

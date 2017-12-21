@@ -1,9 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 -- This file is part of the Haskell debugger Hoed.
 --
 -- Copyright (c) Maarten Faddegon, 2014
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric     #-}
 
 module Debug.Hoed.Render
 (CompStmt(..)
@@ -20,7 +21,7 @@ module Debug.Hoed.Render
 import           Control.Arrow
 import           Data.Array               as Array
 import           Data.Char                (isAlpha)
-import           Data.List(sort,sortBy,nub)
+import           Data.List                (nub, sort, sortBy)
 import           Debug.Hoed.Compat
 import           Debug.Hoed.Observe
 import           GHC.Generics
@@ -54,8 +55,8 @@ data StmtDetails
   deriving (Generic)
 
 stmtRes :: CompStmt -> String
-stmtRes CompStmt {stmtDetails = StmtLam x} = x
-stmtRes CompStmt {stmtDetails = StmtCon x} = x
+stmtRes CompStmt {stmtDetails = StmtLam x}     = x
+stmtRes CompStmt {stmtDetails = StmtCon x, ..} = stmtLabel ++ " = " ++ x
 
 instance Show CompStmt where
   show = stmtRes
