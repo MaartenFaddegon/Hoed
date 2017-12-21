@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 {-|
@@ -93,7 +94,7 @@ Papers on the theory behind Hoed can be obtained via <http://maartenfaddegon.nl/
 I am keen to hear about your experience with Hoed: where did you find it useful and where would you like to see improvement? You can send me an e-mail at hoed@maartenfaddegon.nl, or use the github issue tracker <https://github.com/MaartenFaddegon/hoed/issues>.
 -}
 
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP             #-}
 
 module Debug.Hoed
   ( -- * Basic annotations
@@ -124,6 +125,7 @@ module Debug.Hoed
   , conAp
 
   -- * Build your own debugger with Hoed
+  , HoedAnalysis(..)
   , runO'
   , judge
   , unjudgedCharacterCount
@@ -221,17 +223,17 @@ debugO program =
 
 runO :: IO a -> IO ()
 runO program = do
-  (trace,_traceInfo,compTree,_frt) <- runO' Verbose program
-  debugSession trace compTree []
+  HoedAnalysis{..} <- runO' Verbose program
+  debugSession hoedTrace hoedCompTree []
   return ()
 
 
 -- | Hoed internal function that stores a serialized version of the tree on disk (assisted debugging spawns new instances of Hoed).
 runOstore :: String -> IO a -> IO ()
 runOstore tag program = do
-  (trace,_traceInfo,compTree,_frt) <- runO' Silent program
-  storeTree (treeFilePath ++ tag) compTree
-  storeTrace (traceFilePath ++ tag) trace
+  HoedAnalysis{..} <- runO' Silent program
+  storeTree (treeFilePath ++ tag) hoedCompTree
+  storeTrace (traceFilePath ++ tag) hoedTrace
 
 -- | Repeat and trace a failing testcase
 testO :: Show a => (a->Bool) -> a -> IO ()
@@ -242,9 +244,9 @@ testO p x = runO $ putStrLn $ if p x then "Passed 1 test."
 
 runOwp :: [Propositions] -> IO a -> IO ()
 runOwp ps program = do
-  (trace,_traceInfo,compTree,_frt) <- runO' Verbose program
-  let compTree' = compTree
-  debugSession trace compTree' ps
+  HoedAnalysis{..} <- runO' Verbose program
+  let compTree' = hoedCompTree
+  debugSession hoedTrace compTree' ps
   return ()
 
 -- | Repeat and trace a failing testcase
@@ -274,8 +276,15 @@ condPutStrLn :: Verbosity -> String -> IO ()
 condPutStrLn Silent _    = return ()
 condPutStrLn Verbose msg = hPutStrLn stderr msg
 
+data HoedAnalysis = HoedAnalysis
+  { hoedTrace       :: [Event]
+  , hoedTraceInfo   :: TraceInfo
+  , hoedCompTree    :: CompTree
+  , hoedEventForest :: EventForest
+  }
+
 -- |Entry point giving you access to the internals of Hoed. Also see: runO.
-runO' :: Verbosity -> IO a -> IO (Trace,TraceInfo,CompTree,EventForest)
+runO' :: Verbosity -> IO a -> IO HoedAnalysis
 runO' verbose program = do
   createDirectoryIfMissing True ".Hoed/"
   condPutStrLn verbose "=== program output ===\n"
@@ -314,13 +323,13 @@ runO' verbose program = do
   condPutStrLn verbose $ "computation tree has a branch factor of " ++ show b ++ " (i.e the average number of children of non-leaf nodes)"
 
   condPutStrLn verbose "\n=== Debug Session ===\n"
-  return (events, ti, ct, frt)
+  return $ HoedAnalysis events ti ct frt
 
 -- | Trace and write computation tree to file. Useful for regression testing.
 logO :: FilePath -> IO a -> IO ()
 logO filePath program = {- SCC "logO" -} do
-  (_,_,compTree,_) <- runO' Verbose program
-  writeFile filePath (showGraph compTree)
+  HoedAnalysis{..} <- runO' Verbose program
+  writeFile filePath (showGraph hoedCompTree)
   return ()
 
   where showGraph g        = showWith g showVertex showArc
@@ -332,9 +341,9 @@ logO filePath program = {- SCC "logO" -} do
 -- | As logO, but with property-based judging.
 logOwp :: UnevalHandler -> FilePath -> [Propositions] -> IO a -> IO ()
 logOwp handler filePath properties program = do
-  (trace,_traceInfo,compTree,_frt) <- runO' Verbose program
+  HoedAnalysis{..} <- runO' Verbose program
   hPutStrLn stderr "\n=== Evaluating assigned properties ===\n"
-  compTree' <- judgeAll handler unjudgedCharacterCount trace properties compTree
+  compTree' <- judgeAll handler unjudgedCharacterCount hoedTrace properties hoedCompTree
   writeFile filePath (showGraph compTree')
   return ()
 
