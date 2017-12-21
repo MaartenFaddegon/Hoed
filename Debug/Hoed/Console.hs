@@ -134,8 +134,7 @@ observeCommand =
     ("Print computation statements that match the regular expression." </>
      "Omitting the expression prints all the statements.") $ \case
     [] -> Just $ \State {..} -> Same <$ printStmts compTree ".*"
-    [regexp] -> Just $ \State {..} -> Same <$ printStmts compTree regexp
-    _ -> Nothing
+    regexp -> Just $ \State {..} -> Same <$ printStmts compTree (unwords regexp)
 
 listCommand =
   Command "list" [] "List all the observables collected." $ \case
@@ -191,7 +190,10 @@ nodesMatching regexp g@(Graph _ vs _) = map (`subGraphFrom` g) vsFiltered
         filter (\v -> (noNewlines . vertexRes $ v) =~ rComp) vs_sorted
     rComp :: Regex = makeRegex regexp
     vs_sorted = sortOn vertexRes . filter vertexOfInterest $ vs
+    -- Restricted to statements for lambda functions or top level constants.
     vertexOfInterest Vertex{vertexStmt=CompStmt{stmtDetails=StmtLam{}}} = True
+    vertexOfInterest v@Vertex{vertexStmt=CompStmt{stmtDetails=StmtCon{}}} =
+      RootVertex `elem` concatMap (preds g) (preds g v)
     vertexOfInterest _ = False
     str =~ reg = match reg str
 
