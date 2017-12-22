@@ -251,7 +251,7 @@ renderNamedFn :: String -> ([CDSSet],CDSSet) -> Doc
 renderNamedFn name (args,res)
   = text name <> nest 2
      ( sep <> foldr (\ a b -> grp (renderSet' 10 False a) <> sep <> b) nil args
-       <> sep <> grp ("= " <> renderSet' 0 False res)
+       <> sep <> grp ("= " <> align(renderSet' 0 False res))
      )
 
 -- | Reconstructs functional values from a CDSSet.
