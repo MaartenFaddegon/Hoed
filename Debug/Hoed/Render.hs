@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
@@ -74,16 +75,13 @@ noNewlines' w (s:ss)
 ------------------------------------------------------------------------
 -- Render equations from CDS set
 
-statementWidth :: Int
-statementWidth = 110 -- 110 is good for papers (maybe make this configurable from the GUI?)
-
-renderCompStmts :: CDSSet -> [CompStmt]
+renderCompStmts :: (?statementWidth::Int) => CDSSet -> [CompStmt]
 renderCompStmts = concatMap renderCompStmt
 
 -- renderCompStmt: an observed function can be applied multiple times, each application
 -- is rendered to a computation statement
 
-renderCompStmt :: CDS -> [CompStmt]
+renderCompStmt :: (?statementWidth::Int) => CDS -> [CompStmt]
 renderCompStmt (CDSNamed name uid set) = statements
   where statements :: [CompStmt]
         statements   = concatMap (renderNamedTop name uid) output
@@ -93,15 +91,15 @@ renderCompStmt (CDSNamed name uid set) = statements
         mkStmt (s,i) = CompStmt name i s
 renderCompStmt other = error $ show other
 
-renderNamedTop :: String -> UID -> Output -> [CompStmt]
+renderNamedTop :: (?statementWidth::Int) => String -> UID -> Output -> [CompStmt]
 renderNamedTop name observeUid (OutData cds) = map f pairs
   where
     f (args, res, Just i) =
       CompStmt name i $
-      StmtLam $ pretty statementWidth $ renderNamedFn name (args, res)
+      StmtLam $ pretty ?statementWidth $ renderNamedFn name (args, res)
     f (_, cons, Nothing) =
       CompStmt name observeUid $
-      StmtCon $ pretty statementWidth $ renderSet' 0 False cons
+      StmtCon $ pretty ?statementWidth $ renderSet' 0 False cons
     pairs = (nubSorted . sortOn argAndRes) pairs'
     pairs' = findFn [cds]
     argAndRes (arg, res, _) = (arg, res)
@@ -247,8 +245,8 @@ renderFn (args, res)
 renderNamedFn :: String -> ([CDSSet],CDSSet) -> Doc
 renderNamedFn name (args,res)
   = text name <> nest 2
-     ( sep <> foldr (\ a b -> grp (renderSet' 10 False a) <> line <> b) nil args
-       <> linebreak <> grp ("= " <> renderSet' 0 False res)
+     ( sep <> foldr (\ a b -> grp (renderSet' 10 False a) <> sep <> b) nil args
+       <> sep <> grp ("= " <> renderSet' 0 False res)
      )
 
 -- | Reconstructs functional values from a CDSSet.

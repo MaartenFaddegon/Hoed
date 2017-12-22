@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams  #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
@@ -102,6 +103,9 @@ module Debug.Hoed
   , runO
   , printO
   , testO
+  , runOwith
+  , HoedOptions(..)
+  , defaultHoedOptions
 
   -- * Property-assisted algorithmic debugging
   , runOwp
@@ -222,16 +226,18 @@ debugO program =
 -- @
 
 runO :: IO a -> IO ()
-runO program = do
-  HoedAnalysis{..} <- runO' Verbose program
+runO = runOwith defaultHoedOptions{verbose=Verbose}
+
+runOwith :: HoedOptions -> IO a -> IO ()
+runOwith options program = do
+  HoedAnalysis{..} <- runO' options program
   debugSession hoedTrace hoedCompTree []
   return ()
-
 
 -- | Hoed internal function that stores a serialized version of the tree on disk (assisted debugging spawns new instances of Hoed).
 runOstore :: String -> IO a -> IO ()
 runOstore tag program = do
-  HoedAnalysis{..} <- runO' Silent program
+  HoedAnalysis{..} <- runO' defaultHoedOptions{verbose=Silent} program
   storeTree (treeFilePath ++ tag) hoedCompTree
   storeTrace (traceFilePath ++ tag) hoedTrace
 
@@ -244,7 +250,7 @@ testO p x = runO $ putStrLn $ if p x then "Passed 1 test."
 
 runOwp :: [Propositions] -> IO a -> IO ()
 runOwp ps program = do
-  HoedAnalysis{..} <- runO' Verbose program
+  HoedAnalysis{..} <- runO' defaultHoedOptions{verbose=Verbose} program
   let compTree' = hoedCompTree
   debugSession hoedTrace compTree' ps
   return ()
@@ -283,9 +289,16 @@ data HoedAnalysis = HoedAnalysis
   , hoedEventForest :: EventForest
   }
 
+data HoedOptions = HoedOptions
+  { verbose     :: Verbosity
+  , prettyWidth :: Int
+  }
+
+defaultHoedOptions = HoedOptions Silent 110
+
 -- |Entry point giving you access to the internals of Hoed. Also see: runO.
-runO' :: Verbosity -> IO a -> IO HoedAnalysis
-runO' verbose program = do
+runO' :: HoedOptions -> IO a -> IO HoedAnalysis
+runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
   createDirectoryIfMissing True ".Hoed/"
   condPutStrLn verbose "=== program output ===\n"
   events <- debugO program
@@ -328,7 +341,7 @@ runO' verbose program = do
 -- | Trace and write computation tree to file. Useful for regression testing.
 logO :: FilePath -> IO a -> IO ()
 logO filePath program = {- SCC "logO" -} do
-  HoedAnalysis{..} <- runO' Verbose program
+  HoedAnalysis{..} <- runO' defaultHoedOptions{verbose=Verbose} program
   writeFile filePath (showGraph hoedCompTree)
   return ()
 
@@ -341,7 +354,7 @@ logO filePath program = {- SCC "logO" -} do
 -- | As logO, but with property-based judging.
 logOwp :: UnevalHandler -> FilePath -> [Propositions] -> IO a -> IO ()
 logOwp handler filePath properties program = do
-  HoedAnalysis{..} <- runO' Verbose program
+  HoedAnalysis{..} <- runO' defaultHoedOptions{verbose=Verbose} program
   hPutStrLn stderr "\n=== Evaluating assigned properties ===\n"
   compTree' <- judgeAll handler unjudgedCharacterCount hoedTrace properties hoedCompTree
   writeFile filePath (showGraph compTree')
