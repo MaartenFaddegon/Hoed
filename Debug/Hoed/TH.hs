@@ -5,7 +5,7 @@ module Debug.Hoed.TH where
 
 import           Control.Monad
 import           Data.Generics.Uniplate.Data
-import           Data.List                   (group, sort, (\\))
+import           Data.List                   (group, nub, sort, (\\))
 import           Debug.Hoed
 import           Debug.Hoed.Compat
 import           Language.Haskell.TH
@@ -102,7 +102,7 @@ adjustSig name (ForallT vars ctxt typ) = do
   vs <- kindStar typ
   return $
     SigD name $
-    ForallT vars (nubOrd $ map (AppT (ConT ''Observable) . VarT) vs ++ ctxt) typ
+    ForallT vars (nub $ map (addConstraint ''Observable . (:[]) . VarT) vs ++ ctxt) typ
 
 adjustValD decl@ValD{} = transformBi adjustPat decl
 adjustValD other       = other
