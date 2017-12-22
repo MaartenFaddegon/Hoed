@@ -1,7 +1,7 @@
 {-# LANGUAGE TupleSections   #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# LANGUAGE TemplateHaskell #-}
-module Debug.Hoed.TH where
+module Debug.Hoed.TH (debug, obs) where
 
 import           Control.Monad
 import           Data.Generics.Uniplate.Data
