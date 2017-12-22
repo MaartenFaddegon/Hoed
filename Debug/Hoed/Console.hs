@@ -227,17 +227,13 @@ printStmts' gs = do
       "--- stmt-" ++ show n ++ " ------------------------------------------"
     (print . vertexStmt) (G.root g)
     let locals =
-          [ (stmtLabel, c)
-          | Vertex {vertexStmt = CompStmt {stmtDetails = StmtCon c, stmtLabel}} <-
+          [ stmtRes c
+          | Vertex {vertexStmt = c@CompStmt {stmtDetails = StmtCon{}}} <-
               succs g (G.root g)
           ]
     unless (null locals) $ do
       putStrLn "  where"
-      forM_ (succs g (G.root g)) $ \v ->
-        case v of
-          Vertex {vertexStmt = CompStmt {stmtDetails = StmtCon c, stmtLabel}} ->
-            putStrLn ("    " ++ stmtLabel ++ " = " ++ c)
-          _ -> return ()
+      mapM_ (putStrLn . ("    " ++)) locals
   putStrLn
     "--------------------------------------------------------------------"
 

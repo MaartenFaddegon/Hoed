@@ -1,6 +1,5 @@
 {-# LANGUAGE ImplicitParams    #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 -- This file is part of the Haskell debugger Hoed.
 --
@@ -56,8 +55,8 @@ data StmtDetails
   deriving (Generic)
 
 stmtRes :: CompStmt -> String
-stmtRes CompStmt {stmtDetails = StmtLam x}     = x
-stmtRes CompStmt {stmtDetails = StmtCon x, ..} = stmtLabel ++ " = " ++ x
+stmtRes CompStmt {stmtDetails = StmtLam x} = x
+stmtRes CompStmt {stmtDetails = StmtCon x} = x
 
 instance Show CompStmt where
   show = stmtRes
@@ -99,7 +98,7 @@ renderNamedTop name observeUid (OutData cds) = map f pairs
       StmtLam $ pretty ?statementWidth $ renderNamedFn name (args, res)
     f (_, cons, Nothing) =
       CompStmt name observeUid $
-      StmtCon $ pretty ?statementWidth $ renderSet' 0 False cons
+      StmtCon $ pretty ?statementWidth $ renderNamedCons name cons
     pairs = (nubSorted . sortOn argAndRes) pairs'
     pairs' = findFn [cds]
     argAndRes (arg, res, _) = (arg, res)
@@ -241,6 +240,12 @@ renderFn (args, res)
                  "-> " <> renderSet' 0 False res
                 )
                )
+
+renderNamedCons :: String -> CDSSet -> Doc
+renderNamedCons name cons
+  = text name <> nest 2
+     ( sep <> grp (text "= " <> renderSet' 0 False cons)
+     )
 
 renderNamedFn :: String -> ([CDSSet],CDSSet) -> Doc
 renderNamedFn name (args,res)
