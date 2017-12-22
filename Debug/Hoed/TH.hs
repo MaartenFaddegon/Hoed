@@ -69,7 +69,7 @@ obs decs = do
 debug :: Q [Dec] -> Q [Dec]
 debug q = do
   decs <- q
-  names <- sequence [ (n,) <$> newName(nameBase n ++ "'") | FunD n _ <- decs]
+  names <- sequence [ (n,) <$> newName(nameBase n ++ "Debug") | FunD n _ <- decs]
   fmap concat $ forM decs $ \dec ->
     case dec of
       FunD n clauses -> do
@@ -103,6 +103,7 @@ adjustSig name (ForallT vars ctxt typ) = do
   return $
     SigD name $
     ForallT vars (nub $ map (addConstraint ''Observable . (:[]) . VarT) vs ++ ctxt) typ
+adjustSig name other = adjustSig name $ ForallT [] [] other
 
 adjustValD decl@ValD{} = transformBi adjustPat decl
 adjustValD other       = other
