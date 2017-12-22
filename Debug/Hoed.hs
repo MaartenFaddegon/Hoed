@@ -170,8 +170,9 @@ import           Debug.Hoed.Render
 import           Debug.Hoed.Serialize
 
 import           Data.IORef
-import           Prelude                hiding (Right)
-import           System.Directory       (createDirectoryIfMissing)
+import           Prelude                      hiding (Right)
+import           System.Console.Terminal.Size
+import           System.Directory             (createDirectoryIfMissing)
 import           System.IO
 import           System.IO.Unsafe
 
@@ -226,7 +227,10 @@ debugO program =
 -- @
 
 runO :: IO a -> IO ()
-runO = runOwith defaultHoedOptions{verbose=Verbose}
+runO program = do
+  window <- size
+  let w = maybe (prettyWidth defaultHoedOptions) width window
+  runOwith defaultHoedOptions{prettyWidth=w, verbose=Verbose} program
 
 runOwith :: HoedOptions -> IO a -> IO ()
 runOwith options program = do

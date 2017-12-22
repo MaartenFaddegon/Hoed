@@ -227,8 +227,14 @@ printStmts' gs = do
       "--- stmt-" ++ show n ++ " ------------------------------------------"
     (print . vertexStmt) (G.root g)
     let locals =
+          -- constants
           [ stmtRes c
           | Vertex {vertexStmt = c@CompStmt {stmtDetails = StmtCon{}}} <-
+              succs g (G.root g)
+          ] ++
+          -- function calls
+          [ stmtRes c
+          | Vertex {vertexStmt = c@CompStmt {stmtDetails = StmtLam{}}} <-
               succs g (G.root g)
           ]
     unless (null locals) $ do
