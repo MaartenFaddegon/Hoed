@@ -211,7 +211,9 @@ printStmts :: CompTree -> String -> IO ()
 printStmts g regexp
     | null vs_filtered  =
       putStrLn $ "There are no computation statements matching \"" ++ regexp ++ "\"."
-    | otherwise         = printStmts' vs_filtered
+    | otherwise = forM_ (zip [0..] $ nubOrd $ map printStmt vs_filtered) $ \(n,s) -> do
+    putStrLn $ "--- stmt-" ++ show n ++ " ------------------------------------------"
+    putStrLn s
   where
   vs_filtered =
     map subGraphFromRoot .
@@ -219,14 +221,17 @@ printStmts g regexp
     selectVertices (\v -> matchRegex r v && isRelevantToUser g v) $
     g
   r = makeRegex regexp
+  nubOrd = nub -- We want nubOrd from the extra package
 
-printStmts' :: [CompTree] -> IO ()
-printStmts' gs = do
-  forM_ (zip [1 ..] gs) $ \(n, g) -> do
-    putStrLn $
-      "--- stmt-" ++ show n ++ " ------------------------------------------"
-    (print . vertexStmt) (G.root g)
-    let locals =
+printStmt :: CompTree -> String
+printStmt g = unlines $
+    show(vertexStmt $ G.root g) :
+    concat
+      [ "  where" :
+        map ("    " ++) locals
+      | not (null locals)]
+  where
+    locals =
           -- constants
           [ stmtRes c
           | Vertex {vertexStmt = c@CompStmt {stmtDetails = StmtCon{}}} <-
@@ -237,11 +242,6 @@ printStmts' gs = do
           | Vertex {vertexStmt = c@CompStmt {stmtDetails = StmtLam{}}} <-
               succs g (G.root g)
           ]
-    unless (null locals) $ do
-      putStrLn "  where"
-      mapM_ (putStrLn . ("    " ++)) locals
-  putStrLn
-    "--------------------------------------------------------------------"
 
 --------------------------------------------------------------------------------
 -- algorithmic debugging
