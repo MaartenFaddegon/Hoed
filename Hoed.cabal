@@ -26,11 +26,11 @@ library
   exposed-modules:     Debug.Hoed
                        , Debug.Hoed.TH
                        , Debug.NoHoed
+                       , Debug.Hoed.CompTree
+                       , Debug.Hoed.Render
   other-modules:       Debug.Hoed.Observe
                        , Debug.Hoed.Compat
                        , Debug.Hoed.EventForest
-                       , Debug.Hoed.CompTree
-                       , Debug.Hoed.Render
                        , Debug.Hoed.ReadLine
                        , Debug.Hoed.Console
                        , Debug.Hoed.Prop
