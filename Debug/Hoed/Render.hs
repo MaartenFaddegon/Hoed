@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE ImplicitParams    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
@@ -50,13 +51,15 @@ instance Ord CompStmt where
   compare c1 c2 = compare (stmtIdentifier c1) (stmtIdentifier c2)
 
 data StmtDetails
-  = StmtCon !String
-  | StmtLam !String
+  = StmtCon { stmtCon :: !String
+           ,  stmtPretty :: !String}
+  | StmtLam { stmtLamArgs :: ![String]
+           ,  stmtLamRes :: !String
+           ,  stmtPretty :: !String}
   deriving (Generic)
 
 stmtRes :: CompStmt -> String
-stmtRes CompStmt {stmtDetails = StmtLam x} = x
-stmtRes CompStmt {stmtDetails = StmtCon x} = x
+stmtRes = stmtPretty . stmtDetails
 
 instance Show CompStmt where
   show = stmtRes
@@ -95,10 +98,14 @@ renderNamedTop name observeUid (OutData cds) = map f pairs
   where
     f (args, res, Just i) =
       CompStmt name i $
-      StmtLam $ pretty ?statementWidth $ renderNamedFn name (args, res)
+      StmtLam
+        (map (prettyW . renderSet) args)
+        (prettyW $ renderSet res)
+        (prettyW $ renderNamedFn name (args, res))
     f (_, cons, Nothing) =
       CompStmt name observeUid $
-      StmtCon $ pretty ?statementWidth $ renderNamedCons name cons
+      StmtCon (prettyW $ renderSet cons)
+              (prettyW $ renderNamedCons name cons)
     pairs = (nubSorted . sortOn argAndRes) pairs'
     pairs' = findFn [cds]
     argAndRes (arg, res, _) = (arg, res)
@@ -237,21 +244,21 @@ renderFn (args, res)
                  foldr (\ a b -> nest 0 (renderSet' 10 False a) <> sp <> b)
                        nil
                        args <> sep <>
-                 "-> " <> renderSet' 0 False res
+                 "-> " <> renderSet res
                 )
                )
 
 renderNamedCons :: String -> CDSSet -> Doc
 renderNamedCons name cons
   = text name <> nest 2
-     ( sep <> grp (text "= " <> renderSet' 0 False cons)
+     ( sep <> grp (text "= " <> renderSet cons)
      )
 
 renderNamedFn :: String -> ([CDSSet],CDSSet) -> Doc
 renderNamedFn name (args,res)
   = text name <> nest 2
      ( sep <> foldr (\ a b -> grp (renderSet' 10 False a) <> sep <> b) nil args
-       <> sep <> grp ("= " <> align(renderSet' 0 False res))
+       <> sep <> grp ("= " <> align(renderSet res))
      )
 
 -- | Reconstructs functional values from a CDSSet.
@@ -343,3 +350,6 @@ sep :: Doc
 sep = softline  -- A space, if the following still fits on the current line, otherwise newline.
 sp :: Doc
 sp = " "   -- A space, always.
+
+prettyW :: (?statementWidth::Int) => Doc -> String
+prettyW = pretty ?statementWidth
