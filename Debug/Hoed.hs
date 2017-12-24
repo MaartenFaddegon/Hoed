@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ImplicitParams  #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
@@ -370,3 +371,10 @@ logOwp handler filePath properties program = do
         showArc _          = ""
         showCompStmt s     = (show . vertexJmt) s ++ ": " ++ (show . vertexStmt) s
 
+
+#if __GLASGOW_HASKELL__ >= 710
+-- A catch-all instance for non observable types
+instance {-# OVERLAPPABLE #-} Observable a where
+  observer = observeOpaque "<?>"
+  constrain _ _ = error "constrained by untraced value"
+#endif

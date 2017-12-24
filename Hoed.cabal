@@ -1,5 +1,5 @@
 name:                Hoed
-version:             0.4.0
+version:             0.4.1
 synopsis:            Lightweight algorithmic debugging.
 description:
     Hoed is a tracer and debugger for the programming language Haskell.
@@ -23,13 +23,13 @@ source-repository head
   location: https://github.com/MaartenFaddegon/Hoed.git
 
 library
-  exposed-modules:     Debug.Hoed
+  exposed-modules:     Debug.Hoed.Observe
+                       , Debug.Hoed
                        , Debug.Hoed.TH
                        , Debug.NoHoed
                        , Debug.Hoed.CompTree
                        , Debug.Hoed.Render
-  other-modules:       Debug.Hoed.Observe
-                       , Debug.Hoed.Compat
+  other-modules:       Debug.Hoed.Compat
                        , Debug.Hoed.EventForest
                        , Debug.Hoed.ReadLine
                        , Debug.Hoed.Console
