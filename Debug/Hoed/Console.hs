@@ -275,9 +275,9 @@ graphStmts (makeRegex -> r) g = do
 
 renderAndOpen g = do
   tempDir <- getTemporaryDirectory
-  (tempFile, hTempFile) <- openTempFile tempDir "hoed.png"
+  (tempFile, hTempFile) <- openTempFile tempDir "hoed.svg"
   hClose hTempFile
-  cmd "dot" ["-Tpng", "-o", tempFile] (showGraph g)
+  cmd "dot" ["-Tsvg", "-o", tempFile] (showGraph g)
   _success <- openBrowser ("file:///" ++ tempFile)
   return ()
 
