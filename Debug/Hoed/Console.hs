@@ -1,38 +1,40 @@
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE LambdaCase                #-}
+{-# LANGUAGE NamedFieldPuns            #-}
+{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE RecordWildCards           #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
 -- This file is part of the Haskell debugger Hoed.
 --
 -- Copyright (c) Maarten Faddegon, 2014-2017
-{-# LANGUAGE CPP #-}
 module Debug.Hoed.Console(debugSession) where
+
+import           Control.Monad
+import           Data.Graph.Libgraph      as G
+import           Data.List                as List (findIndex, group,
+                                                   intersperse, nub, sort,
+                                                   sortBy)
+import qualified Data.Map.Strict          as Map
+import           Data.Maybe
+import qualified Data.Set                 as Set
+import           Debug.Hoed.Compat
+import           Debug.Hoed.CompTree
+import           Debug.Hoed.Observe
+import           Debug.Hoed.Prop
+import           Debug.Hoed.ReadLine
+import           Debug.Hoed.Render
+import           Debug.Hoed.Serialize
+import           Prelude                  hiding (Right)
 import qualified Prelude
-import Prelude hiding(Right)
-import Debug.Hoed.ReadLine
-import Debug.Hoed.Observe
-import Debug.Hoed.Render
-import Debug.Hoed.CompTree
-import Debug.Hoed.Prop
-import Debug.Hoed.Serialize
-import Text.Regex.Posix.String as Regex
-import Text.Regex.Posix
-import Text.Regex.Posix.String
-import Data.Graph.Libgraph
-import Data.List(findIndex,intersperse,nub,sort,sortBy
-#if __GLASGOW_HASKELL__ >= 710
-                , sortOn
-#endif
-                )
+import           Text.PrettyPrint.FPretty
+import           Text.Regex.TDFA
 
-#if __GLASGOW_HASKELL__ < 710
-sortOn :: Ord b => (a -> b) -> [a] -> [a]
-sortOn f  = map snd . sortOn' fst .  map (\x -> (f x, x))
 
-sortOn' :: Ord b => (a -> b) -> [a] -> [a]
-sortOn' f = sortBy (\x y -> compare (f x) (f y))
-#endif
-
+{-# ANN module ("HLint: ignore Use camelCase" :: String) #-}
 
 debugSession :: Trace -> CompTree -> [Propositions] -> IO ()
 debugSession trace tree ps =
-  case filter (not . isRootVertex) $ vs of 
+  case filter (not . isRootVertex) vs of
     []    -> putStrLn $ "No functions annotated with 'observe' expressions"
                         ++ "or annotated functions not evaluated"
     (v:_) -> do noBuffering
@@ -41,118 +43,266 @@ debugSession trace tree ps =
   (Graph _ vs _) = tree
 
 --------------------------------------------------------------------------------
+-- Execution loop
+
+type Frame state = state -> IO (Transition state)
+
+data Transition state
+  = Down (Frame state)
+  | Up   (Maybe state)
+  | Next state
+  | Same
+
+executionLoop :: [Frame state] -> state -> IO ()
+executionLoop [] _ = return ()
+executionLoop stack@(runFrame : parents) state = do
+  transition <- runFrame state
+  case transition of
+    Same         -> executionLoop stack state
+    Next st      -> executionLoop stack st
+    Up Nothing   -> executionLoop parents state
+    Up (Just st) -> executionLoop parents st
+    Down loop    -> executionLoop (loop : stack) state
+
+--------------------------------------------------------------------------------
+-- Commands
+
+type Args = [String]
+
+data Command state = Command
+  { name        :: String
+  , argsDesc    :: [String]
+  , commandDesc :: Doc
+  , parse       :: Args -> Maybe (state -> IO (Transition state))
+  }
+
+interactiveFrame :: String -> [Command state] -> Frame state
+interactiveFrame prompt commands state = do
+  input <- readLine (prompt ++ " ") (map name commands)
+  let run = fromMaybe (\_ -> Same <$ showHelp commands) $ selectCommand input
+  run state
+  where
+    selectCommand = selectFrom commands
+
+showHelp commands =
+  putStrLn (pretty 80 $ vcat $ zipWith compose commandsBlock descriptionsBlock)
+  where
+    compose c d = text (pad c) <+> align d
+    commandsBlock = [unwords (name : argsDesc) | Command {..} <- commands]
+    descriptionsBlock = map commandDesc commands
+    colWidth = maximum $ map length commandsBlock
+    pad x = take (colWidth + 1) $ x ++ spaces
+    spaces = repeat ' '
+
+helpCommand commands =
+  Command "help" [] "Shows this help screen." $ \case
+    [] -> Just $ \_ -> Same <$ showHelp commands
+    _  -> Nothing
+
+selectFrom :: [Command state] -> String -> Maybe (state -> IO (Transition state))
+selectFrom commands =
+  \case
+    "" -> Nothing
+    xx -> do
+      let (h:t) = words xx
+      c <- Map.lookup h commandsMap
+      parse c t
+  where
+    commandsMap = Map.fromList [(name c, c) | c <- commands]
+
+
+--------------------------------------------------------------------------------
 -- main menu
 
-mainLoop :: Vertex -> Trace -> CompTree -> [Propositions] -> IO ()
-mainLoop cv trace compTree ps = do
-  i <- readLine "hdb> " ["adb", "observe", "help"]
-  case words i of
-    ["adb"]             -> adb cv trace compTree ps
-    ["observe", regexp] -> do printStmts compTree regexp; loop
-    ["observe"]         -> do printStmts compTree ""; loop
-    ["exit"]            -> return ()
-    _                   -> do help; loop
-  where
-  loop = mainLoop cv trace compTree ps
+data State = State
+  { cv       :: Vertex
+  , trace    :: Trace
+  , compTree :: CompTree
+  , ps       :: [Propositions]
+  }
 
-help :: IO ()
-help = putStr
-  $  "help              Print this help message.\n"
-  ++ "observe [regexp]  Print computation statements that match the regular\n"
-  ++ "                  expression. Omitting the expression prints all statements.\n"
-  ++ "adb               Start algorithmic debugging.\n"
-  ++ "exit              leave debugging session\n"
+adbCommand, observeCommand, listCommand, exitCommand :: Command State
+adbCommand =
+  Command "adb" [] "Start algorithmic debugging." $ \case
+    [] -> Just $ \_ -> return $ Down adbFrame
+    _  -> Nothing
+
+observeCommand =
+  Command
+    "observe"
+    ["[regexp]"]
+    ("Print computation statements that match the regular expression." </>
+     "Omitting the expression prints all the statements.") $ \case
+    args -> Just $ \State {..} ->
+      let regexp = case args of [] -> ".*" ; _ -> unwords args
+      in Same <$ printStmts compTree regexp
+
+listCommand =
+  Command "list" [] "List all the observables collected." $
+    \args -> Just $ \State{..} ->
+      let regexp = makeRegex $ case args of [] -> ".*" ; _ -> unwords args
+      in Same <$ listStmts compTree regexp
+
+exitCommand =
+  Command "exit" [] "Leave the debugging session." $ \case
+    [] -> Just $ \_ -> return (Up Nothing)
+    _  -> Nothing
+
+mainLoopCommands =
+  sortOn name
+    [ adbCommand
+    , listCommand
+    , observeCommand
+    , exitCommand
+    , helpCommand mainLoopCommands
+    ]
+
+mainLoop cv trace compTree ps =
+  executionLoop [interactiveFrame "hdb>" mainLoopCommands] $
+  State cv trace compTree ps
+
+--------------------------------------------------------------------------------
+-- list
+
+listStmts :: CompTree -> Regex -> IO ()
+listStmts g regex =
+  putStrLn $
+  unlines $
+  snub $
+  map (stmtLabel . vertexStmt . G.root) $
+  selectVertices (\v -> matchLabel v && isRelevantToUser g v) g
+  where
+    matchLabel RootVertex = False
+    matchLabel v          = match regex (stmtLabel $ vertexStmt v)
+    snub = map head . List.group . sort
+
+-- Restricted to statements for lambda functions or top level constants.
+-- Discards nested constant bindings
+isRelevantToUser _ Vertex {vertexStmt = CompStmt {stmtDetails = StmtLam {}}} =
+    True
+isRelevantToUser g v@Vertex {vertexStmt = CompStmt {stmtDetails = StmtCon {}}} =
+    RootVertex `elem` preds g v
+isRelevantToUser _ RootVertex = False
+
+-- | Returns the vertices satisfying the predicate. Doesn't alter the graph.
+selectVertices :: (Vertex->Bool) -> CompTree -> [CompTree]
+selectVertices pred g = [ g{G.root = v} | v <- vertices g, pred v]
+
+matchRegex :: Regex -> Vertex -> Bool
+matchRegex regex v = match regex $ noNewlines (vertexRes v)
+
+subGraphFromRoot :: Ord v => Graph v a -> Graph v a
+subGraphFromRoot g = subGraphFrom (G.root g) g
+
+subGraphFrom :: Ord v => v -> Graph v a -> Graph v a
+subGraphFrom v g = Graph {root = v, vertices = filteredV, arcs = filteredA}
+  where
+    filteredV = getPreorder $ getDfs g {G.root = v}
+    filteredSet = Set.fromList filteredV
+    filteredA =
+      [ a
+      | a <- arcs g
+      , Set.member (source a) filteredSet && Set.member (target a) filteredSet
+      ]
 
 --------------------------------------------------------------------------------
 -- observe
-
 printStmts :: CompTree -> String -> IO ()
-printStmts (Graph _ vs _) regexp = do
-  rComp <- Regex.compile defaultCompOpt defaultExecOpt regexp
-  case rComp of Prelude.Left  (_, errorMessage) -> printL errorMessage
-                Prelude.Right _                 -> printR
-  where
-  printL errorMessage = putStrLn errorMessage
-  printR
-    | vs_filtered == []  = printL $ "There are no computation statements matching \"" ++ regexp ++ "\"."
-    | otherwise          = printStmts' vs_filtered
-  vs_filtered
-    | regexp == "" = vs_sorted
-    | otherwise    = filter (\v -> (noNewlines . vertexRes $ v) =~ regexp) vs_sorted
-  vs_sorted = sortOn (vertexRes) . filter (not . isRootVertex) $ vs
-
-printStmts' :: [Vertex] -> IO ()
-printStmts' vs = do
-  mapM_ print (zip [1..] vs)
-  putStrLn "--------------------------------------------------------------------"
-  where
-  print (n,v) = do 
+printStmts g regexp
+    | null vs_filtered  =
+      putStrLn $ "There are no computation statements matching \"" ++ regexp ++ "\"."
+    | otherwise = forM_ (zip [0..] $ nubOrd $ map printStmt vs_filtered) $ \(n,s) -> do
     putStrLn $ "--- stmt-" ++ show n ++ " ------------------------------------------"
-    (putStrLn . show . vertexStmt) v
+    putStrLn s
+  where
+  vs_filtered =
+    map subGraphFromRoot .
+    sortOn (vertexRes . G.root) .
+    selectVertices (\v -> matchRegex r v && isRelevantToUser g v) $
+    g
+  r = makeRegex regexp
+  nubOrd = nub -- We want nubOrd from the extra package
+
+printStmt :: CompTree -> String
+printStmt g = unlines $
+    show(vertexStmt $ G.root g) :
+    concat
+      [ "  where" :
+        map ("    " ++) locals
+      | not (null locals)]
+  where
+    locals =
+          -- constants
+          [ stmtRes c
+          | Vertex {vertexStmt = c@CompStmt {stmtDetails = StmtCon{}}} <-
+              succs g (G.root g)
+          ] ++
+          -- function calls
+          [ stmtRes c
+          | Vertex {vertexStmt = c@CompStmt {stmtDetails = StmtLam{}}} <-
+              succs g (G.root g)
+          ]
 
 --------------------------------------------------------------------------------
 -- algorithmic debugging
 
-adb :: Vertex -> Trace -> CompTree -> [Propositions] -> IO ()
-adb cv trace compTree ps = do
-  adb_stats compTree
-  print $ vertexStmt cv
-  case lookupPropositions ps cv of 
-    Nothing     -> adb_interactive cv trace compTree ps
-    (Just prop) -> do
-      judgement <- judge trace prop cv unjudgedCharacterCount compTree
-      case judgement of
-        (Judge Right)                    -> adb_judge cv Right trace compTree ps
-        (Judge Wrong)                    -> adb_judge cv Wrong trace compTree ps
-        (Judge (Assisted msgs))          -> adb_advice msgs cv trace compTree ps
-        (AlternativeTree newCompTree newTrace) -> do
-           putStrLn "Discovered simpler tree!"
-           let cv' = next RootVertex newCompTree
-           adb cv' newTrace newCompTree ps
+adbCommands = [judgeCommand Right, judgeCommand Wrong]
 
-adb_advice msgs cv trace compTree ps = do
-  mapM_ putStrLn (map toString msgs)
-  adb_interactive cv trace compTree ps
-    where 
+judgeCommand judgement =
+  Command
+    verbatim
+    []
+    ("Judge computation statements" </>
+     text verbatim </>
+     " according to the intended behaviour/specification of the function.") $ \case
+    [] -> Just $ \st -> adb_judge judgement st
+    _  -> Nothing
+  where
+    verbatim | Right <- judgement = "right"
+             | Wrong <- judgement = "wrong"
+
+adbFrame st@State{..} =
+  case cv of
+    RootVertex -> do
+      putStrLn "Out of vertexes"
+      return $ Up Nothing
+    _ -> do
+      adb_stats compTree
+      print $ vertexStmt cv
+      case lookupPropositions ps cv of
+        Nothing   -> interactive st
+        Just prop -> do
+          judgement <- judge trace prop cv unjudgedCharacterCount compTree
+          case judgement of
+            (Judge Right)                    -> adb_judge Right st
+            (Judge Wrong)                    -> adb_judge Wrong st
+            (Judge (Assisted msgs))          -> do
+              mapM_ (putStrLn . toString) msgs
+              interactive st
+            (AlternativeTree newCompTree newTrace) -> do
+              putStrLn "Discovered simpler tree!"
+              let cv' = next RootVertex newCompTree
+              return $ Next $ State cv' newTrace newCompTree ps
+  where
+    interactive = interactiveFrame "?" adbCommands
     toString (InconclusiveProperty s) = "inconclusive property: " ++ s
     toString (PassingProperty s)      = "passing property: "      ++ s
 
-adb_interactive cv trace compTree ps = do
-  i <- readLine "? " ["right", "wrong", "prop", "exit"]
-  case i of
-    "right" -> adb_judge cv Right trace compTree ps
-    "wrong" -> adb_judge cv Wrong trace compTree ps
-    "exit"  -> mainLoop cv trace compTree ps
-    _       -> do adb_help
-                  adb cv trace compTree ps
-
-
-
-adb_help :: IO ()
-adb_help = putStr
-  $  "help              Print this help message.\n"
-  ++ "right             Judge computation statements right according to the\n"
-  ++ "                  intentioned behaviour/specification of the function\n"
-  ++ "wrong             Judge computation statements wrong according to the\n"
-  ++ "                  intentioned behaviour/specification of the function\n"
-  ++ "exit              Return to main menu\n"
-
 adb_stats :: CompTree -> IO ()
 adb_stats compTree = putStrLn
-  $  "======================================================================= [" 
+  $  "======================================================================= ["
   ++ show (length vs_w) ++ "-" ++ show (length vs_r) ++ "/" ++ show (length vs) ++ "]"
   where
   vs   = filter (not . isRootVertex) (vertices compTree)
   vs_r = filter isRight vs
   vs_w = filter isWrong vs
 
-
-adb_judge :: Vertex -> Judgement -> Trace -> CompTree -> [Propositions] -> IO ()
-adb_judge cv jmt trace compTree ps = case faultyVertices compTree' of
+adb_judge :: Judgement -> State -> IO (Transition State)
+adb_judge jmt State{..} = case faultyVertices compTree' of
   (v:_) -> do adb_stats compTree'
               putStrLn $ "Fault located! In:\n" ++ vertexRes v
-              mainLoop cv trace compTree' ps
-  []    -> adb cv_next trace compTree' ps
+              return $ Up $ Just $ State cv trace compTree' ps
+  []    -> return $ Next $ State cv_next trace compTree' ps
   where
   cv_next     = next cv' compTree'
   compTree'   = mapGraph replaceCV compTree
@@ -173,8 +323,12 @@ next v ct = case getJudgement v of
 
 unjudged :: Vertex -> Bool
 unjudged = unjudged' . getJudgement
-  where 
+  where
   unjudged' Right = False
   unjudged' Wrong = False
   unjudged' _     = True
+
+
+
+
 

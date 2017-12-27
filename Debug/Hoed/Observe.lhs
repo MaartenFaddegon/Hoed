@@ -1,4 +1,5 @@
 \begin{code}
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -152,15 +153,6 @@ class GObservable f where
 constrainBase :: (Show a, Eq a) => a -> a -> a
 constrainBase x c | x == c = x
                   | otherwise = error $ show x ++ " constrained by " ++ show c
-\end{code}
-
-
-\begin{code}
-#if __GLASGOW_HASKELL__ >= 710
-instance {-# OVERLAPPABLE #-} Observable a where 
-  observer = observeOpaque "<?>"
-  constrain _ _ = error "contrained by untraced value"
-#endif
 \end{code}
 
 A type generic definition of constrain
@@ -638,13 +630,8 @@ endEventStream =
 
 sendEvent :: Int -> Parent -> Change -> IO ()
 sendEvent nodeId parent change =
-        do { nodeId `seq` parent `seq` return ()
-           ; change `seq` return ()
-           ; takeMVar sendSem
-           ; es <- readIORef events
-           ; let event = Event nodeId parent change
-           ; writeIORef events (event `seq` (event : es))
-           ; putMVar sendSem ()
+        do { let !event = Event nodeId parent change
+           ; atomicModifyIORef' events (\es -> (event : es, ()))
            }
 
 -- local
@@ -654,11 +641,6 @@ events = unsafePerformIO $ newIORef badEvents
 badEvents :: Trace
 badEvents = error "Bad Event Stream"
 
--- use as a trivial semiphore
-{-# NOINLINE sendSem #-}
-sendSem :: MVar ()
-sendSem = unsafePerformIO $ newMVar ()
--- end local
 \end{code}
 
 
@@ -677,13 +659,7 @@ initUniq :: IO ()
 initUniq = writeIORef uniq 1
 
 getUniq :: IO UID
-getUniq
-    = do { takeMVar uniqSem
-         ; n <- readIORef uniq
-         ; writeIORef uniq $! (n + 1)
-         ; putMVar uniqSem ()
-         ; return n
-         }
+getUniq = atomicModifyIORef' uniq (\n -> (n+1,n))
 
 peepUniq :: IO UID
 peepUniq = readIORef uniq
@@ -693,9 +669,6 @@ peepUniq = readIORef uniq
 uniq :: IORef UID
 uniq = unsafePerformIO $ newIORef 1
 
-{-# NOINLINE uniqSem #-}
-uniqSem :: MVar ()
-uniqSem = unsafePerformIO $ newMVar ()
 \end{code}
 
 

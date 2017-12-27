@@ -15,7 +15,7 @@ import Debug.Hoed.Observe
 import Prelude hiding (lookup,Right)
 import qualified Prelude as Prelude
 import Debug.Hoed.CompTree
-import Debug.Hoed.Render(CompStmt(..))
+import Debug.Hoed.Render(CompStmt(..), StmtDetails(..))
 import Data.Serialize
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -31,6 +31,7 @@ instance Serialize Vertex
 instance Serialize Judgement
 instance Serialize AssistedMessage
 instance Serialize CompStmt
+instance Serialize StmtDetails
 instance Serialize Parent
 instance Serialize Event
 instance Serialize Change

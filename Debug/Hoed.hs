@@ -1,3 +1,8 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ImplicitParams  #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+{-# OPTIONS_GHC -fno-warn-type-defaults #-}
 {-|
 Module      : Debug.Hoed
 Description : Lighweight algorithmic debugging based on observing intermediate values.
@@ -91,7 +96,7 @@ Papers on the theory behind Hoed can be obtained via <http://maartenfaddegon.nl/
 I am keen to hear about your experience with Hoed: where did you find it useful and where would you like to see improvement? You can send me an e-mail at hoed@maartenfaddegon.nl, or use the github issue tracker <https://github.com/MaartenFaddegon/hoed/issues>.
 -}
 
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP             #-}
 
 module Debug.Hoed
   ( -- * Basic annotations
@@ -99,6 +104,9 @@ module Debug.Hoed
   , runO
   , printO
   , testO
+  , runOwith
+  , HoedOptions(..)
+  , defaultHoedOptions
 
   -- * Property-assisted algorithmic debugging
   , runOwp
@@ -122,10 +130,11 @@ module Debug.Hoed
   , conAp
 
   -- * Build your own debugger with Hoed
+  , HoedAnalysis(..)
   , runO'
   , judge
   , unjudgedCharacterCount
-  , CompTree(..)
+  , CompTree
   , Vertex(..)
   , CompStmt(..)
   , Judge(..)
@@ -148,39 +157,30 @@ module Debug.Hoed
   , observeBase
   , constrainBase
   , debugO
-  , CDS(..)
+  , CDS
   , Generic
   ) where
 
 
-import Debug.Hoed.Observe
-import Debug.Hoed.Render
-import Debug.Hoed.EventForest
-import Debug.Hoed.CompTree
-import Debug.Hoed.Console
-import Debug.Hoed.Prop
-import Debug.Hoed.Serialize
-import Paths_Hoed(getDataDir)
+import           Debug.Hoed.CompTree
+import           Debug.Hoed.Console
+import           Debug.Hoed.EventForest
+import           Debug.Hoed.Observe
+import           Debug.Hoed.Prop
+import           Debug.Hoed.Render
+import           Debug.Hoed.Serialize
 
-import Prelude hiding (Right)
-import qualified Prelude
-import System.Process(system)
-import System.IO
-import Data.Maybe
-import Control.Monad
-import Data.List
-import Data.Ord
-import Data.Char
-import System.Environment
-import System.Directory(createDirectoryIfMissing)
+import           Data.IORef
+import           Prelude                      hiding (Right)
+import           System.Console.Terminal.Size
+import           System.Directory             (createDirectoryIfMissing)
+import           System.IO
+import           System.IO.Unsafe
 
-import GHC.Generics
+import           GHC.Generics
 
-import Data.IORef
-import System.IO.Unsafe
-import Data.Graph.Libgraph
+import           Data.Graph.Libgraph
 
-import System.Directory(createDirectoryIfMissing)
 
 
 -- %************************************************************************
@@ -195,10 +195,12 @@ import System.Directory(createDirectoryIfMissing)
 runOnce :: IO ()
 runOnce = do
   f <- readIORef firstRun
-  case f of True  -> writeIORef firstRun False
-            False -> error "It is best not to run Hoed more that once (maybe you want to restart GHCI?)"
+  if f
+    then writeIORef firstRun False
+    else error "It is best not to run Hoed more that once (maybe you want to restart GHCI?)"
 
 firstRun :: IORef Bool
+{-# NOINLINE firstRun #-}
 firstRun = unsafePerformIO $ newIORef True
 
 
@@ -209,7 +211,7 @@ debugO program =
         ; initUniq
         ; startEventStream
         ; let errorMsg e = "[Escaping Exception in Code : " ++ show e ++ "]"
-        ; ourCatchAllIO (do { program ; return () })
+        ; ourCatchAllIO (do { _ <- program ; return () })
                         (hPutStrLn stderr . errorMsg)
         ; endEventStream
         }
@@ -227,36 +229,41 @@ debugO program =
 
 runO :: IO a -> IO ()
 runO program = do
-  (trace,traceInfo,compTree,frt) <- runO' Verbose program
-  debugSession trace compTree []
-  return ()
+  window <- size
+  let w = maybe (prettyWidth defaultHoedOptions) width window
+  runOwith defaultHoedOptions{prettyWidth=w, verbose=Verbose} program
 
+runOwith :: HoedOptions -> IO a -> IO ()
+runOwith options program = do
+  HoedAnalysis{..} <- runO' options program
+  debugSession hoedTrace hoedCompTree []
+  return ()
 
 -- | Hoed internal function that stores a serialized version of the tree on disk (assisted debugging spawns new instances of Hoed).
 runOstore :: String -> IO a -> IO ()
-runOstore tag program = do 
-  (trace,traceInfo,compTree,frt) <- runO' Silent program
-  storeTree (treeFilePath ++ tag) compTree
-  storeTrace (traceFilePath ++ tag) trace
+runOstore tag program = do
+  HoedAnalysis{..} <- runO' defaultHoedOptions{verbose=Silent} program
+  storeTree (treeFilePath ++ tag) hoedCompTree
+  storeTrace (traceFilePath ++ tag) hoedTrace
 
 -- | Repeat and trace a failing testcase
 testO :: Show a => (a->Bool) -> a -> IO ()
-testO p x = runO $ putStrLn $ if (p x) then "Passed 1 test."
-                                       else " *** Failed! Falsifiable: " ++ show x
+testO p x = runO $ putStrLn $ if p x then "Passed 1 test."
+                                     else " *** Failed! Falsifiable: " ++ show x
 
 -- | Use property based judging.
 
 runOwp :: [Propositions] -> IO a -> IO ()
 runOwp ps program = do
-  (trace,traceInfo,compTree,frt) <- runO' Verbose program
-  let compTree' = compTree
-  debugSession trace compTree' ps
+  HoedAnalysis{..} <- runO' defaultHoedOptions{verbose=Verbose} program
+  let compTree' = hoedCompTree
+  debugSession hoedTrace compTree' ps
   return ()
 
 -- | Repeat and trace a failing testcase
 testOwp :: Show a => [Propositions] -> (a->Bool) -> a -> IO ()
-testOwp ps p x = runOwp ps $ putStrLn $ 
-  if (p x) then "Passed 1 test."
+testOwp ps p x = runOwp ps $ putStrLn $
+  if p x then "Passed 1 test."
   else " *** Failed! Falsifiable: " ++ show x
 
 -- | Short for @runO . print@.
@@ -270,19 +277,33 @@ printOwp ps expr = runOwp ps (print expr)
 -- | Only produces a trace. Useful for performance measurements.
 traceOnly :: IO a -> IO ()
 traceOnly program = do
-  debugO program
+  _ <- debugO program
   return ()
 
 
 data Verbosity = Verbose | Silent
 
 condPutStrLn :: Verbosity -> String -> IO ()
-condPutStrLn Silent _  = return ()
+condPutStrLn Silent _    = return ()
 condPutStrLn Verbose msg = hPutStrLn stderr msg
 
+data HoedAnalysis = HoedAnalysis
+  { hoedTrace       :: [Event]
+  , hoedTraceInfo   :: TraceInfo
+  , hoedCompTree    :: CompTree
+  , hoedEventForest :: EventForest
+  }
+
+data HoedOptions = HoedOptions
+  { verbose     :: Verbosity
+  , prettyWidth :: Int
+  }
+
+defaultHoedOptions = HoedOptions Silent 110
+
 -- |Entry point giving you access to the internals of Hoed. Also see: runO.
-runO' :: Verbosity -> IO a -> IO (Trace,TraceInfo,CompTree,EventForest)
-runO' verbose program = do
+runO' :: HoedOptions -> IO a -> IO HoedAnalysis
+runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
   createDirectoryIfMissing True ".Hoed/"
   condPutStrLn verbose "=== program output ===\n"
   events <- debugO program
@@ -300,10 +321,15 @@ runO' verbose program = do
       ct   = mkCompTree eqs ds
 
   writeFile ".Hoed/Events"     (unlines . map show . reverse $ events)
+#if defined(DEBUG)
+  writeFile ".Hoed/Cdss"       (unlines . map show $ cdss2)
+  writeFile ".Hoed/Eqs"        (unlines . map show $ eqs)
+  writeFile ".Hoed/compTree"   (unlines . map show $ eqs)
+#endif
 #if defined(TRANSCRIPT)
   writeFile ".Hoed/Transcript" (getTranscript events ti)
 #endif
-  
+
   condPutStrLn verbose "\n=== Statistics ===\n"
   let e  = length events
       n  = length eqs
@@ -315,13 +341,13 @@ runO' verbose program = do
   condPutStrLn verbose $ "computation tree has a branch factor of " ++ show b ++ " (i.e the average number of children of non-leaf nodes)"
 
   condPutStrLn verbose "\n=== Debug Session ===\n"
-  return (events, ti, ct, frt)
+  return $ HoedAnalysis events ti ct frt
 
 -- | Trace and write computation tree to file. Useful for regression testing.
 logO :: FilePath -> IO a -> IO ()
 logO filePath program = {- SCC "logO" -} do
-  (_,_,compTree,_) <- runO' Verbose program
-  writeFile filePath (showGraph compTree)
+  HoedAnalysis{..} <- runO' defaultHoedOptions{verbose=Verbose} program
+  writeFile filePath (showGraph hoedCompTree)
   return ()
 
   where showGraph g        = showWith g showVertex showArc
@@ -333,9 +359,9 @@ logO filePath program = {- SCC "logO" -} do
 -- | As logO, but with property-based judging.
 logOwp :: UnevalHandler -> FilePath -> [Propositions] -> IO a -> IO ()
 logOwp handler filePath properties program = do
-  (trace,traceInfo,compTree,frt) <- runO' Verbose program
+  HoedAnalysis{..} <- runO' defaultHoedOptions{verbose=Verbose} program
   hPutStrLn stderr "\n=== Evaluating assigned properties ===\n"
-  compTree' <- judgeAll handler unjudgedCharacterCount trace properties compTree
+  compTree' <- judgeAll handler unjudgedCharacterCount hoedTrace properties hoedCompTree
   writeFile filePath (showGraph compTree')
   return ()
 
@@ -344,3 +370,11 @@ logOwp handler filePath properties program = do
         showVertex v       = ("\"" ++ (escape . showCompStmt) v ++ "\"", "")
         showArc _          = ""
         showCompStmt s     = (show . vertexJmt) s ++ ": " ++ (show . vertexStmt) s
+
+
+#if __GLASGOW_HASKELL__ >= 710
+-- A catch-all instance for non observable types
+instance {-# OVERLAPPABLE #-} Observable a where
+  observer = observeOpaque "<?>"
+  constrain _ _ = error "constrained by untraced value"
+#endif
