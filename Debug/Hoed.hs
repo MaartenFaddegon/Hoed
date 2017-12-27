@@ -196,6 +196,7 @@ import           Debug.Hoed.Serialize
 
 import           Data.IORef
 import           Prelude                      hiding (Right)
+import           System.Clock
 import           System.Console.Terminal.Size
 import           System.Directory             (createDirectoryIfMissing)
 import           System.IO
@@ -313,9 +314,7 @@ condPutStrLn Verbose msg = hPutStrLn stderr msg
 
 data HoedAnalysis = HoedAnalysis
   { hoedTrace       :: [Event]
-  , hoedTraceInfo   :: TraceInfo
   , hoedCompTree    :: CompTree
-  , hoedEventForest :: EventForest
   }
 
 data HoedOptions = HoedOptions
@@ -329,12 +328,15 @@ defaultHoedOptions = HoedOptions Silent 110
 runO' :: HoedOptions -> IO a -> IO HoedAnalysis
 runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
   createDirectoryIfMissing True ".Hoed/"
+  t1 <- getTime Monotonic
   condPutStrLn verbose "=== program output ===\n"
   events <- debugO program
-  condPutStrLn verbose"\n=== program terminated ==="
+  t2 <- getTime Monotonic
+  let programTime = fromIntegral(toNanoSecs(diffTimeSpec t1 t2)) * 1e-9
+  condPutStrLn verbose $ "\n=== program terminated (" ++ show programTime ++ " seconds) ==="
   condPutStrLn verbose"Please wait while the computation tree is constructed..."
 
-  let cdss = eventsToCDS events
+  let cdss  = eventsToCDS events
   let cdss1 = rmEntrySet cdss
   let cdss2 = simplifyCDSSet cdss1
   let eqs   = renderCompStmts cdss2
@@ -344,8 +346,8 @@ runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
       ds   = dependencies ti
       ct   = mkCompTree eqs ds
 
-  writeFile ".Hoed/Events"     (unlines . map show . reverse $ events)
 #if defined(DEBUG)
+  writeFile ".Hoed/Events"     (unlines . map show . reverse $ events)
   writeFile ".Hoed/Cdss"       (unlines . map show $ cdss2)
   writeFile ".Hoed/Eqs"        (unlines . map show $ eqs)
   writeFile ".Hoed/compTree"   (unlines . map show $ eqs)
@@ -364,8 +366,10 @@ runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
   condPutStrLn verbose $ show (length . arcs $ ct) ++ " edges in computation tree"
   condPutStrLn verbose $ "computation tree has a branch factor of " ++ show b ++ " (i.e the average number of children of non-leaf nodes)"
 
-  condPutStrLn verbose "\n=== Debug Session ===\n"
-  return $ HoedAnalysis events ti ct frt
+  t3 <- getTime Monotonic
+  let compTime = fromIntegral(toNanoSecs(diffTimeSpec t2 t3)) * 1e-9
+  condPutStrLn verbose $ "\n=== Debug Session (" ++ show compTime ++ " seconds) ===\n"
+  return $ HoedAnalysis events ct
 
 -- | Trace and write computation tree to file. Useful for regression testing.
 logO :: FilePath -> IO a -> IO ()
