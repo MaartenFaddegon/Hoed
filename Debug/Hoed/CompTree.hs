@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 -- This file is part of the Haskell debugger Hoed.
 --
@@ -24,7 +25,6 @@ module Debug.Hoed.CompTree
 , isPassing
 , leafs
 , ConstantValue(..)
-, getLocation
 , unjudgedCharacterCount
 #if defined(TRANSCRIPT)
 , getTranscript
@@ -33,7 +33,8 @@ module Debug.Hoed.CompTree
 , traceInfo
 , Graph(..) -- re-export from LibGraph
 )where
-
+import           Control.Monad
+import           Control.Monad.ST
 import           Debug.Hoed.EventForest
 import           Debug.Hoed.Observe
 import           Debug.Hoed.Render
@@ -41,9 +42,12 @@ import           Debug.Hoed.Render
 import           Data.Graph.Libgraph
 import           Data.IntMap.Strict     (IntMap)
 import qualified Data.IntMap.Strict     as IntMap
-import           Data.List              (group, sort)
+import           Data.List              (foldl', group, sort)
+import           Data.Maybe
+import qualified Data.Vector.Mutable as VM
 import           GHC.Generics
 import           Prelude                hiding (Right)
+import           Text.Show.Functions
 
 data Vertex = RootVertex | Vertex {vertexStmt :: CompStmt, vertexJmt :: Judgement}
   deriving (Eq,Show,Ord,Generic)
@@ -134,7 +138,7 @@ mkCompTree cs ds = Graph RootVertex vs as
         -- A mapping from stmtUID to Vertex of all CompStmts in cs
         vMap :: IntMap Vertex
         -- vMap = foldl (\m c -> let v = Vertex c Unassessed in foldl (\m' i -> IntMap.insert i v m') m (stmtUIDs c)) IntMap.empty cs
-        vMap = foldl (\m c -> IntMap.insert (stmtIdentifier c) (Vertex c Unassessed) m) IntMap.empty cs
+        vMap = foldl' (\m c -> IntMap.insert (stmtIdentifier c) (Vertex c Unassessed) m) IntMap.empty cs
 
         -- Given an UID, get corresponding CompStmt (wrapped in a Vertex)
         findVertex :: UID -> Vertex
@@ -167,20 +171,35 @@ insertCon k x = IntMap.insertWith (\[x'] xs->x':xs) k [x] -- where x == x'
 
 ------------------------------------------------------------------------------------------------------------------------
 
-data TraceInfo = TraceInfo
-  { topLvlFun    :: IntMap UID
-                   -- references from the UID of an event to the UID of the corresponding top-level Fun event
-  , locations    :: IntMap (ParentPosition -> Bool)
-                   -- reference from parent UID and position to location
-  , computations :: Nesting
-                   -- UIDs of active and paused computations of arguments/results of Fun events
-#if defined(TRANSCRIPT)
-  , messages     :: IntMap String
-                   -- stored depth of the stack for every event
-#endif
-  , dependencies :: [(UID,UID)]
-  }                -- the result
+data EventDetails = EventDetails
+  { topLvlFun :: !(Maybe UID)
+              -- ^ references from the UID of an event to the UID of the corresponding top-level Fun event
+  , locations :: ParentPosition -> Bool
+              -- ^ reference from parent UID and position to location
+  }
+  deriving Show
 
+type EventDetailsStore s = VM.STVector s EventDetails
+
+getEventDetails :: EventDetailsStore s -> UID -> ST s EventDetails
+getEventDetails = VM.unsafeRead
+
+setEventDetails :: EventDetailsStore s -> UID -> EventDetails -> ST s ()
+setEventDetails = VM.unsafeWrite
+
+------------------------------------------------------------------------------------------------------------------------
+type Dependencies = [(UID,UID)]
+
+data TraceInfo = TraceInfo
+  { computations :: Nesting
+                   -- UIDs of active and paused computations of arguments/results of Fun events
+  , dependencies :: Dependencies -- the result
+#if defined(TRANSCRIPT)
+  , messages  :: !(IntMap String)
+              -- ^ stored depth of the stack for every event
+#endif
+  }
+  deriving Show
 
 ------------------------------------------------------------------------------------------------------------------------
 #if defined(TRANSCRIPT)
@@ -210,48 +229,35 @@ getTranscript es t = foldl (\acc e -> (show e ++ m e) ++ "\n" ++ acc) "" es
 #endif
 ------------------------------------------------------------------------------------------------------------------------
 
-getLocation :: Event -> TraceInfo -> Bool
-getLocation e s = getLocation' p
+getLocation :: EventDetailsStore s -> Event -> ST s Bool
+getLocation s e = do
+          ed <- getEventDetails s (parentUID p)
+          return $ locations ed (parentPosition p)
+  where
+    p = eventParent e
 
-  where p = parentPosition . eventParent $ e
-        j = parentUID . eventParent $ e
-        getLocation' =
-          case IntMap.lookup j (locations s) of
-            Just f -> f
-            Nothing -> error $ "Could not find location for j = " ++ show j ++
-                               "\nKnown locations are: " ++ show (IntMap.keys (locations s))
-
-setLocation :: Event -> (ParentPosition -> Bool) -> TraceInfo -> TraceInfo
-setLocation e getLoc s = s{locations=IntMap.insert i getLoc (locations s)}
-
-  where i = eventUID e
-
-------------------------------------------------------------------------------------------------------------------------
+collectEventDetails :: EventDetailsStore s -> Event -> ST s (Bool,UID)
+collectEventDetails v e = do
+            let !p = eventParent e
+            parentDetails <- getEventDetails v (parentUID p)
+            let !loc = locations parentDetails (parentPosition p)
+                !top = fromMaybe (parentUID p) $ topLvlFun parentDetails
+            return (loc, top)
 
 -- When we see a Fun event whose parent is not a Fun event it is a top level Fun event,
 -- otherwise just copy the reference to the top level Fun event from the parent.
--- A top leven Fun event references itself.
-seeFun :: Event -> TraceInfo -> TraceInfo
-seeFun e s = s{ topLvlFun=case IntMap.lookup j (topLvlFun s) of
-                  Nothing  -> IntMap.insert i i (topLvlFun s)
-                  (Just a) -> IntMap.insert i a (topLvlFun s)
-              }
-
-  where i = eventUID e
-        j = parentUID . eventParent $ e
-
--- Get the UID of the top-level Fun of the parent of event e
-getTopLvlFun :: Event -> TraceInfo -> UID
-getTopLvlFun e s = case IntMap.lookup j (topLvlFun s) of Nothing -> j; (Just a') -> a'
-
-  where j = parentUID . eventParent $ e
-
--- Copy top-level Fun reference from the parent of e
-cpyTopLvlFun :: Event -> TraceInfo -> TraceInfo
-cpyTopLvlFun e s = s{topLvlFun=IntMap.insert i a (topLvlFun s)}
-
-  where i = eventUID e
-        a = getTopLvlFun e s
+-- A top level Fun event references itself.
+mkFunDetails :: EventDetailsStore s -> Event -> ST s EventDetails
+mkFunDetails s e = do
+    let p = eventParent e
+    ed  <- getEventDetails s (parentUID p)
+    let !loc = locations ed (parentPosition p)
+        !top = fromMaybe (eventUID e) $ topLvlFun ed
+        locFun 0 = not loc
+        locFun 1 = loc
+    return $ EventDetails (Just top) locFun
+  where
+    j = parentUID . eventParent $ e
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -272,10 +278,10 @@ getSpanUID (Paused j)    = j
 isSpan :: UID -> Span -> Bool
 isSpan i s = i == getSpanUID s
 
-start :: Event -> TraceInfo -> TraceInfo
-start e s = m s{computations = cs}
+start :: Event -> EventDetails -> TraceInfo -> TraceInfo
+start e ed s = m s{computations = cs}
 
-  where i  = getTopLvlFun e s
+  where Just i  = topLvlFun ed
         cs = Computing i : computations s
 #if defined(TRANSCRIPT)
         m  = addMessage e $ "Start computation " ++ show i ++ ": " ++ show cs
@@ -284,10 +290,10 @@ start e s = m s{computations = cs}
 #endif
 
 
-stop :: Event -> TraceInfo -> TraceInfo
-stop e s = m s{computations = cs}
+stop :: Event -> EventDetails -> TraceInfo -> TraceInfo
+stop e ed s = m s{computations = cs}
 
-  where i  = getTopLvlFun e s
+  where Just i = topLvlFun ed
         cs = deleteFirst (computations s)
         deleteFirst [] = []
         deleteFirst (s:ss) | isSpan i s = ss
@@ -299,10 +305,10 @@ stop e s = m s{computations = cs}
 #endif
 
 
-pause :: Event -> TraceInfo -> TraceInfo
-pause e s = m s{computations=cs}
+pause :: Event -> EventDetails -> TraceInfo -> TraceInfo
+pause e ed s = m s{computations=cs}
 
-  where i  = getTopLvlFun e s
+  where Just i = topLvlFun ed
         cs = case cs_post of
                []      -> cs_pre
                (_:cs') -> map toPaused cs_pre ++ Paused i : cs'
@@ -315,10 +321,10 @@ pause e s = m s{computations=cs}
         m = id
 #endif
 
-resume :: Event -> TraceInfo -> TraceInfo
-resume e s = m s{computations=cs}
+resume :: Event -> EventDetails -> TraceInfo -> TraceInfo
+resume e ed s = m s{computations=cs}
 
-  where i  = getTopLvlFun e s
+  where Just i = topLvlFun ed
         cs = case cs_post of
                []      -> cs_pre
                (_:cs') -> cs_pre ++ Computing i : cs'
@@ -340,7 +346,7 @@ activeComputations s = map getSpanUID . filter isActive $ computations s
 ------------------------------------------------------------------------------------------------------------------------
 
 addDependency :: Event -> TraceInfo -> TraceInfo
-addDependency e s = m s{dependencies = case d of (Just d') -> d':dependencies s; Nothing -> dependencies s}
+addDependency _e s = m s{dependencies = case d of (Just d') -> d':dependencies s; Nothing -> dependencies s}
 
   where d = case activeComputations s of
               []      -> Nothing
@@ -349,8 +355,8 @@ addDependency e s = m s{dependencies = case d of (Just d') -> d':dependencies s;
 
 #if defined(TRANSCRIPT)
         m = case d of
-             Nothing   -> addMessage e ("does not add dependency")
-             (Just d') -> addMessage e ("adds dependency " ++ show (fst d') ++ " -> " ++ show (snd d'))
+             Nothing   -> addMessage _e ("does not add dependency")
+             (Just d') -> addMessage _e ("adds dependency " ++ show (fst d') ++ " -> " ++ show (snd d'))
 #else
         m = id
 #endif
@@ -362,7 +368,7 @@ type ConsMap = IntMap [ParentPosition]
 -- Iff an event is a constant then the UID of its parent and its ParentPosition
 -- are elements of the ConsMap.
 mkConsMap :: Trace -> ConsMap
-mkConsMap = foldl loop IntMap.empty
+mkConsMap = foldl' loop IntMap.empty
   where loop :: IntMap [ParentPosition] -> Event -> IntMap [ParentPosition]
         loop m e = case change e of
           Cons{} -> insertCon (parentUID . eventParent $ e) (parentPosition . eventParent $ e) m
@@ -378,35 +384,43 @@ corToCons cs e = case IntMap.lookup j cs of
 
 ------------------------------------------------------------------------------------------------------------------------
 
-traceInfo :: Trace -> TraceInfo
-traceInfo trc = foldl loop s0 trc
-
-  where s0 :: TraceInfo
-        s0 = TraceInfo IntMap.empty IntMap.empty []
+traceInfo :: Int -> Trace -> TraceInfo
+traceInfo l trc = runST $ do
+  -- Practically speaking, event UIDs start in 1
+  v <- VM.replicate (l+1) $ EventDetails Nothing (const False)
+  let loop s e =
+        case change e of
+          Observe {} -> do
+            setEventDetails v (eventUID e) (EventDetails Nothing (const True))
+            return s
+          Fun {} -> do
+            setEventDetails v (eventUID e) =<< mkFunDetails v e
+            return s
+            -- Span start
+          Enter {}
+            | corToCons cs e -> do
+              (loc, top) <- collectEventDetails v e
+              let !details = EventDetails (Just top) (const loc)
+              setEventDetails v (eventUID e) details
+              return $ if loc
+                  then addDependency e . start e details $ s
+                  else pause e details s
+            | otherwise -> return s
+            -- Span end
+          Cons {} -> do
+            (loc, top) <- collectEventDetails v e
+            let !details = EventDetails (Just top) (const loc)
+            setEventDetails v (eventUID e) details
+            return $ if loc
+              then stop e details s
+              else resume e details s
+  foldM loop s0 trc
+  where
+    s0 :: TraceInfo
+    s0 = TraceInfo [] []
 #if defined(TRANSCRIPT)
-                       IntMap.empty
+           IntMap.empty
 #endif
-                       []
-
-        cs :: ConsMap
-        cs = mkConsMap trc
-
-        loop :: TraceInfo -> Event -> TraceInfo
-        loop s e = let loc = getLocation e s
-                   in case change e of
-                        Observe{} -> setLocation e (const True) s
-
-                        Fun{}     -> setLocation e (\q-> case q of 0 -> not loc; 1 -> loc)
-                                     . seeFun e $ s
-
-                        -- Span start
-                        Enter{}   -> if not . corToCons cs $ e then s else cpyTopLvlFun e
-                                     $ if loc then addDependency e
-                                                $ start e s else pause e s
-
-                        -- Span end
-                        Cons{} ->  cpyTopLvlFun e
-                                   . setLocation e (const loc)
-                                   $ if loc then stop e s else resume e s
-
+    cs :: ConsMap
+    cs = mkConsMap trc
 

@@ -337,28 +337,26 @@ runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
   condPutStrLn verbose"Please wait while the computation tree is constructed..."
 
   let cdss  = eventsToCDS events
-  let cdss1 = rmEntrySet cdss
-  let cdss2 = simplifyCDSSet cdss1
-  let eqs   = renderCompStmts cdss2
-
-  let frt  = mkEventForest events
-      ti   = traceInfo (reverse events)
-      ds   = dependencies ti
-      ct   = mkCompTree eqs ds
+      cdss1 = rmEntrySet cdss
+      cdss2 = simplifyCDSSet cdss1
+      eqs   = renderCompStmts cdss2
+      e    = length events
+      frt  = mkEventForest events
+      ti   = traceInfo e (reverse events)
+      ds  = dependencies ti
+      ct  = mkCompTree eqs ds
 
 #if defined(DEBUG)
   writeFile ".Hoed/Events"     (unlines . map show . reverse $ events)
   writeFile ".Hoed/Cdss"       (unlines . map show $ cdss2)
   writeFile ".Hoed/Eqs"        (unlines . map show $ eqs)
-  writeFile ".Hoed/compTree"   (unlines . map show $ eqs)
 #endif
 #if defined(TRANSCRIPT)
   writeFile ".Hoed/Transcript" (getTranscript events ti)
 #endif
 
   condPutStrLn verbose "\n=== Statistics ===\n"
-  let e  = length events
-      n  = length eqs
+  let n  = length eqs
       b  = fromIntegral (length . arcs $ ct ) / fromIntegral ((length . vertices $ ct) - (length . leafs $ ct))
   condPutStrLn verbose $ show e ++ " events"
   condPutStrLn verbose $ show n ++ " computation statements"
