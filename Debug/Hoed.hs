@@ -151,7 +151,6 @@ module Debug.Hoed
   , Observable(..)
   , (<<)
   , thunk
-  , nothunk
   , send
   , observeOpaque
   , observeBase

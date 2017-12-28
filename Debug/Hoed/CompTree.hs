@@ -403,10 +403,6 @@ traceInfo trc = foldl loop s0 trc
                                      $ if loc then addDependency e
                                                 $ start e s else pause e s
 
-                        NoEnter{} -> if not . corToCons cs $ e then s else cpyTopLvlFun e
-                                     $ if loc then addDependency e
-                                                $ start e s else pause e s
-
                         -- Span end
                         Cons{} ->  cpyTopLvlFun e
                                    . setLocation e (const loc)
