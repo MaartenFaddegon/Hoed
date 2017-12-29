@@ -1,4 +1,5 @@
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE NamedFieldPuns        #-}
 {-# LANGUAGE OverloadedLists       #-}
@@ -11,13 +12,14 @@
 module Debug.Hoed.Console(debugSession, showGraph) where
 
 import           Control.Monad
-import           Data.Bifunctor
+import           Control.Arrow (first, second)
 import           Data.Char
 import           Data.Foldable            as F
 import           Data.Indexable
 import           Data.Graph.Libgraph      as G
 import           Data.List                as List (foldl', group, mapAccumL, nub, sort)
 import qualified Data.Map.Strict          as Map
+import qualified Data.IntMap.Strict       as IntMap
 import           Data.Maybe
 import           Data.Sequence            (Seq, ViewL (..), viewl, (<|))
 import qualified Data.Sequence            as Seq
@@ -35,7 +37,7 @@ import           System.Directory
 import           System.Exit
 import           System.IO
 import           System.Process
-import           Text.PrettyPrint.FPretty
+import           Text.PrettyPrint.FPretty hiding ((<$>))
 import           Text.Regex.TDFA
 import           Web.Browser
 
@@ -58,12 +60,12 @@ type Depth = Int
 --
 --   The span in column N is contained below N other spans.
 --   The renderer should draw the columns left to right.
-traceToSpans :: Trace -> Spans
-traceToSpans =
+traceToSpans :: (UID -> Event) -> Trace -> Spans
+traceToSpans lookupEvent =
   map sort .
   Map.elems .
   Map.fromListWith (++) .
-  map (second (: [])) . (\(_, b, _) -> b) . foldl' traceToSpans1' ([], [], 0)
+  map (second (: [])) . snd . foldl' (traceToSpans2' lookupEvent) ([], [])
 
 -- Implements a loop where the state is a stack of open spans.
 -- Push into the stack when an event starts a new span.
@@ -89,27 +91,48 @@ traceToSpans1' (stack, result, n) e = (stack, result, n-1)
 
 -- This version tries to distinguish between Fun events that terminate a span,
 -- and Fun events that signal a second application of a function
--- TODO work in progress
 traceToSpans2'
-  :: V.Vector Event
+  :: (UID -> Event)
   -> (Seq Id, [(Depth, Span)])
   -> Event
   -> (Seq Id, [(Depth, Span)])
-traceToSpans2' events (stack, result) e@Event {..}
-  | isStart change = (eventUID <| stack, result)
+traceToSpans2' lookupEv (stack, result) e
+  | isStart (change e) = (eventUID e <| stack, result)
   | start :< stack' <- viewl stack
-  , isEnd change =
-    (stack', (Seq.length stack', Span start eventUID True) : result)
+  , isEnd lookupEv e = (stack', (Seq.length stack', Span start (eventUID e) (getPolarity e)) : result)
   | otherwise = (stack, result)
   where
     isStart Enter {} = True
     isStart _ = False
-    isEnd Cons {} = True
-    --isEnd Fun {} = True
-    isEnd _ = False
+    getPolarity Event{change = Observe{}} = True
+    getPolarity Event{eventParent = Parent p 0}
+      | Event{change = Fun} <- lookupEv p
+      = not $ getPolarity (lookupEv p)
+    getPolarity Event{eventParent = Parent p _} = getPolarity (lookupEv p)
+
+isEnd lookupEv Event {change = Cons {}} = True
+isEnd lookupEv me@Event {change = Fun {}} =
+  case prevEv of
+    Event{change = Enter{}} -> eventParent prevEv == eventParent me
+    _ -> False
+  where
+    prevEv= lookupEv (eventUID me - 1)
+isEnd _ _ = False
 
 printTrace :: Trace -> IO ()
-printTrace trace = putStrLn $ renderTrace' (traceToSpans trace, trace)
+printTrace trace =
+  putStrLn $
+  renderTrace' lookupEvent lookupDescs (traceToSpans lookupEvent trace, trace)
+    -- fast lookup via an array
+  where
+    lookupEvent = indexableAt trace
+    lookupDescs =
+      (fromMaybe [] .
+       (`IntMap.lookup` (IntMap.fromListWith
+                           (++)
+                           [ (p, [e])
+                           | e@Event {eventParent = Parent p _} <- toList trace
+                           ])))
 
 -- | TODO to be improved
 renderTrace :: (Spans, Trace) -> IO ()
@@ -122,19 +145,19 @@ renderTrace (spans, trace) = do
   putStrLn "-----"
   mapM_ print spans
 
-renderTrace' :: (Spans, Trace) -> String
-renderTrace' (columns, events) = unlines renderedLines
+renderTrace' :: (UID -> Event) -> (UID -> [Event]) -> (Spans, Trace) -> String
+renderTrace' lookupEvent lookupDescs (columns, events) = unlines renderedLines
     -- roll :: State -> (Event, Maybe ColumnEvent) -> (State, String)
   where
     depth = length columns
     ((_, evWidth), renderedLines) =
       mapAccumL roll (replicate (depth + 1) ' ', 0) $ align (toList events) columnEvents
     -- Merge trace events and column events
-    align (ev:evs) (colEv@(rowIx, colIx, isStart):colEvs)
-      | eventUID ev == rowIx = (ev, Just (colIx, isStart)) : align evs colEvs
+    align (ev:evs) (colEv@(rowIx, colIx, pol, isStart):colEvs)
+      | eventUID ev == rowIx = (ev, Just (colIx, pol, isStart)) : align evs colEvs
       | otherwise = (ev, Nothing) : align evs (colEv : colEvs)
     align [] [] = []
-    align ev [] = map (, Nothing) ev
+    align ev [] = map  (\x -> (x, Nothing)) ev
     -- Produce the output in three columns: spans, events, and explains
     -- For spans: keep a state of the open spans
     --   (the state is the rendering in characters)
@@ -142,54 +165,152 @@ renderTrace' (columns, events) = unlines renderedLines
     -- For explains: circularly reuse the widest event result
     roll (state, width) (ev, Nothing)
       | (w, s) <- showWithExplains ev = ((state, max width w), state ++ s)
-    roll (state, width) (ev, Just (col, True))
+    roll (state, width) (ev, Just (col, pol, True))
       | state' <- update state col '|'
-      , state'' <- update state col '↑'
+      , state'' <- update state col (if pol then '↑' else '┬')
       , (w, s) <- showWithExplains ev = ((state', max width w), state'' ++ s)
-    roll (state, width) (ev, Just (col, False))
+    roll (state, width) (ev, Just (col, pol, False))
       | state' <- update state col ' '
-      , state'' <- update state col '↓'
+      , state'' <- update state col (if pol then '↓' else '┴')
       , (w, s) <- showWithExplains ev = ((state', max width w), state'' ++ s)
     -- columnEvents :: [(Line,ColIndex,StartOrEnd)]
     -- view the column spans as an event stream
     -- there's an event when a span starts or ends
     columnEvents =
       sortOn
-        (\(a, b, c) -> a)
-        [ (rowIx, colIx, isStart)
+        (\(a, b, c, d) -> a)
+        [ (rowIx, colIx, pol, isStart)
         | (colIx, spans) <- zip [0 ..] columns
         , Span {..} <- spans
-        , (rowIx, isStart) <- [(spanStart, True), (spanEnd, False)]
+        , (rowIx, pol, isStart) <- [(spanStart, polarity, True), (spanEnd, polarity, False)]
         ]
     -- update element n of a list with a new value v
     update [] _ _ = []
     update (_:xs) 0 v = v : xs
     update (x:xs) n v = x : update xs (n - 1) v
-    -- fast lookup via an array
-    lookupEvent = (indexableAt events)
     -- show the event, add the necessary padding to fill the event col width,
     -- and append the explain.
     showWithExplains ev
       | showEv <- show ev
       , l <- length showEv =
         (l, showEv ++ replicate (evWidth - l) ' ' ++ explain ev)
+    -- Value requests
     explain Event {eventParent = Parent p 0, change = Enter}
       | Event {change = Fun, eventParent = Parent p' _} <- lookupEvent p
-      , Event {change = Observe name} <- lookupEvent p' =
-        "-- request arg of " ++ name
+      , (name,dist) <- findRoot (lookupEvent p') =
+        "-- request arg of " ++ name ++ "/" ++ show (dist + 1)
     explain Event {eventParent = Parent p 1, change = Enter}
       | Event {change = Fun, eventParent = Parent p' _} <- lookupEvent p
-      , Event {change = Observe name} <- lookupEvent p' =
-        "-- request result of " ++ name
-    explain Event {eventParent = Parent p 0, change = Cons {}}
+      , (name,dist) <- findRoot (lookupEvent p') =
+        "-- request result of " ++ name ++ "/" ++ show (dist+1)
+    explain Event {eventParent = Parent p 0, change = Enter}
+      | Event {change = Observe name} <- lookupEvent p =
+        "-- request value of " ++ name
+    explain Event {eventParent = Parent p i, change = Enter}
+      | Event {change = Cons ar name} <- lookupEvent p =
+        "-- request value of arg " ++ show i ++ " of constructor " ++ name
+    -- Arguments of functions
+    explain me@Event {eventParent = Parent p 0, change = it@FunOrCons}
       | Event {change = Fun, eventParent = Parent p' _} <- lookupEvent p
-      , Event {change = Observe name} <- lookupEvent p' =
-        "-- return arg of " ++ name
-    explain Event {eventParent = Parent p 1, change = Cons {}}
+      , (name,dist) <- findRoot (lookupEvent p') =
+        "-- arg " ++ show (dist+1) ++ " of " ++ name ++ " is " ++ showChange it
+    -- Results of functions
+    explain Event {eventParent = Parent p 1, change = it@Fun}
       | Event {change = Fun, eventParent = Parent p' _} <- lookupEvent p
-      , Event {change = Observe name} <- lookupEvent p' =
-        "-- return result of " ++ name
+      , (name,dist) <- findRoot (lookupEvent p') =
+        "-- result of " ++ name ++ "/" ++ show (dist+1) ++ " is a function"
+    explain me@Event {eventParent = Parent p 1, change = Cons{}}
+      | Event {change = Fun, eventParent = Parent p' _} <- lookupEvent p
+      , (name,dist) <- findRoot (lookupEvent p')
+      , arg <- findArg p =
+        "-- " ++ name ++ "/" ++ show (dist+1) ++ " " ++ arg ++" = " ++ findValue lookupDescs me
+    -- Descendants of Cons events
+    explain Event {eventParent = Parent p i, change = Cons _ name}
+      | Event {change = Cons ar name'} <- lookupEvent p =
+        "-- arg " ++ show i ++ " of constructor " ++ name' ++ " is " ++ name
+    -- Descendants of root events
+    explain Event {eventParent = Parent p i, change = Fun}
+      | Event {change = Observe name} <- lookupEvent p =
+        "-- " ++ name ++ " is a function"
+    explain me@Event {eventParent = Parent p i, change = Cons{}}
+      | Event {change = Observe name} <- lookupEvent p =
+        "-- " ++ name ++ " = " ++ findValue lookupDescs me
     explain _ = ""
+
+    -- Returns the root observation for this event, together with the distance to it
+    findRoot Event{change = Observe name} = (name, 0)
+    findRoot Event{eventParent} = succ <$> findRoot (lookupEvent $ parentUID eventParent)
+
+    variableNames = map (:[]) ['a'..'z']
+
+    showChange Fun = "a function"
+    showChange (Cons ar name) = "constructor " ++ name
+
+    findArg eventUID =
+      case [ e | e@Event{eventParent = Parent p 0, change = Cons{}} <- lookupDescs eventUID] of
+        [cons] -> findValue lookupDescs cons
+        other  -> error $ "Unexpected set of descendants of " ++ show eventUID ++ ": Fun - " ++ show other
+
+findValue :: (UID -> [Event]) -> Event -> String
+findValue lookupDescs = go where
+  go Event{eventUID = me, change=Cons ar name}
+    | ar == 0 = name
+    | isAlpha(head name)
+    = name ++ " " ++ unwords (map go $ sortOn (parentPosition . eventParent) [ e | e@Event{change = Cons{}} <- lookupDescs me])
+    | ar == 1
+    , [a] <- [ e | e@Event{change = Cons{}} <- lookupDescs me]
+    = name ++ go a
+    | ar == 2
+    , [a,b] <- sortOn (parentPosition . eventParent) [ e | e@Event{change = Cons{}} <- lookupDescs me]
+    = unwords [go a, name, go b]
+  go Event{eventUID, change=Enter{}}
+    | [e] <- lookupDescs eventUID = go e
+  go other = error $ show other
+
+data RequestDetails = RD Int Explanation
+
+data ReturnDetails
+  = ReturnFun
+  | ReturnCons { constructor :: String, arity :: Int, value :: String }
+
+data Explanation
+  = Observation String
+  | Request RequestDetails
+  | Return RequestDetails ReturnDetails
+
+instance Show Explanation where
+  show (Observation obs) = ""
+  show (Request r) = "request " ++ showRequest r
+  show (Return r val) = showReturn r val
+
+showRequest (RD 0 (Observation name)) = unwords ["value of", name]
+showRequest (RD 0 (Return (RD _ (Observation name)) ReturnFun)) = unwords ["arg of", name]
+showRequest (RD 1 (Return (RD _ (Observation name)) ReturnFun)) = unwords ["result of", name]
+showRequest (RD n (Return _ (ReturnCons name ar _))) = unwords ["arg", show n, "of constructor", name ]
+
+showReturn (RD p (Observation obs)) ReturnFun = unwords ["result of ", obs, "is a function"]
+showReturn (RD p req) (ReturnCons name ar val) = unwords [show req, "=", val]
+
+buildExplanation :: (UID -> Event) -> (UID -> [Event]) -> Event -> Explanation
+buildExplanation lookupEvent lookupDescs = go where
+  go Event{eventParent = Parent p pos, change = Enter}
+    | par <- go (lookupEvent p)
+    = Request (RD 0 par)
+  go Event{eventParent = Parent p pos, change = Fun}
+    | Request rd <- go (lookupEvent p)
+    = Return rd ReturnFun
+  go Event{eventParent = Parent p pos, change = Cons ar name}
+    | Request rd <- go (lookupEvent p)
+    , value <- findValue lookupDescs (lookupEvent p)
+    = Return rd (ReturnCons name ar value)
+
+
+eitherFunOrCons Fun{} = True
+eitherFunOrCons Cons {} = True
+eitherFunOrCons _ = False
+
+pattern FunOrCons <- (eitherFunOrCons -> True)
+
 --------------------------------------------------------------------------------
 -- Debug session
 
