@@ -1,20 +1,28 @@
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE NamedFieldPuns    #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE NamedFieldPuns        #-}
+{-# LANGUAGE OverloadedLists       #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE ViewPatterns          #-}
 -- This file is part of the Haskell debugger Hoed.
 --
 -- Copyright (c) Maarten Faddegon, 2014-2017
 module Debug.Hoed.Console(debugSession, showGraph) where
 
 import           Control.Monad
+import           Data.Bifunctor
 import           Data.Char
+import           Data.Foldable            as F
+import           Data.Indexable
 import           Data.Graph.Libgraph      as G
-import           Data.List                as List (group, nub, sort)
+import           Data.List                as List (foldl', group, mapAccumL, nub, sort)
 import qualified Data.Map.Strict          as Map
 import           Data.Maybe
+import           Data.Sequence            (Seq, ViewL (..), viewl, (<|))
+import qualified Data.Sequence            as Seq
 import qualified Data.Set                 as Set
+import qualified Data.Vector              as V
 import           Debug.Hoed.Compat
 import           Debug.Hoed.CompTree
 import           Debug.Hoed.Observe
@@ -31,8 +39,159 @@ import           Text.PrettyPrint.FPretty
 import           Text.Regex.TDFA
 import           Web.Browser
 
-
 {-# ANN module ("HLint: ignore Use camelCase" :: String) #-}
+
+--------------------------------------------------------------------------------
+-- events
+type Id = Int
+-- | A representation of an event as a span
+data Span = Span { spanStart, spanEnd :: Id, polarity :: Bool } deriving (Eq, Ord, Show)
+-- | A representation of a trace as a span diagram: a list of columns of spans.
+type Spans = [ [Span] ]
+-- | The nesting depth of a span
+type Depth = Int
+
+-- | Recover the spans from the trace and arrange the columns such that they reflect
+--   span containment. A span @b@ is contained in another span @a@ if
+--
+--   > start b > start a && end b < end a
+--
+--   The span in column N is contained below N other spans.
+--   The renderer should draw the columns left to right.
+traceToSpans :: Trace -> Spans
+traceToSpans =
+  map sort .
+  Map.elems .
+  Map.fromListWith (++) .
+  map (second (: [])) . (\(_, b, _) -> b) . foldl' traceToSpans1' ([], [], 0)
+
+-- Implements a loop where the state is a stack of open spans.
+-- Push into the stack when an event starts a new span.
+-- Pop when an event closes a span.
+-- In order to skip the Observe->Start->Fun sequence
+--  , the state also carries a skip counter
+-- XXX this version doesn't work well with curried functions
+traceToSpans1' :: (Seq Id, [(Depth, Span)], Int) -> Event -> (Seq Id, [(Depth, Span)], Int)
+traceToSpans1' (stack, result, n) Event{change=Observe{}} = (stack, result, n+2)
+traceToSpans1' (stack, result, 0) e@Event {..}
+  | isStart change = (eventUID <| stack, result, 0)
+  | start :< stack' <- viewl stack
+  , isEnd change =
+    (stack', (Seq.length stack', Span start eventUID True) : result, 0)
+  | otherwise = (stack, result, 0)
+  where
+    isStart Enter {} = True
+    isStart _ = False
+    isEnd Cons {} = True
+    --isEnd Fun {} = True
+    isEnd _ = False
+traceToSpans1' (stack, result, n) e = (stack, result, n-1)
+
+-- This version tries to distinguish between Fun events that terminate a span,
+-- and Fun events that signal a second application of a function
+-- TODO work in progress
+traceToSpans2'
+  :: V.Vector Event
+  -> (Seq Id, [(Depth, Span)])
+  -> Event
+  -> (Seq Id, [(Depth, Span)])
+traceToSpans2' events (stack, result) e@Event {..}
+  | isStart change = (eventUID <| stack, result)
+  | start :< stack' <- viewl stack
+  , isEnd change =
+    (stack', (Seq.length stack', Span start eventUID True) : result)
+  | otherwise = (stack, result)
+  where
+    isStart Enter {} = True
+    isStart _ = False
+    isEnd Cons {} = True
+    --isEnd Fun {} = True
+    isEnd _ = False
+
+printTrace :: Trace -> IO ()
+printTrace trace = putStrLn $ renderTrace' (traceToSpans trace, trace)
+
+-- | TODO to be improved
+renderTrace :: (Spans, Trace) -> IO ()
+renderTrace (spans, trace) = do
+  putStrLn "Events"
+  putStrLn "------"
+  mapM_ print trace
+  putStrLn ""
+  putStrLn "Spans"
+  putStrLn "-----"
+  mapM_ print spans
+
+renderTrace' :: (Spans, Trace) -> String
+renderTrace' (columns, events) = unlines renderedLines
+    -- roll :: State -> (Event, Maybe ColumnEvent) -> (State, String)
+  where
+    depth = length columns
+    ((_, evWidth), renderedLines) =
+      mapAccumL roll (replicate (depth + 1) ' ', 0) $ align (toList events) columnEvents
+    -- Merge trace events and column events
+    align (ev:evs) (colEv@(rowIx, colIx, isStart):colEvs)
+      | eventUID ev == rowIx = (ev, Just (colIx, isStart)) : align evs colEvs
+      | otherwise = (ev, Nothing) : align evs (colEv : colEvs)
+    align [] [] = []
+    align ev [] = map (, Nothing) ev
+    -- Produce the output in three columns: spans, events, and explains
+    -- For spans: keep a state of the open spans
+    --   (the state is the rendering in characters)
+    -- For events: keep a state of the widest event
+    -- For explains: circularly reuse the widest event result
+    roll (state, width) (ev, Nothing)
+      | (w, s) <- showWithExplains ev = ((state, max width w), state ++ s)
+    roll (state, width) (ev, Just (col, True))
+      | state' <- update state col '|'
+      , state'' <- update state col '↑'
+      , (w, s) <- showWithExplains ev = ((state', max width w), state'' ++ s)
+    roll (state, width) (ev, Just (col, False))
+      | state' <- update state col ' '
+      , state'' <- update state col '↓'
+      , (w, s) <- showWithExplains ev = ((state', max width w), state'' ++ s)
+    -- columnEvents :: [(Line,ColIndex,StartOrEnd)]
+    -- view the column spans as an event stream
+    -- there's an event when a span starts or ends
+    columnEvents =
+      sortOn
+        (\(a, b, c) -> a)
+        [ (rowIx, colIx, isStart)
+        | (colIx, spans) <- zip [0 ..] columns
+        , Span {..} <- spans
+        , (rowIx, isStart) <- [(spanStart, True), (spanEnd, False)]
+        ]
+    -- update element n of a list with a new value v
+    update [] _ _ = []
+    update (_:xs) 0 v = v : xs
+    update (x:xs) n v = x : update xs (n - 1) v
+    -- fast lookup via an array
+    lookupEvent = (indexableAt events)
+    -- show the event, add the necessary padding to fill the event col width,
+    -- and append the explain.
+    showWithExplains ev
+      | showEv <- show ev
+      , l <- length showEv =
+        (l, showEv ++ replicate (evWidth - l) ' ' ++ explain ev)
+    explain Event {eventParent = Parent p 0, change = Enter}
+      | Event {change = Fun, eventParent = Parent p' _} <- lookupEvent p
+      , Event {change = Observe name} <- lookupEvent p' =
+        "-- request arg of " ++ name
+    explain Event {eventParent = Parent p 1, change = Enter}
+      | Event {change = Fun, eventParent = Parent p' _} <- lookupEvent p
+      , Event {change = Observe name} <- lookupEvent p' =
+        "-- request result of " ++ name
+    explain Event {eventParent = Parent p 0, change = Cons {}}
+      | Event {change = Fun, eventParent = Parent p' _} <- lookupEvent p
+      , Event {change = Observe name} <- lookupEvent p' =
+        "-- return arg of " ++ name
+    explain Event {eventParent = Parent p 1, change = Cons {}}
+      | Event {change = Fun, eventParent = Parent p' _} <- lookupEvent p
+      , Event {change = Observe name} <- lookupEvent p' =
+        "-- return result of " ++ name
+    explain _ = ""
+--------------------------------------------------------------------------------
+-- Debug session
 
 debugSession :: Trace -> CompTree -> [Propositions] -> IO ()
 debugSession trace tree ps =
@@ -153,6 +312,10 @@ graphCommand =
      "Requires graphviz dotp.") $ \case
         regexp -> Just $ \State{..} -> Same <$ graphStmts (unwords regexp) compTree
 
+eventsCommand =
+  Command "events" [] "Print the Event trace (useful only for debugging Hoed)" $ \case
+    [] -> Just $ \State{..} -> Same <$ printTrace trace
+    _  -> Nothing
 
 exitCommand =
   Command "exit" [] "Leave the debugging session." $ \case
@@ -163,6 +326,7 @@ mainLoopCommands :: [Command State]
 mainLoopCommands =
   sortOn name
     [ adbCommand
+    , eventsCommand
     , graphCommand
     , listCommand
     , observeCommand
@@ -384,8 +548,4 @@ unjudged = unjudged' . getJudgement
   unjudged' Right = False
   unjudged' Wrong = False
   unjudged' _     = True
-
-
-
-
 
