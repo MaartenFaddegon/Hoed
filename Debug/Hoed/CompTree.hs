@@ -264,6 +264,9 @@ instance Show Span where
   show (Computing i) = show i
   show (Paused i)    = "(" ++ show i ++ ")"
 
+toPaused (Computing i) = Paused i
+toPaused it@Paused{} = it
+
 getSpanUID :: Span -> UID
 getSpanUID (Computing j) = j
 getSpanUID (Paused j)    = j
@@ -304,7 +307,7 @@ pause e s = m s{computations=cs}
   where i  = getTopLvlFun e s
         cs = case cs_post of
                []      -> cs_pre
-               (_:cs') -> cs_pre ++ Paused i : cs'
+               (_:cs') -> map toPaused cs_pre ++ Paused i : cs'
         (cs_pre,cs_post)           = break isComputingI (computations s)
         isComputingI (Computing j) = i == j
         isComputingI _             = False
