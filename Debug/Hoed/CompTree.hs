@@ -178,8 +178,6 @@ data TraceInfo = TraceInfo
   , messages     :: IntMap String
                    -- stored depth of the stack for every event
 #endif
-  , storedStack  :: IntMap [UID]
-                   -- reference from parent UID and position to previous stack
   , dependencies :: [(UID,UID)]
   }                -- the result
 
@@ -388,7 +386,7 @@ traceInfo trc = foldl loop s0 trc
 #if defined(TRANSCRIPT)
                        IntMap.empty
 #endif
-                       IntMap.empty []
+                       []
 
         cs :: ConsMap
         cs = mkConsMap trc
