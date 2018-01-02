@@ -178,8 +178,6 @@ data TraceInfo = TraceInfo
   , messages     :: IntMap String
                    -- stored depth of the stack for every event
 #endif
-  , storedStack  :: IntMap [UID]
-                   -- reference from parent UID and position to previous stack
   , dependencies :: [(UID,UID)]
   }                -- the result
 
@@ -264,6 +262,9 @@ instance Show Span where
   show (Computing i) = show i
   show (Paused i)    = "(" ++ show i ++ ")"
 
+toPaused (Computing i) = Paused i
+toPaused it@Paused{} = it
+
 getSpanUID :: Span -> UID
 getSpanUID (Computing j) = j
 getSpanUID (Paused j)    = j
@@ -277,7 +278,7 @@ start e s = m s{computations = cs}
   where i  = getTopLvlFun e s
         cs = Computing i : computations s
 #if defined(TRANSCRIPT)
-        m  = addMessage e $ "Start computation " ++ show i ++ ": " ++ showCs cs
+        m  = addMessage e $ "Start computation " ++ show i ++ ": " ++ show cs
 #else
         m = id
 #endif
@@ -292,7 +293,7 @@ stop e s = m s{computations = cs}
         deleteFirst (s:ss) | isSpan i s = ss
                            | otherwise  = s : deleteFirst ss
 #if defined(TRANSCRIPT)
-        m  = addMessage e $ "Stop computation " ++ show i ++ ": " ++ showCs cs
+        m  = addMessage e $ "Stop computation " ++ show i ++ ": " ++ show cs
 #else
         m = id
 #endif
@@ -304,12 +305,12 @@ pause e s = m s{computations=cs}
   where i  = getTopLvlFun e s
         cs = case cs_post of
                []      -> cs_pre
-               (_:cs') -> cs_pre ++ Paused i : cs'
+               (_:cs') -> map toPaused cs_pre ++ Paused i : cs'
         (cs_pre,cs_post)           = break isComputingI (computations s)
         isComputingI (Computing j) = i == j
         isComputingI _             = False
 #if defined(TRANSCRIPT)
-        m  = addMessage e $ "Pause computation " ++ show i ++ ": " ++ showCs cs
+        m  = addMessage e $ "Pause computation " ++ show i ++ ": " ++ show cs
 #else
         m = id
 #endif
@@ -325,7 +326,7 @@ resume e s = m s{computations=cs}
         isPausedI (Paused j) = i == j
         isPausedI _          = False
 #if defined(TRANSCRIPT)
-        m = addMessage e $ "Resume computation " ++ show i ++ ": " ++ showCs cs
+        m = addMessage e $ "Resume computation " ++ show i ++ ": " ++ show cs
 #else
         m = id
 #endif
@@ -339,7 +340,7 @@ activeComputations s = map getSpanUID . filter isActive $ computations s
 ------------------------------------------------------------------------------------------------------------------------
 
 addDependency :: Event -> TraceInfo -> TraceInfo
-addDependency _ s = m s{dependencies = case d of (Just d') -> d':dependencies s; Nothing -> dependencies s}
+addDependency e s = m s{dependencies = case d of (Just d') -> d':dependencies s; Nothing -> dependencies s}
 
   where d = case activeComputations s of
               []      -> Nothing
@@ -385,7 +386,7 @@ traceInfo trc = foldl loop s0 trc
 #if defined(TRANSCRIPT)
                        IntMap.empty
 #endif
-                       IntMap.empty []
+                       []
 
         cs :: ConsMap
         cs = mkConsMap trc
@@ -400,10 +401,6 @@ traceInfo trc = foldl loop s0 trc
 
                         -- Span start
                         Enter{}   -> if not . corToCons cs $ e then s else cpyTopLvlFun e
-                                     $ if loc then addDependency e
-                                                $ start e s else pause e s
-
-                        NoEnter{} -> if not . corToCons cs $ e then s else cpyTopLvlFun e
                                      $ if loc then addDependency e
                                                 $ start e s else pause e s
 

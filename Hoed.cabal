@@ -51,4 +51,3 @@ library
                        , time
                        , uniplate
   default-language:    Haskell2010
-  cpp-options:         -DDEBUG

@@ -158,7 +158,6 @@ eventsToCDS pairs = getChild 0 0
         (Observe str i) -> let chd = getChild node 0
                                in CDSNamed str (getId chd i) chd
         Enter             -> CDSEntered node
-        NoEnter           -> CDSTerminated node
         Fun                 -> CDSFun node (getChild node 0) (getChild node 1)
         (Cons portc cons)
                             -> CDSCons node cons

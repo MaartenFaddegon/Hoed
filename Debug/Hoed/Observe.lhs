@@ -414,15 +414,6 @@ gthunk a = ObserverM $ \ parent port ->
                                 }) 
                 , port+1 )
 
-nothunk :: a -> ObserverM a
-nothunk a = ObserverM $ \ parent port ->
-                ( observer__ a (Parent
-                                { parentUID = parent
-                                , parentPosition   = port
-                                }) 
-                , port+1 )
-
-
 (<<) :: (Observable a) => ObserverM (a -> b) -> a -> ObserverM b
 -- fn << a = do { fn' <- fn ; a' <- thunk a ; return (fn' a') }
 fn << a = gdMapM (thunk observer) fn a
@@ -507,10 +498,6 @@ observer_ f a context = sendEnterPacket f a context
 gdmobserver_ :: (GObservable f) => f a -> Parent -> f a
 gdmobserver_ a context = gsendEnterPacket a context
 
-{-# NOINLINE observer__ #-}
-observer__ :: a -> Parent -> a
-observer__ a context = sendNoEnterPacket a context
-
 \end{code}
 
 The functions that output the data. All are dirty.
@@ -554,13 +541,6 @@ gsendEnterPacket r context = unsafeWithUniq $ \ node ->
                         (handleExc context)
         }
 
-sendNoEnterPacket :: a -> Parent -> a
-sendNoEnterPacket r context = unsafeWithUniq $ \ node ->
-     do { sendEvent node context NoEnter
-        ; ourCatchAllIO (evaluate r)
-                        (handleExc context)
-        }
-
 evaluate :: a -> IO a
 evaluate a = a `seq` return a
 
@@ -596,7 +576,6 @@ data Change
         = Observe       !String        !Int
         | Cons    !Int  !String
         | Enter
-        | NoEnter
         | Fun
         deriving (Eq, Show,Generic)
 
