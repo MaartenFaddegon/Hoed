@@ -1,7 +1,7 @@
 {-# LANGUAGE TupleSections   #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# LANGUAGE TemplateHaskell #-}
-module Debug.Hoed.TH (debug, obs) where
+module Debug.Hoed.TH (obs) where
 
 import           Control.Monad
 import           Data.Generics.Uniplate.Data
@@ -42,42 +42,6 @@ obs decs = do
             nb = nameBase n
         newDecl <- funD n [clause [] (normalB [| observe nb $(varE n')|]) []]
         return [newDecl, FunD n' xx]
-      SigD n ty | Just n' <- lookup n names -> do
-        dec' <- adjustSig n ty
-        return [dec']
-      _ ->
-        return [dec]
-
--- | A handy TH wrapper for debugging functions, offering more information than 'obs'
---
---   @
---   debug [d|
---     quicksort [] = []
---     quicksort (x:xs) = quicksort lt ++ [x] ++ quicksort gt
---         where (lt, gt) = partition (<= x) xs
---           |]
---   @
---
---   expands to:
---
---   @
---   quicksort = observe "quicksort" quicksort'
---   quicksort' [] = []
---   quicksort' (x:xs) = quicksort lt ++ [x] ++ quicksort gt
---         where (observe "lt" -> lt, observe "lt" -> gt) = partition (<= x) xs
---
-debug :: Q [Dec] -> Q [Dec]
-debug q = do
-  decs <- q
-  names <- sequence [ (n,) <$> newName(nameBase n ++ "Debug") | FunD n _ <- decs]
-  fmap concat $ forM decs $ \dec ->
-    case dec of
-      FunD n clauses -> do
-        let Just n' = lookup n names
-            nb = nameBase n
-        newDecl <- funD n [clause [] (normalB [| observe nb $(varE n')|]) []]
-        let clauses' = transformBi adjustValD clauses
-        return [newDecl, FunD n' clauses']
       SigD n ty | Just n' <- lookup n names -> do
         dec' <- adjustSig n ty
         return [dec']
