@@ -310,7 +310,7 @@ pause e s = m s{computations=cs}
         isComputingI (Computing j) = i == j
         isComputingI _             = False
 #if defined(TRANSCRIPT)
-        m  = addMessage e $ "Pause computation " ++ show i ++ ": " ++ show cs
+        m  = addMessage e $ "Pause computations up to " ++ show i ++ ": " ++ show cs
 #else
         m = id
 #endif
