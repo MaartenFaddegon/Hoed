@@ -65,7 +65,10 @@ obs decs = do
 --   quicksort' [] = []
 --   quicksort' (x:xs) = quicksort lt ++ [x] ++ quicksort gt
 --         where (observe "lt" -> lt, observe "lt" -> gt) = partition (<= x) xs
+--   @
 --
+--   The additional information may lead to unnecessary questions in algorithmic
+--   debugging, 'obs' is the recommended wrapper for that purpose.
 debug :: Q [Dec] -> Q [Dec]
 debug q = do
   decs <- q
