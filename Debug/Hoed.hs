@@ -14,9 +14,7 @@ Portability : POSIX
 
 Hoed is a tracer and debugger for the programming language Haskell.
 
-Hoed is recommended over Hoed.Stk: in contrast to Hoed.Stk you can optimize your program and do not need to enable profiling when using Hoed.
-
-To locate a defect with Hoed you annotate suspected functions and compile as usual. Then you run your program, information about the annotated functions is collected. Finally you connect to a debugging session using a webbrowser.
+To locate a defect with Hoed you annotate suspected functions and compile as usual. Then you run your program, information about the annotated functions is collected. Finally you connect to a debugging session using a console.
 
 Let us consider the following program, a defective implementation of a parity function with a test property.
 
@@ -74,20 +72,47 @@ Hoed can help us determine which function is defective. We annotate the function
 > main :: IO ()
 > main = printO (prop_isOdd 1)
 
-After running the program a computation tree is constructed and displayed in a web browser.
+After running the program a computation tree is constructed and the algorithmic debugger is launched in the console.
 
-> ./MyProgram
-> False
-> Listening on http://127.0.0.1:10000/
+@
 
-After running the program a computation tree is constructed and displayed in a
-web browser. You can freely browse this tree to get a better understanding of
-your program. If your program misbehaves, you can judge the computation
-statements in the tree as 'right' or 'wrong' according to your intention. When
-enough statements are judged the debugger tells you the location of the fault
-in your code.
+False
 
-<<https://raw.githubusercontent.com/MaartenFaddegon/Hoed/master/screenshots/AlgorithmicDebugging.png>>
+=== program terminated ===
+Please wait while the computation tree is constructed...
+
+=== Statistics ===
+
+28 events
+4 computation statements
+4 nodes + 1 virtual root node in the computation tree
+4 edges in computation tree
+computation tree has a branch factor of 1.3333333333333333 (i.e the average number of children of non-leaf nodes)
+
+=== Debug Session ===
+
+hdb> adb
+======================================================================= [0-0/4]
+isOdd 3  = False
+? 
+right  Judge computation statements right
+        according to the intended behaviour/specification of the function.
+wrong  Judge computation statements wrong
+        according to the intended behaviour/specification of the function.
+======================================================================= [0-0/4]
+isOdd 3  = False
+? wrong
+======================================================================= [1-0/4]
+isEven 4  = False
+? wrong
+======================================================================= [2-0/4]
+mod2 4  = 2
+? wrong
+======================================================================= [3-0/4]
+Fault located! In:
+mod2 4  = 2
+hdb>
+@
 
 Read more about Hoed on its project homepage <https://wiki.haskell.org/Hoed>.
 
