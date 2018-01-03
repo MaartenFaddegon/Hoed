@@ -185,7 +185,7 @@ module Debug.Hoed
   , Generic
   ) where
 
-
+import Control.DeepSeq
 import           Debug.Hoed.CompTree
 import           Debug.Hoed.Console
 import           Debug.Hoed.EventForest
@@ -336,14 +336,14 @@ runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
   condPutStrLn verbose $ "\n=== program terminated (" ++ show programTime ++ " seconds) ==="
   condPutStrLn verbose"Please wait while the computation tree is constructed..."
 
-  let cdss  = eventsToCDS events
+  let !cdss  = eventsToCDS events
       cdss1 = rmEntrySet cdss
       cdss2 = simplifyCDSSet cdss1
-      eqs   = renderCompStmts cdss2
+      !eqs  = force $ renderCompStmts cdss2
       e    = length events
       frt  = mkEventForest events
       ti   = traceInfo e (reverse events)
-      ds  = dependencies ti
+      !ds  = force $ dependencies ti
       ct  = mkCompTree eqs ds
 
 #if defined(DEBUG)

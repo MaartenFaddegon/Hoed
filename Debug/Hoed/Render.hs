@@ -1,4 +1,4 @@
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ImplicitParams    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
@@ -20,9 +20,11 @@ module Debug.Hoed.Render
 ,sortOn
 ) where
 import           Control.Arrow
+import           Control.DeepSeq
 import           Data.Array               as Array
 import           Data.Char                (isAlpha)
 import           Data.List                (nub, sort, sortBy)
+import           Data.Strict.Tuple
 import           Debug.Hoed.Compat
 import           Debug.Hoed.Observe
 import           GHC.Generics
@@ -40,11 +42,13 @@ import           Text.PrettyPrint.FPretty hiding (sep)
 -- event that starts the observation. And stmtUIDs is the list of
 -- UIDs of all events that form the statement.
 
-data CompStmt = CompStmt { stmtLabel      :: String
-                         , stmtIdentifier :: UID
-                         , stmtDetails    :: StmtDetails
+data CompStmt = CompStmt { stmtLabel      :: !String
+                         , stmtIdentifier :: !UID
+                         , stmtDetails    :: !StmtDetails
                          }
                 deriving (Generic)
+
+instance NFData CompStmt
 
 instance Eq CompStmt where c1 == c2 = stmtIdentifier c1 == stmtIdentifier c2
 instance Ord CompStmt where
@@ -57,6 +61,8 @@ data StmtDetails
            ,  stmtLamRes :: !String
            ,  stmtPretty :: !String}
   deriving (Generic)
+
+instance NFData StmtDetails
 
 stmtRes :: CompStmt -> String
 stmtRes = stmtPretty . stmtDetails
@@ -123,27 +129,30 @@ nubSorted (a:as)    = a : nub as
 -- %*                                                                   *
 -- %************************************************************************
 
+data CDS = CDSNamed      !String !UID !CDSSet
+         | CDSCons       !UID    !String   ![CDSSet]
+         | CDSFun        !UID              !CDSSet !CDSSet
+         | CDSEntered    !UID
+         | CDSTerminated !UID
+        deriving (Show,Eq,Ord,Generic)
 
-data CDS = CDSNamed      String UID CDSSet
-         | CDSCons       UID    String   [CDSSet]
-         | CDSFun        UID             CDSSet CDSSet
-         | CDSEntered    UID
-         | CDSTerminated UID
-        deriving (Show,Eq,Ord)
+instance NFData CDS
 
 type CDSSet = [CDS]
 
 eventsToCDS :: [Event] -> CDSSet
-eventsToCDS pairs = getChild 0 0
+eventsToCDS pairs = force $ getChild 0 0
    where
 
      res = (!) out_arr
 
      bnds = (0, length pairs)
 
-     mid_arr :: Array Int [(Int,CDS)]
-     mid_arr = accumArray (flip (:)) [] bnds
-                [ (pnode,(pport,res node))
+     cons !t !h = h : t
+
+     mid_arr :: Array Int [Pair Int CDS]
+     mid_arr = accumArray cons [] bnds
+                [ (pnode, (pport :!: res node))
                 | (Event node (Parent pnode pport) _) <- pairs
                 ]
 
@@ -170,7 +179,7 @@ eventsToCDS pairs = getChild 0 0
      getChild :: Int -> Int -> CDSSet
      getChild pnode pport =
         [ content
-        | (pport',content) <- (!) mid_arr pnode
+        | pport' :!: content <- (!) mid_arr pnode
         , pport == pport'
         ]
 

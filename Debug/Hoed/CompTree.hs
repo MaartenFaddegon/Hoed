@@ -33,6 +33,7 @@ module Debug.Hoed.CompTree
 , traceInfo
 , Graph(..) -- re-export from LibGraph
 )where
+import           Control.DeepSeq
 import           Control.Monad
 import           Control.Monad.ST
 import           Debug.Hoed.EventForest
@@ -127,11 +128,11 @@ replaceVertex g v = mapGraph f g
 -- new information, often the information is just a duplicate of what we already
 -- know. With nub we remove the duplicates.
 
-mkCompTree :: [CompStmt] -> [(UID,UID)] -> CompTree
+mkCompTree :: [CompStmt] -> [Dependency] -> CompTree
 mkCompTree cs ds = Graph RootVertex vs as
 
   where vs = RootVertex : map (`Vertex` Unassessed) cs
-        as = map (\(i,j) -> Arc (findVertex i) (findVertex j) ()) (snub ds)
+        as = map (\(D i j) -> Arc (findVertex i) (findVertex j) ()) (snub ds)
 
         snub = map head . group . sort
 
@@ -151,8 +152,8 @@ mkCompTree cs ds = Graph RootVertex vs as
 
 ------------------------------------------------------------------------------------------------------------------------
 
-data ConstantValue = ConstantValue { valStmt :: UID, valLoc :: Location
-                                   , valMin :: UID,  valMax :: UID }
+data ConstantValue = ConstantValue { valStmt :: !UID, valLoc :: !Location
+                                   , valMin  :: !UID, valMax :: !UID }
                    | CVRoot
                   deriving Eq
 
@@ -188,12 +189,14 @@ setEventDetails :: EventDetailsStore s -> UID -> EventDetails -> ST s ()
 setEventDetails = VM.unsafeWrite
 
 ------------------------------------------------------------------------------------------------------------------------
-type Dependencies = [(UID,UID)]
+data Dependency = D !UID !UID deriving (Eq, Generic, Ord, Show)
+
+instance NFData Dependency
 
 data TraceInfo = TraceInfo
-  { computations :: Nesting
+  { computations :: !Nesting
                    -- UIDs of active and paused computations of arguments/results of Fun events
-  , dependencies :: Dependencies -- the result
+  , dependencies :: ![Dependency] -- the result
 #if defined(TRANSCRIPT)
   , messages  :: !(IntMap String)
               -- ^ stored depth of the stack for every event
@@ -261,7 +264,7 @@ mkFunDetails s e = do
 
 ------------------------------------------------------------------------------------------------------------------------
 
-data Span = Computing UID | Paused UID
+data Span = Computing !UID | Paused !UID
 type Nesting = [Span]
 
 instance Show Span where
@@ -350,8 +353,8 @@ addDependency _e s = m s{dependencies = case d of (Just d') -> d':dependencies s
 
   where d = case activeComputations s of
               []      -> Nothing
-              [n]     -> Just (-1,n)  -- top-level function detected (may later add dependency from Root)
-              (n:m:_) -> Just (m,n)
+              [n]     -> Just $ D (-1) n  -- top-level function detected (may later add dependency from Root)
+              (n:m:_) -> Just $ D m n
 
 #if defined(TRANSCRIPT)
         m = case d of

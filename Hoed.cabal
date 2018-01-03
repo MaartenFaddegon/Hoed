@@ -40,6 +40,7 @@ library
   build-depends:       base >= 4 && <5
                        , array, containers
                        , clock
+                       , deepseq
                        , process
                        , filepath
                        , libgraph == 1.14
@@ -47,6 +48,8 @@ library
                        , mtl
                        , directory
                        , cereal, bytestring
+                       , open-browser
+                       , strict
                        , template-haskell
                        , terminal-size
                        , time
