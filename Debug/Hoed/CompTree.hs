@@ -1,11 +1,18 @@
-{-# LANGUAGE BangPatterns #-}
-{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE MultiWayIf            #-}
 -- This file is part of the Haskell debugger Hoed.
 --
 -- Copyright (c) Maarten Faddegon, 2015
 
-{-# LANGUAGE CPP           #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE BangPatterns          #-}
+{-# LANGUAGE CPP                   #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedLists       #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 
 module Debug.Hoed.CompTree
 ( CompTree
@@ -40,12 +47,22 @@ import           Debug.Hoed.EventForest
 import           Debug.Hoed.Observe
 import           Debug.Hoed.Render
 
+import qualified Data.Foldable          as F
 import           Data.Graph.Libgraph
 import           Data.IntMap.Strict     (IntMap)
 import qualified Data.IntMap.Strict     as IntMap
 import           Data.List              (foldl', group, sort)
+import           Data.List.NonEmpty     (NonEmpty, nonEmpty)
 import           Data.Maybe
-import qualified Data.Vector.Mutable as VM
+import           Data.Monoid            hiding ((<>))
+import           Data.Semigroup
+import           Data.Sequence          (Seq, ViewL (..), ViewR (..), viewl,
+                                         viewr, (<|), (|>))
+import qualified Data.Sequence          as S
+import           Data.Set               (Set)
+import qualified Data.Set               as Set
+import qualified Data.Vector.Mutable    as VM
+import           GHC.Exts               (IsList (..))
 import           GHC.Generics
 import           Prelude                hiding (Right)
 import           Text.Show.Functions
@@ -173,9 +190,9 @@ insertCon k x = IntMap.insertWith (\[x'] xs->x':xs) k [x] -- where x == x'
 ------------------------------------------------------------------------------------------------------------------------
 
 data EventDetails = EventDetails
-  { topLvlFun :: !(Maybe UID)
+  { topLvlFun   :: !(Maybe UID)
               -- ^ references from the UID of an event to the UID of the corresponding top-level Fun event
-  , locations :: ParentPosition -> Bool
+  , locations   :: ParentPosition -> Bool
               -- ^ reference from parent UID and position to location
   }
   deriving Show
@@ -194,19 +211,19 @@ data Dependency = D !UID !UID deriving (Eq, Generic, Ord, Show)
 instance NFData Dependency
 
 data TraceInfo = TraceInfo
-  { computations :: !Nesting
+  { computations :: !SpanZipper
                    -- UIDs of active and paused computations of arguments/results of Fun events
   , dependencies :: ![Dependency] -- the result
 #if defined(TRANSCRIPT)
-  , messages  :: !(IntMap String)
+  , messages     :: !(IntMap String)
               -- ^ stored depth of the stack for every event
 #endif
   }
   deriving Show
 
 ------------------------------------------------------------------------------------------------------------------------
-#if defined(TRANSCRIPT)
 addMessage :: Event -> String -> TraceInfo -> TraceInfo
+#if defined(TRANSCRIPT)
 addMessage e msg s = s{ messages = (flip $ IntMap.insert i) (messages s) $ case IntMap.lookup i (messages s) of
   Nothing     -> msg
   (Just msg') -> msg' ++ ", " ++ msg }
@@ -229,6 +246,8 @@ getTranscript es t = foldl (\acc e -> (show e ++ m e) ++ "\n" ++ acc) "" es
           (Just msg) -> "\n  " ++ msg
 
         ms = messages t
+#else
+addMessage _ _ t = t
 #endif
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -264,87 +283,138 @@ mkFunDetails s e = do
 
 ------------------------------------------------------------------------------------------------------------------------
 
-data Span = Computing !UID | Paused !UID
-type Nesting = [Span]
+data Span = Computing !UID | Paused !UID deriving (Eq, Ord)
+
+instance NFData Span where rnf = rwhnf
 
 instance Show Span where
   show (Computing i) = show i
   show (Paused i)    = "(" ++ show i ++ ")"
 
-toPaused (Computing i) = Paused i
-toPaused it@Paused{} = it
-
 getSpanUID :: Span -> UID
 getSpanUID (Computing j) = j
 getSpanUID (Paused j)    = j
 
-isSpan :: UID -> Span -> Bool
-isSpan i s = i == getSpanUID s
+data SpanList = SpanCons !UID !SpanList | SpanNil
 
-start :: Event -> EventDetails -> TraceInfo -> TraceInfo
+instance IsList SpanList where
+  type Item SpanList = Span
+  toList SpanNil = []
+  toList (SpanCons uid rest)
+    | uid > 0 = Computing uid : toList rest
+    | otherwise = Paused (negate uid) : toList rest
+  fromList [] = SpanNil
+  fromList (Paused uid : rest) = SpanCons (negate uid) $ fromList rest
+  fromList (Computing uid : rest) = SpanCons uid $ fromList rest
+
+instance Show SpanList where show = show . toList
+
+data SpanZipper
+  = SZ { left :: !SpanList
+      ,  cursorUID :: !UID
+      ,  right :: !SpanList}
+  | SZNil
+
+instance IsList SpanZipper where
+  type Item SpanZipper = Span
+  toList SZNil = []
+  toList (SZ l uid r) = reverse(toList l) ++ toList (SpanCons uid r)
+
+  fromList [] = SZNil
+  fromList (Paused x : xx) = SZ [] (negate x) (fromList xx)
+  fromList (Computing x : xx) = SZ [] x (fromList xx)
+
+newtype Verbatim = Verbatim String
+instance Show Verbatim where show (Verbatim s) = s
+
+instance Show SpanZipper where
+  show SZNil = "[]"
+  show SZ {..} =
+    show $
+    map (Verbatim . show) (toList left) ++
+    Verbatim ('\ESC':"[4m" ++ show cursorUID ++ '\ESC':"[24m") :
+    map (Verbatim . show) (toList right)
+
+emptySpanZipper = SZNil
+
+startSpan :: UID -> SpanZipper -> SpanZipper
+startSpan uid SZNil = SZ [] uid []
+startSpan uid SZ{..}  = SZ [] uid (left <> SpanCons cursorUID right)
+  where
+    SpanNil <> x = x
+    x <> SpanNil = x
+    SpanCons uid rest <> x = rest <> SpanCons uid x
+
+moveLeft, moveRight :: SpanZipper -> Maybe SpanZipper
+moveLeft SZNil = Nothing
+moveLeft SZ{left = SpanNil} = Nothing
+moveLeft SZ{left = SpanCons uid l, ..} = Just $ SZ l uid (SpanCons cursorUID right)
+
+moveRight SZNil = Nothing
+moveRight SZ{right = SpanNil} = Nothing
+moveRight SZ{right = SpanCons uid r, ..} = Just $ SZ (SpanCons cursorUID left) uid r
+
+-- pauseSpan always moves to the right
+pauseSpan uid sz
+  | x  == uid = sz{cursorUID = negate uid}
+  | otherwise = pauseSpan uid $ fromMaybe err $ moveRight sz{cursorUID = if x>0 then negate x else x}
+  where
+    x = cursorUID sz
+    err = error $ unwords ["pauseSpan", show uid, show sz]
+
+-- resumeSpan moves to the left, except when at the Top of the stack in which case it goes right
+resumeSpan (negate -> uid) sz
+  | cursorUID sz == uid = sz{cursorUID = negate uid}
+  | SpanNil <- left sz, Just sz' <- moveRight sz = go moveRight sz'
+  | Just sz' <- moveLeft sz = go moveLeft sz'
+  | otherwise = err
+  where
+    err = error $ unwords ["resumeSpan", show (negate uid), show sz]
+    go move sz
+      | cursorUID sz == uid = sz{cursorUID = negate uid}
+      | Nothing <- move sz = err
+      | Just sz' <- move sz = go move sz'
+
+-- stopSpan moves left
+stopSpan :: UID -> SpanZipper -> SpanZipper
+stopSpan uid sz@SZ{..}
+  | uid == abs cursorUID = if
+      | Just sz' <- moveRight sz -> sz'{left = left}
+      | Just sz' <- moveLeft  sz -> sz'{right = right}
+      | otherwise -> SZNil
+  | Just sz' <- moveLeft sz = stopSpan uid sz'
+  | otherwise = error $ unwords ["stopSpan", show uid, show sz]
+
+----------------------------------------------------------------------------
+
+start, stop,pause,resume :: Event -> EventDetails -> TraceInfo -> TraceInfo
 start e ed s = m s{computations = cs}
-
   where Just i  = topLvlFun ed
-        cs = Computing i : computations s
-#if defined(TRANSCRIPT)
+        cs = startSpan i $ computations s
         m  = addMessage e $ "Start computation " ++ show i ++ ": " ++ show cs
-#else
-        m = id
-#endif
 
+stop e ed s = m s {computations = cs'}
+  where
+    Just i = topLvlFun ed
+    cs' = stopSpan i (computations s)
+    m = addMessage e $ "Stop computation " ++ show i ++ ": " ++ show cs'
 
-stop :: Event -> EventDetails -> TraceInfo -> TraceInfo
-stop e ed s = m s{computations = cs}
+pause e ed s = m s {computations = cs'}
+  where
+    Just i = topLvlFun ed
+    cs' = pauseSpan i (computations s)
+    m = addMessage e $ "Pause up to " ++ show i ++ ": " ++ show cs'
 
-  where Just i = topLvlFun ed
-        cs = deleteFirst (computations s)
-        deleteFirst [] = []
-        deleteFirst (s:ss) | isSpan i s = ss
-                           | otherwise  = s : deleteFirst ss
-#if defined(TRANSCRIPT)
-        m  = addMessage e $ "Stop computation " ++ show i ++ ": " ++ show cs
-#else
-        m = id
-#endif
-
-
-pause :: Event -> EventDetails -> TraceInfo -> TraceInfo
-pause e ed s = m s{computations=cs}
-
-  where Just i = topLvlFun ed
-        cs = case cs_post of
-               []      -> cs_pre
-               (_:cs') -> map toPaused cs_pre ++ Paused i : cs'
-        (cs_pre,cs_post)           = break isComputingI (computations s)
-        isComputingI (Computing j) = i == j
-        isComputingI _             = False
-#if defined(TRANSCRIPT)
-        m  = addMessage e $ "Pause computations up to " ++ show i ++ ": " ++ show cs
-#else
-        m = id
-#endif
-
-resume :: Event -> EventDetails -> TraceInfo -> TraceInfo
-resume e ed s = m s{computations=cs}
-
-  where Just i = topLvlFun ed
-        cs = case cs_post of
-               []      -> cs_pre
-               (_:cs') -> cs_pre ++ Computing i : cs'
-        (cs_pre,cs_post)     = break isPausedI (computations s)
-        isPausedI (Paused j) = i == j
-        isPausedI _          = False
-#if defined(TRANSCRIPT)
-        m = addMessage e $ "Resume computation " ++ show i ++ ": " ++ show cs
-#else
-        m = id
-#endif
+resume e ed s = m s {computations = cs'}
+  where
+    Just i = topLvlFun ed
+    cs' = resumeSpan i (computations s)
+    m = addMessage e $ "Resume computation " ++ show i ++ ": " ++ show cs'
 
 activeComputations :: TraceInfo -> [UID]
-activeComputations s = map getSpanUID . filter isActive $ computations s
+activeComputations s = map getSpanUID . filter isActive . toList $ computations s
   where isActive (Computing _) = True
         isActive _             = False
-
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -356,13 +426,9 @@ addDependency _e s = m s{dependencies = case d of (Just d') -> d':dependencies s
               [n]     -> Just $ D (-1) n  -- top-level function detected (may later add dependency from Root)
               (n:m:_) -> Just $ D m n
 
-#if defined(TRANSCRIPT)
         m = case d of
              Nothing   -> addMessage _e ("does not add dependency")
-             (Just d') -> addMessage _e ("adds dependency " ++ show (fst d') ++ " -> " ++ show (snd d'))
-#else
-        m = id
-#endif
+             (Just (D a b)) -> addMessage _e ("adds dependency " ++ show a ++ " -> " ++ show b)
 
 ------------------------------------------------------------------------------------------------------------------------
 
