@@ -30,6 +30,7 @@ import           Debug.Hoed.Observe
 import           GHC.Generics
 import           Prelude                  hiding (lookup)
 import           Text.PrettyPrint.FPretty hiding (sep)
+import           Text.Read
 
 
 ------------------------------------------------------------------------
@@ -304,7 +305,7 @@ simplifyCDS (CDSCons _ "throw"
             ) = simplifyCDS (CDSCons 0 "error" set)
 simplifyCDS cons@(CDSCons _i str sets) =
         case spotString [cons] of
-          Just str | not (null str) -> CDSCons 0 (show str) []
+          Just str@(_:_) -> CDSCons 0 (show str) []
           _        -> CDSCons 0 str (map simplifyCDSSet sets)
 
 simplifyCDS (CDSFun i a b) = CDSFun i (simplifyCDSSet a) (simplifyCDSSet b)
@@ -315,17 +316,13 @@ simplifyCDSSet :: [CDS] -> [CDS]
 simplifyCDSSet = map simplifyCDS
 
 spotString :: CDSSet -> Maybe String
-spotString [CDSCons _ ":"
-                [[CDSCons _ str []]
-                ,rest
-                ]
-           ]
-        = do { ch <- case reads str of
-                       [(ch,"")] -> return ch
-                       _         -> Nothing
-             ; more <- spotString rest
-             ; return (ch : more)
-             }
+spotString [CDSCons _ ":" [[CDSCons _ ['\'', ch ,'\''] []], rest]] = do
+  more <- spotString rest
+  return (ch : more)
+spotString [CDSCons _ ":" [[CDSCons _ special@['\'', _, _,'\''] []], rest]] = do
+  ch <- readMaybe special
+  more <- spotString rest
+  return (ch : more)
 spotString [CDSCons _ "[]" []] = return []
 spotString _other = Nothing
 
