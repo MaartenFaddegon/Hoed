@@ -51,6 +51,8 @@ import qualified Data.Foldable          as F
 import           Data.Graph.Libgraph
 import           Data.IntMap.Strict     (IntMap)
 import qualified Data.IntMap.Strict     as IntMap
+import           Data.IntSet            (IntSet)
+import qualified Data.IntSet            as IntSet
 import           Data.List              (foldl', group, sort)
 import           Data.List.NonEmpty     (NonEmpty, nonEmpty)
 import           Data.Maybe
@@ -180,12 +182,6 @@ instance Show ConstantValue where
          ++ "-"    ++ (show . valLoc  $ v)
          ++ ": "   ++ (show . valMin  $ v)
          ++ "-"    ++ (show . valMax  $ v)
-
-------------------------------------------------------------------------------------------------------------------------
-
--- Add element x to the head of the list at key k.
-insertCon :: Int -> a -> IntMap [a] -> IntMap [a]
-insertCon k x = IntMap.insertWith (\[x'] xs->x':xs) k [x] -- where x == x'
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -432,22 +428,24 @@ addDependency _e s = m s{dependencies = case d of (Just d') -> d':dependencies s
 
 ------------------------------------------------------------------------------------------------------------------------
 
-type ConsMap = IntMap [ParentPosition]
+type ConsMap = IntMap IntSet
 
 -- Iff an event is a constant then the UID of its parent and its ParentPosition
 -- are elements of the ConsMap.
 mkConsMap :: Trace -> ConsMap
 mkConsMap = foldl' loop IntMap.empty
-  where loop :: IntMap [ParentPosition] -> Event -> IntMap [ParentPosition]
+  where loop :: IntMap IntSet -> Event -> IntMap IntSet
         loop m e = case change e of
           Cons{} -> insertCon (parentUID . eventParent $ e) (parentPosition . eventParent $ e) m
           _      -> m
+
+        insertCon k x = IntMap.insertWith (<>) k (IntSet.singleton x)
 
 -- Return True for an enter event corresponding to a constant event and for any constant event, return False otherwise.
 corToCons :: ConsMap -> Event -> Bool
 corToCons cs e = case IntMap.lookup j cs of
                     Nothing   -> False
-                    (Just ps) -> p `elem` ps
+                    (Just ps) -> IntSet.member p ps
   where j = parentUID . eventParent $ e
         p = parentPosition . eventParent $ e
 
