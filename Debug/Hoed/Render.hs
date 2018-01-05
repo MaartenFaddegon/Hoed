@@ -14,7 +14,6 @@ module Debug.Hoed.Render
 ,renderCompStmts
 ,CDS
 ,eventsToCDS
-,rmEntrySet
 ,simplifyCDSSet
 ,noNewlines
 ,sortOn
@@ -154,7 +153,8 @@ eventsToCDS pairs = force $ getChild 0 0
      mid_arr :: Array Int [Pair Int CDS]
      mid_arr = accumArray cons [] bnds
                 [ (pnode, (pport :!: res node))
-                | (Event node (Parent pnode pport) _) <- pairs
+                | (Event node (Parent pnode pport) change) <- pairs
+                , change /= Enter
                 ]
 
      out_arr = array bnds       -- never uses 0 index
@@ -167,7 +167,7 @@ eventsToCDS pairs = force $ getChild 0 0
        case change of
         (Observe str i) -> let chd = getChild node 0
                                in CDSNamed str (getId chd i) chd
-        Enter             -> CDSEntered node
+        Enter               -> CDSEntered node
         Fun                 -> CDSFun node (getChild node 0) (getChild node 1)
         (Cons portc cons)
                             -> CDSCons node cons
@@ -177,13 +177,13 @@ eventsToCDS pairs = force $ getChild 0 0
      getId (CDSFun i _ _:_) _    = i
      getId (_:cs)              i = getId cs i
 
+
      getChild :: Int -> Int -> CDSSet
      getChild pnode pport =
-        [ content
-        | pport' :!: content <- (!) mid_arr pnode
-        , pport == pport'
-        ]
-
+       [ content
+       | pport' :!: content <- (!) mid_arr pnode
+       , pport == pport'
+       ]
 render  :: Int -> Bool -> CDS -> Doc
 render prec par (CDSCons _ ":" [cds1,cds2]) =
         if par && not needParen
@@ -284,19 +284,6 @@ findFn' (CDSFun i arg res) rest =
        [(args',res',_)] -> (arg : args', res', Just i) : rest
        _                -> ([arg], res, Just i) : rest
 findFn' other rest = ([],[other], Nothing) : rest
-
-rmEntry :: CDS -> CDS
-rmEntry (CDSNamed str i set) = CDSNamed str i (rmEntrySet set)
-rmEntry (CDSCons i str sets) = CDSCons i str (map rmEntrySet sets)
-rmEntry (CDSFun i a b)       = CDSFun i (rmEntrySet a) (rmEntrySet b)
-rmEntry (CDSTerminated i)    = CDSTerminated i
-rmEntry (CDSEntered _i)      = error "found bad CDSEntered"
-
-rmEntrySet :: [CDS] -> [CDS]
-rmEntrySet = map rmEntry . filter noEntered
-  where
-        noEntered (CDSEntered _) = False
-        noEntered _              = True
 
 simplifyCDS :: CDS -> CDS
 simplifyCDS (CDSNamed str i set) = CDSNamed str i (simplifyCDSSet set)

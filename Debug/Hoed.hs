@@ -336,8 +336,7 @@ runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
   condPutStrLn verbose $ "\n=== program terminated (" ++ show programTime ++ " seconds) ==="
   condPutStrLn verbose"Please wait while the computation tree is constructed..."
 
-  let !cdss  = eventsToCDS events
-      cdss1 = rmEntrySet cdss
+  let !cdss1 = eventsToCDS events
       cdss2 = simplifyCDSSet cdss1
       !eqs  = force $ renderCompStmts cdss2
       e    = length events
