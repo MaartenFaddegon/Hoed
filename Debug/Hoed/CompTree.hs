@@ -40,6 +40,7 @@ module Debug.Hoed.CompTree
 , traceInfo
 , Graph(..) -- re-export from LibGraph
 )where
+import           Control.Exception
 import           Control.DeepSeq
 import           Control.Monad
 import           Control.Monad.ST
@@ -47,6 +48,7 @@ import           Debug.Hoed.EventForest
 import           Debug.Hoed.Observe
 import           Debug.Hoed.Render
 
+import           Data.Bits
 import qualified Data.Foldable          as F
 import           Data.Graph.Libgraph
 import           Data.IntMap.Strict     (IntMap)
@@ -63,7 +65,9 @@ import           Data.Sequence          (Seq, ViewL (..), ViewR (..), viewl,
 import qualified Data.Sequence          as S
 import           Data.Set               (Set)
 import qualified Data.Set               as Set
-import qualified Data.Vector.Mutable    as VM
+import           Data.Vector.Mutable as VM (STVector)
+import qualified Data.Vector.Generic.Mutable as VM
+import qualified Data.Vector.Unboxed    as U
 import           GHC.Exts               (IsList (..))
 import           GHC.Generics
 import           Prelude                hiding (Right)
@@ -428,26 +432,28 @@ addDependency _e s = m s{dependencies = case d of (Just d') -> d':dependencies s
 
 ------------------------------------------------------------------------------------------------------------------------
 
-type ConsMap = IntMap IntSet
+type ConsMap = U.Vector Word
 
--- Iff an event is a constant then the UID of its parent and its ParentPosition
--- are elements of the ConsMap.
-mkConsMap :: Trace -> ConsMap
-mkConsMap = foldl' loop IntMap.empty
-  where loop :: IntMap IntSet -> Event -> IntMap IntSet
-        loop m e = case change e of
-          Cons{} -> insertCon (parentUID . eventParent $ e) (parentPosition . eventParent $ e) m
-          _      -> m
+--- Iff an event is a constant then the UID of its parent and its ParentPosition
+--- are elements of the ConsMap.
+mkConsMap :: Int -> Trace -> ConsMap
+mkConsMap l t =
+  U.create $ do
+    v <- VM.replicate l 0
+    forM_ t $ \e ->
+      case change e of
+        Cons {} -> do
+          let p = eventParent e
+          assert (parentPosition p < 64) $
+            VM.unsafeModify v (`setBit` parentPosition p) (parentUID p - 1)
+        _ -> return ()
+    return v
 
-        insertCon k x = IntMap.insertWith (<>) k (IntSet.singleton x)
-
--- Return True for an enter event corresponding to a constant event and for any constant event, return False otherwise.
 corToCons :: ConsMap -> Event -> Bool
-corToCons cs e = case IntMap.lookup j cs of
-                    Nothing   -> False
-                    (Just ps) -> IntSet.member p ps
-  where j = parentUID . eventParent $ e
-        p = parentPosition . eventParent $ e
+corToCons cm e = case U.unsafeIndex cm (parentUID p - 1) of
+                   0 -> False
+                   other -> testBit other (parentPosition p)
+  where p = eventParent e
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -489,5 +495,5 @@ traceInfo l trc = runST $ do
            IntMap.empty
 #endif
     cs :: ConsMap
-    cs = mkConsMap trc
+    cs = mkConsMap l trc
 
