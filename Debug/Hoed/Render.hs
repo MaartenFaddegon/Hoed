@@ -165,8 +165,8 @@ eventsToCDS pairs = force $ getChild 0 0
      getNode'' ::  Int -> Event -> Change -> CDS
      getNode'' node _e change =
        case change of
-        (Observe str i) -> let chd = getChild node 0
-                               in CDSNamed str (getId chd i) chd
+        Observe str         -> let chd = getChild node 0
+                               in CDSNamed str (getId chd node) chd
         Enter               -> CDSEntered node
         Fun                 -> CDSFun node (getChild node 0) (getChild node 1)
         (Cons portc cons)

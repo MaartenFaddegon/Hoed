@@ -513,7 +513,7 @@ unsafeWithUniq fn
 \begin{code}
 generateContext :: (a->Parent->a) -> String -> a -> (a,Int)
 generateContext f {- tti -} label orig = unsafeWithUniq $ \node ->
-     do sendEvent node (Parent 0 0) (Observe label node)
+     do sendEvent node (Parent 0 0) (Observe label)
         return (observer_ f orig (Parent
                       { parentUID      = node
                       , parentPosition = 0
@@ -573,7 +573,7 @@ data Event = Event
         deriving (Eq,Generic)
 
 data Change
-        = Observe       !String        !Int
+        = Observe       !String
         | Cons    !Int  !String
         | Enter
         | Fun
