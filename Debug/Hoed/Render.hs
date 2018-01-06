@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ImplicitParams    #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -14,7 +15,6 @@ module Debug.Hoed.Render
 ,renderCompStmts
 ,CDS
 ,eventsToCDS
-,simplifyCDSSet
 ,noNewlines
 ,sortOn
 ) where
@@ -28,7 +28,7 @@ import           Debug.Hoed.Compat
 import           Debug.Hoed.Observe
 import           GHC.Generics
 import           Prelude                  hiding (lookup)
-import           Text.PrettyPrint.FPretty hiding (sep)
+import           Text.PrettyPrint.FPretty hiding (sep, (<$>))
 import           Text.Read
 
 
@@ -134,10 +134,13 @@ data CDS = CDSNamed      !String !UID !CDSSet
          | CDSFun        !UID              !CDSSet !CDSSet
          | CDSEntered    !UID
          | CDSTerminated !UID
+         | CDSString     !String -- only used internally in eventsToCDS
         deriving (Show,Eq,Ord,Generic)
 
 instance NFData CDS
 
+normalizeCDS (CDSString s) = CDSCons 0 (show s) []
+normalizeCDS other = other
 type CDSSet = [CDS]
 
 eventsToCDS :: [Event] -> CDSSet
@@ -165,18 +168,18 @@ eventsToCDS pairs = force $ getChild 0 0
      getNode'' ::  Int -> Event -> Change -> CDS
      getNode'' node _e change =
        case change of
-        Observe str         -> let chd = getChild node 0
+        Observe str         -> let chd = normalizeCDS <$> getChild node 0
                                in CDSNamed str (getId chd node) chd
         Enter               -> CDSEntered node
-        Fun                 -> CDSFun node (getChild node 0) (getChild node 1)
+        Fun                 -> CDSFun node (normalizeCDS <$> getChild node 0)
+                                           (normalizeCDS <$> getChild node 1)
         (Cons portc cons)
-                            -> CDSCons node cons
-                                  [ getChild node n | n <- [0..(portc-1)]]
+                            -> simplifyCons node cons
+                                 [getChild node n | n <- [0 .. portc - 1]]
 
-     getId []                  i = i
+     getId []                 i  = i
      getId (CDSFun i _ _:_) _    = i
-     getId (_:cs)              i = getId cs i
-
+     getId (_:cs)             i  = getId cs i
 
      getChild :: Int -> Int -> CDSSet
      getChild pnode pport =
@@ -184,6 +187,19 @@ eventsToCDS pairs = force $ getChild 0 0
        | pport' :!: content <- (!) mid_arr pnode
        , pport == pport'
        ]
+
+simplifyCons uid "throw" [[CDSCons _ "ErrorCall" set]]
+  = CDSCons 0 "error" set
+simplifyCons uid ":" [[CDSCons _ (matchChar -> Just !ch) []], [CDSCons _ "[]" []]]
+  = CDSString [ch]
+simplifyCons uid ":" [[CDSCons _ (matchChar -> Just !ch) []], [CDSString s]]
+  = CDSString (ch:s)
+simplifyCons uid con xx = CDSCons uid con (map (map normalizeCDS) xx)
+
+matchChar ['\'', ch ,'\''] = Just ch
+matchChar special@['\'', _, _ ,'\''] = readMaybe special
+matchChar _ = Nothing
+
 render  :: Int -> Bool -> CDS -> Doc
 render prec par (CDSCons _ ":" [cds1,cds2]) =
         if par && not needParen
@@ -284,34 +300,6 @@ findFn' (CDSFun i arg res) rest =
        [(args',res',_)] -> (arg : args', res', Just i) : rest
        _                -> ([arg], res, Just i) : rest
 findFn' other rest = ([],[other], Nothing) : rest
-
-simplifyCDS :: CDS -> CDS
-simplifyCDS (CDSNamed str i set) = CDSNamed str i (simplifyCDSSet set)
-simplifyCDS (CDSCons _ "throw"
-                  [[CDSCons _ "ErrorCall" set]]
-            ) = simplifyCDS (CDSCons 0 "error" set)
-simplifyCDS cons@(CDSCons _i str sets) =
-        case spotString [cons] of
-          Just str@(_:_) -> CDSCons 0 (show str) []
-          _        -> CDSCons 0 str (map simplifyCDSSet sets)
-
-simplifyCDS (CDSFun i a b) = CDSFun i (simplifyCDSSet a) (simplifyCDSSet b)
-
-simplifyCDS (CDSTerminated i) = CDSCons i "<?>" []
-
-simplifyCDSSet :: [CDS] -> [CDS]
-simplifyCDSSet = map simplifyCDS
-
-spotString :: CDSSet -> Maybe String
-spotString [CDSCons _ ":" [[CDSCons _ ['\'', ch ,'\''] []], rest]] = do
-  more <- spotString rest
-  return (ch : more)
-spotString [CDSCons _ ":" [[CDSCons _ special@['\'', _, _,'\''] []], rest]] = do
-  ch <- readMaybe special
-  more <- spotString rest
-  return (ch : more)
-spotString [CDSCons _ "[]" []] = return []
-spotString _other = Nothing
 
 paren :: Bool -> Doc -> Doc
 paren False doc = grp doc
