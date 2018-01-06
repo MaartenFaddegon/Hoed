@@ -152,13 +152,11 @@ replaceVertex g v = mapGraph f g
 -- new information, often the information is just a duplicate of what we already
 -- know. With nub we remove the duplicates.
 
-mkCompTree :: [CompStmt] -> [Dependency] -> CompTree
+mkCompTree :: [CompStmt] -> Dependencies -> CompTree
 mkCompTree cs ds = Graph RootVertex vs as
 
   where vs = RootVertex : map (`Vertex` Unassessed) cs
-        as = map (\(D i j) -> Arc (findVertex i) (findVertex j) ()) (snub ds)
-
-        snub = map head . group . sort
+        as = [Arc (findVertex i) (findVertex j) () | (i,jj) <- toList ds, j <- toList jj]
 
         -- A mapping from stmtUID to Vertex of all CompStmts in cs
         vMap :: IntMap Vertex
@@ -217,14 +215,13 @@ getTopLvlFunOr def EventDetails{topLvlFun_}
   | TopLvlFun x <- topLvlFun_ = x
 
 ------------------------------------------------------------------------------------------------------------------------
-data Dependency = D !UID !UID deriving (Eq, Generic, Ord, Show)
 
-instance NFData Dependency
+type Dependencies = IntMap IntSet
 
 data TraceInfo = TraceInfo
   { computations :: !SpanZipper
                    -- UIDs of active and paused computations of arguments/results of Fun events
-  , dependencies :: ![Dependency] -- the result
+  , dependencies :: !Dependencies
 #if defined(TRANSCRIPT)
   , messages     :: !(IntMap String)
               -- ^ stored depth of the stack for every event
@@ -430,16 +427,19 @@ activeComputations s = map getSpanUID . filter isActive . toList $ computations 
 ------------------------------------------------------------------------------------------------------------------------
 
 addDependency :: Event -> TraceInfo -> TraceInfo
-addDependency _e s = m s{dependencies = case d of (Just d') -> d':dependencies s; Nothing -> dependencies s}
+addDependency _e s =
+  m s{dependencies = case d of
+         Just (from,to) -> IntMap.insertWith (<>) from [to] (dependencies s)
+         Nothing -> dependencies s}
 
   where d = case activeComputations s of
               []      -> Nothing
-              [n]     -> Just $ D (-1) n  -- top-level function detected (may later add dependency from Root)
-              (n:m:_) -> Just $ D m n
+              [n]     -> Just (-1, n)  -- top-level function detected (may later add dependency from Root)
+              (n:m:_) -> Just (m, n)
 
         m = case d of
              Nothing   -> addMessage _e ("does not add dependency")
-             (Just (D a b)) -> addMessage _e ("adds dependency " ++ show a ++ " -> " ++ show b)
+             (Just (a, b)) -> addMessage _e ("adds dependency " ++ show a ++ " -> " ++ show b)
 
 ------------------------------------------------------------------------------------------------------------------------
 
