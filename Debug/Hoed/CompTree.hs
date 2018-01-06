@@ -1,3 +1,4 @@
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -189,13 +190,18 @@ instance Show ConstantValue where
 
 ------------------------------------------------------------------------------------------------------------------------
 
+newtype TopLvlFun = TopLvlFun UID deriving Eq
+
+noTopLvlFun = TopLvlFun (-1)
+
 data EventDetails = EventDetails
-  { topLvlFun   :: !(Maybe UID)
+  { topLvlFun_   :: !TopLvlFun
               -- ^ references from the UID of an event to the UID of the corresponding top-level Fun event
   , locations   :: ParentPosition -> Bool
               -- ^ reference from parent UID and position to location
   }
-  deriving Show
+
+topLvlFun EventDetails{topLvlFun_ = TopLvlFun x} = x
 
 type EventDetailsStore s = VM.STVector s EventDetails
 
@@ -204,6 +210,11 @@ getEventDetails = VM.unsafeRead
 
 setEventDetails :: EventDetailsStore s -> UID -> EventDetails -> ST s ()
 setEventDetails = VM.unsafeWrite
+
+
+getTopLvlFunOr def EventDetails{topLvlFun_}
+  | topLvlFun_ == noTopLvlFun = def
+  | TopLvlFun x <- topLvlFun_ = x
 
 ------------------------------------------------------------------------------------------------------------------------
 data Dependency = D !UID !UID deriving (Eq, Generic, Ord, Show)
@@ -263,7 +274,7 @@ collectEventDetails v e = do
             let !p = eventParent e
             parentDetails <- getEventDetails v (parentUID p)
             let !loc = locations parentDetails (parentPosition p)
-                !top = fromMaybe (parentUID p) $ topLvlFun parentDetails
+                !top = getTopLvlFunOr (parentUID p) parentDetails
             return (loc, top)
 
 -- When we see a Fun event whose parent is not a Fun event it is a top level Fun event,
@@ -274,10 +285,10 @@ mkFunDetails s e = do
     let p = eventParent e
     ed  <- getEventDetails s (parentUID p)
     let !loc = locations ed (parentPosition p)
-        !top = fromMaybe (eventUID e) $ topLvlFun ed
+        !top = getTopLvlFunOr (eventUID e) ed
         locFun 0 = not loc
         locFun 1 = loc
-    return $ EventDetails (Just top) locFun
+    return $ EventDetails (TopLvlFun top) locFun
   where
     j = parentUID . eventParent $ e
 
@@ -389,25 +400,25 @@ stopSpan uid sz@SZ{..}
 
 start, stop,pause,resume :: Event -> EventDetails -> TraceInfo -> TraceInfo
 start e ed s = m s{computations = cs}
-  where Just i  = topLvlFun ed
+  where i  = topLvlFun ed
         cs = startSpan i $ computations s
         m  = addMessage e $ "Start computation " ++ show i ++ ": " ++ show cs
 
 stop e ed s = m s {computations = cs'}
   where
-    Just i = topLvlFun ed
+    i = topLvlFun ed
     cs' = stopSpan i (computations s)
     m = addMessage e $ "Stop computation " ++ show i ++ ": " ++ show cs'
 
 pause e ed s = m s {computations = cs'}
   where
-    Just i = topLvlFun ed
+    i = topLvlFun ed
     cs' = pauseSpan i (computations s)
     m = addMessage e $ "Pause up to " ++ show i ++ ": " ++ show cs'
 
 resume e ed s = m s {computations = cs'}
   where
-    Just i = topLvlFun ed
+    i = topLvlFun ed
     cs' = resumeSpan i (computations s)
     m = addMessage e $ "Resume computation " ++ show i ++ ": " ++ show cs'
 
@@ -460,11 +471,11 @@ corToCons cm e = case U.unsafeIndex cm (parentUID p - 1) of
 traceInfo :: Int -> Trace -> TraceInfo
 traceInfo l trc = runST $ do
   -- Practically speaking, event UIDs start in 1
-  v <- VM.replicate (l+1) $ EventDetails Nothing (const False)
-  let loop s e =
+  v <- VM.replicate (l+1) $ EventDetails noTopLvlFun (const False)
+  let loop !s e =
         case change e of
           Observe {} -> do
-            setEventDetails v (eventUID e) (EventDetails Nothing (const True))
+            setEventDetails v (eventUID e) (EventDetails noTopLvlFun (const True))
             return s
           Fun {} -> do
             setEventDetails v (eventUID e) =<< mkFunDetails v e
@@ -473,7 +484,7 @@ traceInfo l trc = runST $ do
           Enter {}
             | corToCons cs e -> do
               (loc, top) <- collectEventDetails v e
-              let !details = EventDetails (Just top) (const loc)
+              let !details = EventDetails (TopLvlFun top) (const loc)
               setEventDetails v (eventUID e) details
               return $ if loc
                   then addDependency e . start e details $ s
@@ -482,7 +493,7 @@ traceInfo l trc = runST $ do
             -- Span end
           Cons {} -> do
             (loc, top) <- collectEventDetails v e
-            let !details = EventDetails (Just top) (const loc)
+            let !details = EventDetails (TopLvlFun top) (const loc)
             setEventDetails v (eventUID e) details
             return $ if loc
               then stop e details s
