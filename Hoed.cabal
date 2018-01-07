@@ -47,6 +47,7 @@ library
                        , regex-tdfa
                        , directory
                        , cereal, bytestring
+                       , semigroups
                        , strict
                        , template-haskell
                        , terminal-size
