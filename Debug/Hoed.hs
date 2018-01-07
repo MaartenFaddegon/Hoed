@@ -333,7 +333,7 @@ runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
   condPutStrLn verbose "=== program output ===\n"
   events <- debugO program
   t2 <- getTime Monotonic
-  let programTime = fromIntegral(toNanoSecs(diffTimeSpec t1 t2)) * 1e-9
+  let programTime = toSecs(diffTimeSpec t1 t2)
   condPutStrLn verbose $ "\n=== program terminated (" ++ show programTime ++ " seconds) ==="
   condPutStrLn verbose"Please wait while the computation tree is constructed..."
 
@@ -363,9 +363,12 @@ runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
   condPutStrLn verbose $ "computation tree has a branch factor of " ++ show b ++ " (i.e the average number of children of non-leaf nodes)"
 
   t3 <- getTime Monotonic
-  let compTime = fromIntegral(toNanoSecs(diffTimeSpec t2 t3)) * 1e-9
+  let compTime = toSecs(diffTimeSpec t2 t3)
   condPutStrLn verbose $ "\n=== Debug Session (" ++ show compTime ++ " seconds) ===\n"
   return $ HoedAnalysis events ct
+    where
+       toSecs :: TimeSpec -> Double
+       toSecs spec = fromIntegral(sec spec) + fromIntegral(nsec spec) * 1e-9
 
 -- | Trace and write computation tree to file. Useful for regression testing.
 logO :: FilePath -> IO a -> IO ()
