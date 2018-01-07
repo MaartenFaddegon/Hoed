@@ -33,6 +33,7 @@ library
                        , Debug.Hoed.EventForest
                        , Debug.Hoed.ReadLine
                        , Debug.Hoed.Console
+                       , Debug.Hoed.Fields
                        , Debug.Hoed.Prop
                        , Debug.Hoed.Serialize
                        , Text.PrettyPrint.FPretty

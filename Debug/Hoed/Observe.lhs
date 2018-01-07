@@ -1,5 +1,6 @@
 \begin{code}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -7,6 +8,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE CPP #-}
 
 \end{code}
@@ -93,6 +95,7 @@ import Control.Monad
 import Data.Array as Array
 import Data.List
 import Data.Char
+import Debug.Hoed.Fields
 import System.Environment
 
 import GHC.Generics
@@ -155,6 +158,7 @@ constrainBase x c | x == c = x
                   | otherwise = error $ show x ++ " constrained by " ++ show c
 \end{code}
 
+
 A type generic definition of constrain
 
 \begin{code}
@@ -181,7 +185,8 @@ Observing the children of Data types of kind *.
 \begin{code}
 
 -- Meta: data types
-instance (GObservable a) => GObservable (M1 D d a) where
+-- FieldLimit requires undecidable instances
+instance (FieldLimit ('S ('S ('S ('S ('S ('S 'Z)))))) a, GObservable a) => GObservable (M1 D d a) where
  gdmobserver m@(M1 x) cxt = M1 (gdmobserver x cxt)
  gdmObserveArgs = gthunk
  gdmShallowShow = error "gdmShallowShow not defined on the <<data meta type>>"
