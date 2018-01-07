@@ -18,11 +18,10 @@ module Debug.Hoed.Render
 ,noNewlines
 ,sortOn
 ) where
-import           Control.Arrow
 import           Control.DeepSeq
 import           Data.Array               as Array
 import           Data.Char                (isAlpha)
-import           Data.List                (nub, sort, sortBy)
+import           Data.List                (nub, sort)
 import           Data.Strict.Tuple
 import           Debug.Hoed.Compat
 import           Debug.Hoed.Observe
@@ -95,8 +94,6 @@ renderCompStmt (CDSNamed name uid set) = statements
         statements   = concatMap (renderNamedTop name uid) output
         output       = cdssToOutput set
 
-        mkStmt :: (StmtDetails,UID) -> CompStmt
-        mkStmt (s,i) = CompStmt name i s
 renderCompStmt other = error $ show other
 
 renderNamedTop :: (?statementWidth::Int) => String -> UID -> Output -> [CompStmt]
@@ -139,6 +136,7 @@ data CDS = CDSNamed      !String !UID !CDSSet
 
 instance NFData CDS
 
+normalizeCDS :: CDS -> CDS
 normalizeCDS (CDSString s) = CDSCons 0 (show s) []
 normalizeCDS other = other
 type CDSSet = [CDS]
@@ -188,14 +186,16 @@ eventsToCDS pairs = force $ getChild 0 0
        , pport == pport'
        ]
 
-simplifyCons uid "throw" [[CDSCons _ "ErrorCall" set]]
+simplifyCons :: UID -> String -> [CDSSet] -> CDS
+simplifyCons _ "throw" [[CDSCons _ "ErrorCall" set]]
   = CDSCons 0 "error" set
-simplifyCons uid ":" [[CDSCons _ (matchChar -> Just !ch) []], [CDSCons _ "[]" []]]
+simplifyCons _ ":" [[CDSCons _ (matchChar -> Just !ch) []], [CDSCons _ "[]" []]]
   = CDSString [ch]
-simplifyCons uid ":" [[CDSCons _ (matchChar -> Just !ch) []], [CDSString s]]
+simplifyCons _ ":" [[CDSCons _ (matchChar -> Just !ch) []], [CDSString s]]
   = CDSString (ch:s)
 simplifyCons uid con xx = CDSCons uid con (map (map normalizeCDS) xx)
 
+matchChar :: [Char] -> Maybe Char
 matchChar ['\'', ch ,'\''] = Just ch
 matchChar special@['\'', _, _ ,'\''] = readMaybe special
 matchChar _ = Nothing

@@ -11,9 +11,7 @@ module Debug.Hoed.Console(debugSession) where
 
 import           Control.Monad
 import           Data.Graph.Libgraph      as G
-import           Data.List                as List (findIndex, group,
-                                                   intersperse, nub, sort,
-                                                   sortBy)
+import           Data.List                as List (group, nub, sort)
 import qualified Data.Map.Strict          as Map
 import           Data.Maybe
 import qualified Data.Set                 as Set
@@ -23,12 +21,9 @@ import           Debug.Hoed.Observe
 import           Debug.Hoed.Prop
 import           Debug.Hoed.ReadLine
 import           Debug.Hoed.Render
-import           Debug.Hoed.Serialize
-import           Prelude                  hiding (Right)
-import qualified Prelude
 import           Text.PrettyPrint.FPretty
 import           Text.Regex.TDFA
-
+import           Prelude                  hiding (Right)
 
 {-# ANN module ("HLint: ignore Use camelCase" :: String) #-}
 
@@ -84,6 +79,7 @@ interactiveFrame prompt commands state = do
   where
     selectCommand = selectFrom commands
 
+showHelp :: [Command state] -> IO ()
 showHelp commands =
   putStrLn (pretty 80 $ vcat $ zipWith compose commandsBlock descriptionsBlock)
   where
@@ -94,6 +90,7 @@ showHelp commands =
     pad x = take (colWidth + 1) $ x ++ spaces
     spaces = repeat ' '
 
+helpCommand :: [Command state1] -> Command state2
 helpCommand commands =
   Command "help" [] "Shows this help screen." $ \case
     [] -> Just $ \_ -> Same <$ showHelp commands
@@ -148,6 +145,7 @@ exitCommand =
     [] -> Just $ \_ -> return (Up Nothing)
     _  -> Nothing
 
+mainLoopCommands :: [Command State]
 mainLoopCommands =
   sortOn name
     [ adbCommand
@@ -157,6 +155,7 @@ mainLoopCommands =
     , helpCommand mainLoopCommands
     ]
 
+mainLoop :: Vertex -> Trace -> CompTree -> [Propositions] -> IO ()
 mainLoop cv trace compTree ps =
   executionLoop [interactiveFrame "hdb>" mainLoopCommands] $
   State cv trace compTree ps
@@ -178,6 +177,7 @@ listStmts g regex =
 
 -- Restricted to statements for lambda functions or top level constants.
 -- Discards nested constant bindings
+isRelevantToUser :: Graph Vertex arc -> Vertex -> Bool
 isRelevantToUser _ Vertex {vertexStmt = CompStmt {stmtDetails = StmtLam {}}} =
     True
 isRelevantToUser g v@Vertex {vertexStmt = CompStmt {stmtDetails = StmtCon {}}} =
@@ -246,8 +246,10 @@ printStmt g = unlines $
 --------------------------------------------------------------------------------
 -- algorithmic debugging
 
+adbCommands :: [Command State]
 adbCommands = [judgeCommand Right, judgeCommand Wrong]
 
+judgeCommand :: Judgement -> Command State
 judgeCommand judgement =
   Command
     verbatim
@@ -261,6 +263,7 @@ judgeCommand judgement =
     verbatim | Right <- judgement = "right"
              | Wrong <- judgement = "wrong"
 
+adbFrame :: State -> IO (Transition State)
 adbFrame st@State{..} =
   case cv of
     RootVertex -> do

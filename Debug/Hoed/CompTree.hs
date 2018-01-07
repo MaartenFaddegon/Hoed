@@ -42,7 +42,6 @@ module Debug.Hoed.CompTree
 , Graph(..) -- re-export from LibGraph
 )where
 import           Control.Exception
-import           Control.DeepSeq
 import           Control.Monad
 import           Control.Monad.ST
 import           Debug.Hoed.EventForest
@@ -50,29 +49,19 @@ import           Debug.Hoed.Observe
 import           Debug.Hoed.Render
 
 import           Data.Bits
-import qualified Data.Foldable          as F
 import           Data.Graph.Libgraph
 import           Data.IntMap.Strict     (IntMap)
 import qualified Data.IntMap.Strict     as IntMap
 import           Data.IntSet            (IntSet)
-import qualified Data.IntSet            as IntSet
-import           Data.List              (foldl', group, sort)
-import           Data.List.NonEmpty     (NonEmpty, nonEmpty)
+import           Data.List              (foldl')
 import           Data.Maybe
-import           Data.Monoid            hiding ((<>))
 import           Data.Semigroup
-import           Data.Sequence          (Seq, ViewL (..), ViewR (..), viewl,
-                                         viewr, (<|), (|>))
-import qualified Data.Sequence          as S
-import           Data.Set               (Set)
-import qualified Data.Set               as Set
 import           Data.Vector.Mutable as VM (STVector)
 import qualified Data.Vector.Generic.Mutable as VM
 import qualified Data.Vector.Unboxed    as U
 import           GHC.Exts               (IsList (..))
 import           GHC.Generics
 import           Prelude                hiding (Right)
-import           Text.Show.Functions
 
 data Vertex = RootVertex | Vertex {vertexStmt :: CompStmt, vertexJmt :: Judgement}
   deriving (Eq,Show,Ord,Generic)
@@ -190,6 +179,7 @@ instance Show ConstantValue where
 
 newtype TopLvlFun = TopLvlFun UID deriving Eq
 
+noTopLvlFun :: TopLvlFun
 noTopLvlFun = TopLvlFun (-1)
 
 data EventDetails = EventDetails
@@ -199,6 +189,7 @@ data EventDetails = EventDetails
               -- ^ reference from parent UID and position to location
   }
 
+topLvlFun :: EventDetails -> UID
 topLvlFun EventDetails{topLvlFun_ = TopLvlFun x} = x
 
 type EventDetailsStore s = VM.STVector s EventDetails
@@ -210,6 +201,7 @@ setEventDetails :: EventDetailsStore s -> UID -> EventDetails -> ST s ()
 setEventDetails = VM.unsafeWrite
 
 
+getTopLvlFunOr :: UID -> EventDetails -> UID
 getTopLvlFunOr def EventDetails{topLvlFun_}
   | topLvlFun_ == noTopLvlFun = def
   | TopLvlFun x <- topLvlFun_ = x
@@ -259,13 +251,6 @@ addMessage _ _ t = t
 #endif
 ------------------------------------------------------------------------------------------------------------------------
 
-getLocation :: EventDetailsStore s -> Event -> ST s Bool
-getLocation s e = do
-          ed <- getEventDetails s (parentUID p)
-          return $ locations ed (parentPosition p)
-  where
-    p = eventParent e
-
 collectEventDetails :: EventDetailsStore s -> Event -> ST s (Bool,UID)
 collectEventDetails v e = do
             let !p = eventParent e
@@ -286,14 +271,10 @@ mkFunDetails s e = do
         locFun 0 = not loc
         locFun 1 = loc
     return $ EventDetails (TopLvlFun top) locFun
-  where
-    j = parentUID . eventParent $ e
 
 ------------------------------------------------------------------------------------------------------------------------
 
 data Span = Computing !UID | Paused !UID deriving (Eq, Ord)
-
-instance NFData Span where rnf = rwhnf
 
 instance Show Span where
   show (Computing i) = show i
@@ -343,8 +324,6 @@ instance Show SpanZipper where
     Verbatim ('\ESC':"[4m" ++ show cursorUID ++ '\ESC':"[24m") :
     map (Verbatim . show) (toList right)
 
-emptySpanZipper = SZNil
-
 startSpan :: UID -> SpanZipper -> SpanZipper
 startSpan uid SZNil = SZ [] uid []
 startSpan uid SZ{..}  = SZ [] uid (left <> SpanCons cursorUID right)
@@ -363,6 +342,7 @@ moveRight SZ{right = SpanNil} = Nothing
 moveRight SZ{right = SpanCons uid r, ..} = Just $ SZ (SpanCons cursorUID left) uid r
 
 -- pauseSpan always moves to the right
+pauseSpan :: UID -> SpanZipper -> SpanZipper
 pauseSpan uid sz
   | x  == uid = sz{cursorUID = negate uid}
   | otherwise = pauseSpan uid $ fromMaybe err $ moveRight sz{cursorUID = if x>0 then negate x else x}
@@ -371,6 +351,7 @@ pauseSpan uid sz
     err = error $ unwords ["pauseSpan", show uid, show sz]
 
 -- resumeSpan moves to the left, except when at the Top of the stack in which case it goes right
+resumeSpan :: UID -> SpanZipper -> SpanZipper
 resumeSpan (negate -> uid) sz
   | cursorUID sz == uid = sz{cursorUID = negate uid}
   | SpanNil <- left sz, Just sz' <- moveRight sz = go moveRight sz'
@@ -380,8 +361,8 @@ resumeSpan (negate -> uid) sz
     err = error $ unwords ["resumeSpan", show (negate uid), show sz]
     go move sz
       | cursorUID sz == uid = sz{cursorUID = negate uid}
-      | Nothing <- move sz = err
       | Just sz' <- move sz = go move sz'
+      | otherwise = err
 
 -- stopSpan moves left
 stopSpan :: UID -> SpanZipper -> SpanZipper
@@ -391,7 +372,7 @@ stopSpan uid sz@SZ{..}
       | Just sz' <- moveLeft  sz -> sz'{right = right}
       | otherwise -> SZNil
   | Just sz' <- moveLeft sz = stopSpan uid sz'
-  | otherwise = error $ unwords ["stopSpan", show uid, show sz]
+stopSpan uid sz = error $ unwords ["stopSpan", show uid, show sz]
 
 ----------------------------------------------------------------------------
 
@@ -438,7 +419,7 @@ addDependency _e s =
               (n:m:_) -> Just (m, n)
 
         m = case d of
-             Nothing   -> addMessage _e ("does not add dependency")
+             Nothing       -> addMessage _e ("does not add dependency")
              (Just (a, b)) -> addMessage _e ("adds dependency " ++ show a ++ " -> " ++ show b)
 
 ------------------------------------------------------------------------------------------------------------------------

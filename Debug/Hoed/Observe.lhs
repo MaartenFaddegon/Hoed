@@ -89,32 +89,20 @@ module Debug.Hoed.Observe
 \begin{code}
 import Prelude hiding (Right)
 import qualified Prelude
-import System.IO
-import Data.Maybe
 import Control.Monad
 import Data.Array as Array
-import Data.List
-import Data.Char
 import Debug.Hoed.Fields
-import System.Environment
 
 import GHC.Generics
 
 import Data.IORef
 import System.IO.Unsafe
 
-import Control.Concurrent(takeMVar,putMVar,MVar,newMVar)
-import qualified Control.Concurrent as Concurrent
-\end{code}
-
-For the TracedMonad instance of IO:
-\begin{code}
-import GHC.Base hiding (mapM, Type)
 \end{code}
 
 \begin{code}
 import qualified Control.Exception as Exception
-import Control.Exception (Exception, throw, ErrorCall(..), SomeException(..))
+import Control.Exception (throw, SomeException(..))
 {-
  ( catch
                 , Exception(..)

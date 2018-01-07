@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ImplicitParams  #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -188,7 +189,6 @@ module Debug.Hoed
 import Control.DeepSeq
 import           Debug.Hoed.CompTree
 import           Debug.Hoed.Console
-import           Debug.Hoed.EventForest
 import           Debug.Hoed.Observe
 import           Debug.Hoed.Prop
 import           Debug.Hoed.Render
@@ -322,6 +322,7 @@ data HoedOptions = HoedOptions
   , prettyWidth :: Int
   }
 
+defaultHoedOptions :: HoedOptions
 defaultHoedOptions = HoedOptions Silent 110
 
 -- |Entry point giving you access to the internals of Hoed. Also see: runO.
@@ -339,7 +340,6 @@ runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
   let !cdss = eventsToCDS events
       !eqs  = force $ renderCompStmts cdss
       e    = length events
-      frt  = mkEventForest events
       ti   = traceInfo e (reverse events)
       !ds  = force $ dependencies ti
       ct  = mkCompTree eqs ds
