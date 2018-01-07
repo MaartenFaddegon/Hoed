@@ -436,8 +436,13 @@ mkConsMap l t =
       case change e of
         Cons {} -> do
           let p = eventParent e
-          assert (parentPosition p < 64) $
-            VM.unsafeModify v (`setBit` parentPosition p) (parentUID p - 1)
+#if __GLASGOW_HASKELL__ >= 800
+          VM.unsafeModify v (`setBit` parentPosition p) (parentUID p - 1)
+#else
+          let ix = parentUID p - 1
+          x <- VM.unsafeRead v ix
+          VM.unsafeWrite v ix (x `setBit` parentPosition p)
+#endif
         _ -> return ()
     return v
 
