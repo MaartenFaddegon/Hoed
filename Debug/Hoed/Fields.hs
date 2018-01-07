@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -7,7 +8,10 @@ module Debug.Hoed.Fields where
 
 import GHC.Generics
 import GHC.Exts
+
+#if __GLASGOW_HASKELL__ > 710
 import GHC.TypeLits (ErrorMessage(..), TypeError)
+#endif
 
 data Nat = Z | S Nat
 
@@ -18,6 +22,8 @@ type family FieldLimit (n :: Nat) a :: Constraint where
   FieldLimit ('S n) (f :*: g) = FieldLimit n g
   FieldLimit n U1 = ()
   FieldLimit n V1 = ()
-  FieldLimit n (K1 _ _) = ()
-  FieldLimit n (URec _) = ()
+  FieldLimit n (K1 a b) = ()
+#if __GLASGOW_HASKELL__ > 710
+  FieldLimit n (URec a) = ()
   FieldLimit 'Z f = TypeError ('Text "Hoed only handles constructors with 64 fields or less")
+#endif
