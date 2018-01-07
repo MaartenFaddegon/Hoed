@@ -59,6 +59,7 @@ import           Data.Semigroup
 import           Data.Vector.Mutable as VM (STVector)
 import qualified Data.Vector.Generic.Mutable as VM
 import qualified Data.Vector.Unboxed    as U
+import           Data.Word
 import           GHC.Exts               (IsList (..))
 import           GHC.Generics
 import           Prelude                hiding (Right)
