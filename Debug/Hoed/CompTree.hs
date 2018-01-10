@@ -53,7 +53,7 @@ import           Data.Graph.Libgraph
 import           Data.IntMap.Strict     (IntMap)
 import qualified Data.IntMap.Strict     as IntMap
 import           Data.IntSet            (IntSet)
-import           Data.List              (foldl')
+import           Data.List              (foldl', unfoldr)
 import           Data.Maybe
 import           Data.Semigroup
 import           Data.Vector.Mutable as VM (STVector)
@@ -289,10 +289,11 @@ data SpanList = SpanCons !UID !SpanList | SpanNil
 
 instance IsList SpanList where
   type Item SpanList = Span
-  toList SpanNil = []
-  toList (SpanCons uid rest)
-    | uid > 0 = Computing uid : toList rest
-    | otherwise = Paused (negate uid) : toList rest
+  toList = unfoldr f where
+    f SpanNil = Nothing
+    f (SpanCons uid rest)
+      | uid > 0   = Just (Computing uid, rest)
+      | otherwise = Just (Paused (negate uid), rest)
   fromList [] = SpanNil
   fromList (Paused uid : rest) = SpanCons (negate uid) $ fromList rest
   fromList (Computing uid : rest) = SpanCons uid $ fromList rest
