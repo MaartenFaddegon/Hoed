@@ -198,6 +198,7 @@ module Debug.Hoed
   ) where
 
 import Control.DeepSeq
+import Control.Monad
 import           Debug.Hoed.CompTree
 import           Debug.Hoed.Console
 import           Debug.Hoed.Observe
@@ -338,6 +339,7 @@ defaultHoedOptions = HoedOptions Silent 110
 -- |Entry point giving you access to the internals of Hoed. Also see: runO.
 runO' :: HoedOptions -> IO a -> IO HoedAnalysis
 runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
+  hSetBuffering stdout NoBuffering
   createDirectoryIfMissing True ".Hoed/"
   t1 <- getTime Monotonic
   condPutStrLn verbose "=== program output ===\n"
@@ -345,18 +347,22 @@ runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
   t2 <- getTime Monotonic
   let programTime = toSecs(diffTimeSpec t1 t2)
   condPutStrLn verbose $ "\n=== program terminated (" ++ show programTime ++ " seconds) ==="
-  condPutStrLn verbose"Please wait while the computation tree is constructed..."
-
   let e = length events
 
   condPutStrLn verbose "\n=== Statistics ===\n"
   condPutStrLn verbose $ show e ++ " events"
+  condPutStrLn verbose"Please wait while the computation tree is constructed..."
 
-  let !cdss = eventsToCDS events
-      !eqs  = force $ renderCompStmts cdss
-  ti  <- traceInfo e events
-  let !ds   = force $ dependencies ti
-      ct    = mkCompTree eqs ds
+  ti  <- traceInfo e (events)
+  let cdss = eventsToCDS events
+      eqs  = renderCompStmts cdss
+  let !ds  = force $ dependencies ti
+      ct   = mkCompTree eqs ds
+
+  forM_ cdss $ \x -> do
+    evaluate (force x)
+    when (isPowerOf 2 i) $ putStr "."
+  putStrLn ""
 
 #if defined(DEBUG)
   writeFile ".Hoed/Events"     (unlines . map show . reverse $ events)
@@ -381,6 +387,11 @@ runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
     where
        toSecs :: TimeSpec -> Double
        toSecs spec = fromIntegral(sec spec) + fromIntegral(nsec spec) * 1e-9
+
+isPowerOf n 0 = False
+isPowerOf n k | n == k         = True
+              | k `mod` n == 0 = isPowerOf n (k `div` n)
+              | otherwise      = False
 
 -- | Trace and write computation tree to file. Useful for regression testing.
 logO :: FilePath -> IO a -> IO ()
