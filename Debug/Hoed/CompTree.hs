@@ -347,10 +347,10 @@ moveRight SZ{right = SpanCons uid r, ..} = Just $ SZ (SpanCons cursorUID left) u
 pauseSpan :: UID -> SpanZipper -> SpanZipper
 pauseSpan uid sz
   | x  == uid = sz{cursorUID = negate uid}
-  | otherwise = pauseSpan uid $ fromMaybe err $ moveRight sz{cursorUID = if x>0 then negate x else x}
+  | otherwise = pauseSpan uid $ fromMaybe sz' $ moveRight sz{cursorUID = if x>0 then negate x else x}
   where
     x = cursorUID sz
-    err = error $ unwords ["pauseSpan", show uid, show sz]
+    sz' = assert (Computing uid `notElem` toList (left sz)) sz
 
 -- resumeSpan moves to the left, except when at the Top of the stack in which case it goes right
 resumeSpan :: UID -> SpanZipper -> SpanZipper
