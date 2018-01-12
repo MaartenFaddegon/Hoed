@@ -68,7 +68,12 @@ import           GHC.Generics
 import           Prelude                hiding (Right)
 
 data Vertex = RootVertex | Vertex {vertexStmt :: CompStmt, vertexJmt :: Judgement}
-  deriving (Eq,Show,Ord,Generic)
+  deriving (Show,Ord,Generic)
+
+instance Eq Vertex where
+  RootVertex == RootVertex   = True
+  v1@Vertex{} == v2@Vertex{} = vertexStmt v1 == vertexStmt v2
+  _ == _ = False
 
 instance NFData AssistedMessage
 instance NFData Judgement
