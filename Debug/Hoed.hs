@@ -249,7 +249,9 @@ debugO program =
         ; let errorMsg e = "[Escaping Exception in Code : " ++ show e ++ "]"
         ; ourCatchAllIO (do { _ <- program ; return () })
                         (hPutStrLn stderr . errorMsg)
-        ; endEventStream
+        ; res <- endEventStream
+        ; initUniq
+        ; return res
         }
 
 -- | The main entry point; run some IO code, and debug inside it.

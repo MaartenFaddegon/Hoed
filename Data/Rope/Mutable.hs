@@ -70,7 +70,7 @@ write Rope {..} (to ropeIndexFun -> ix) a = join $ atomicModifyMutVar' ropeState
         , do M.write spillOver r a
              v <- M.new ropeDim
              atomicModifyMutVar' ropeState $ \st' -> (st' {spillOver = v}, ()))
-      | otherwise = error $ "index too far away: " ++ show ix
+      | otherwise = error $ "index " ++ show ix ++ " too far away from the last index " ++ show ropeLastIndex
 
 new :: forall v a m . (PrimMonad m, MVector v a) => m (Rope m v Int a)
 new = new' defaultRopeDim id
