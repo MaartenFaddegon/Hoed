@@ -28,7 +28,7 @@ library
                        , Debug.NoHoed
                        , Debug.Hoed.CompTree
                        , Debug.Hoed.Render
-                       , Data.Frame
+                       , Data.Indexable
   other-modules:       Debug.Hoed.Compat
                        , Debug.Hoed.EventForest
                        , Debug.Hoed.ReadLine

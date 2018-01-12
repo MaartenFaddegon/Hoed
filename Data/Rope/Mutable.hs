@@ -16,7 +16,7 @@ module Data.Rope.Mutable
 import Control.Monad
 import Control.Monad.Primitive
 import Data.Foldable as F
-import Data.Frame
+import Data.Indexable
 import Data.Primitive.MutVar
 import Data.Proxy
 import qualified Data.Vector as V
@@ -65,16 +65,16 @@ new' ropeDim = do
   return Rope{..}
 
 -- | Returns an immutable snapshot of the rope contents after resetting the rope to the empty state
-reset :: forall v a m . (VG.Vector v a, PrimMonad m) => Proxy v -> Rope m (VG.Mutable v) a -> m (Frame a)
+reset :: forall v a m . (VG.Vector v a, PrimMonad m) => Proxy v -> Rope m (VG.Mutable v) a -> m (Indexable a)
 reset proxy it@Rope{..} = do
   (ropeCount, ropeElements) <-
     atomicModifyMutVar' ropeState $ \RopeState {..} ->
       (RopeState 0 [] spillOver, (ropeCount, ropeElements))
   vv' :: V.Vector(v a) <- V.fromList <$> mapM VG.unsafeFreeze ropeElements
-  let countFrame   = ropeCount + ropeDim * l
+  let indexableCount = ropeCount + ropeDim * l
       l = length ropeElements - 1
-      indexFrame ((`divMod` ropeDim) -> (d,m)) = vv' V.! (l - d) VG.! m
-  return Frame{..}
+      indexableAt ((`divMod` ropeDim) -> (d,m)) = vv' V.! (l - d) VG.! m
+  return Indexable{..}
 
 fromList :: forall v m a. (PrimMonad m, MVector v a) => Int -> [a] -> m(Rope m v a)
 fromList dim xx = do

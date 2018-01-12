@@ -14,7 +14,7 @@ module Debug.Hoed.Serialize
 import Debug.Hoed.Observe
 import Prelude hiding (lookup,Right)
 import qualified Prelude as Prelude
-import Data.Frame
+import Data.Indexable
 import Debug.Hoed.CompTree
 import Debug.Hoed.Render(CompStmt(..), StmtDetails(..))
 import Data.Serialize
@@ -37,7 +37,7 @@ instance Serialize StmtDetails
 instance Serialize Parent
 instance Serialize Event
 instance Serialize Change
-instance Serialize a => Serialize (Frame a) where
+instance Serialize a => Serialize (Indexable a) where
   put = put . toList
   get = fromList <$> get
 

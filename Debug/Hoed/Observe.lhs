@@ -94,7 +94,7 @@ import Control.Monad
 import Data.Array as Array
 import Data.Proxy
 import Data.Rope.Mutable (Rope, new, insert, reset)
-import Data.Frame (Frame)
+import Data.Indexable (Indexable)
 import Data.Vector(Vector)
 import Data.Vector.Mutable (MVector)
 import Debug.Hoed.Fields
@@ -562,7 +562,7 @@ sendObserveFnPacket fn context
 Trival output functions
 
 \begin{code}
-type Trace = Frame Event
+type Trace = Indexable Event
 
 data Event = Event
                 { eventUID     :: !UID      -- my UID

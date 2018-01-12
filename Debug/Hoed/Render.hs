@@ -22,7 +22,7 @@ module Debug.Hoed.Render
 import           Control.DeepSeq
 import           Data.Array               as Array
 import           Data.Char                (isAlpha)
-import           Data.Frame
+import           Data.Indexable
 import           Data.List                (nub, sort)
 import           Data.Foldable
 import           Data.Strict.Tuple
@@ -148,7 +148,7 @@ eventsToCDS :: Trace -> CDSSet
 eventsToCDS pairs = getChild 0 0 
    where
 
-     res = indexFrame out_arr . pred
+     res = indexableAt out_arr . pred
 
      bnds = (0, length pairs)
 
