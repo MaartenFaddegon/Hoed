@@ -92,6 +92,11 @@ import Prelude hiding (Right)
 import qualified Prelude
 import Control.Monad
 import Data.Array as Array
+import Data.Proxy
+import Data.Rope.Mutable (Rope, new, insert, reset)
+import Data.Frame (Frame)
+import Data.Vector(Vector)
+import Data.Vector.Mutable (MVector)
 import Debug.Hoed.Fields
 
 import GHC.Generics
@@ -557,7 +562,7 @@ sendObserveFnPacket fn context
 Trival output functions
 
 \begin{code}
-type Trace = [Event]
+type Trace = Frame Event
 
 data Event = Event
                 { eventUID     :: !UID      -- my UID
@@ -591,28 +596,15 @@ root = Parent 0 0
 isRootEvent :: Event -> Bool
 isRootEvent e = case change e of Observe{} -> True; _ -> False
 
-startEventStream :: IO ()
-startEventStream = writeIORef events []
-
 endEventStream :: IO Trace
-endEventStream =
-        do { es <- readIORef events
-           ; writeIORef events badEvents 
-           ; return es
-           }
+endEventStream = reset (Proxy :: Proxy Vector) events
 
 sendEvent :: Int -> Parent -> Change -> IO ()
-sendEvent nodeId parent change =
-        do { let !event = Event nodeId parent change
-           ; atomicModifyIORef' events (\es -> (event : es, ()))
-           }
+sendEvent nodeId parent change = insert (Event nodeId parent change) events
 
 -- local
-events :: IORef Trace
-events = unsafePerformIO $ newIORef badEvents
-
-badEvents :: Trace
-badEvents = error "Bad Event Stream"
+events :: Rope IO MVector Event
+events = unsafePerformIO new
 
 \end{code}
 

@@ -50,6 +50,7 @@ import           Debug.Hoed.Span
 import           Debug.Hoed.Render
 
 import           Data.Bits
+import qualified Data.Foldable          as F
 import           Data.Graph.Libgraph
 import qualified Data.Set               as Set
 import           Data.IntMap.Strict     (IntMap)
@@ -335,7 +336,7 @@ mkConsMap :: Int -> Trace -> ConsMap
 mkConsMap l t =
   U.create $ do
     v <- VM.replicate l 0
-    forM_ t $ \e ->
+    F.forM_ t $ \e ->
       case change e of
         Cons {} -> do
           let p = eventParent e
@@ -387,7 +388,7 @@ traceInfo l trc = runST $ do
             return $ if loc
               then stop e details s
               else resume e details s
-  foldM loop s0 trc
+  F.foldlM loop s0 trc
   where
     s0 :: TraceInfo
     s0 = TraceInfo [] []

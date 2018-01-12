@@ -14,10 +14,12 @@ module Debug.Hoed.Serialize
 import Debug.Hoed.Observe
 import Prelude hiding (lookup,Right)
 import qualified Prelude as Prelude
+import Data.Frame
 import Debug.Hoed.CompTree
 import Debug.Hoed.Render(CompStmt(..), StmtDetails(..))
 import Data.Serialize
 import qualified Data.ByteString as BS
+import GHC.Exts (IsList(..))
 import GHC.Generics
 import Data.Graph.Libgraph(Judgement(..),AssistedMessage(..),mapGraph,Graph(..),Arc(..))
 
@@ -35,6 +37,9 @@ instance Serialize StmtDetails
 instance Serialize Parent
 instance Serialize Event
 instance Serialize Change
+instance Serialize a => Serialize (Frame a) where
+  put = put . toList
+  get = fromList <$> get
 
 --------------------------------------------------------------------------------
 -- Tree

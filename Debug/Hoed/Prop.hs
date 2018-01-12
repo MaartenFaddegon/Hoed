@@ -2,12 +2,13 @@
 --
 -- Copyright (c) Maarten Faddegon 2015-2016
 
-{-# LANGUAGE DefaultSignatures, TypeOperators, FlexibleContexts, FlexibleInstances, StandaloneDeriving, CPP, DeriveGeneric #-}
+{-# LANGUAGE OverloadedLists, DefaultSignatures, TypeOperators, FlexibleContexts, FlexibleInstances, StandaloneDeriving, CPP, DeriveGeneric #-}
 
 module Debug.Hoed.Prop where
 -- ( judge
 -- , Propositions(..)
 -- ) where
+import Data.Frame
 import Debug.Hoed.Observe(Observable(..),Trace(..),UID,Event(..),Change(..),ourCatchAllIO,evaluate,eventParent,parentPosition)
 import Debug.Hoed.Render(CompStmt(..),noNewlines)
 import Debug.Hoed.CompTree(CompTree,Vertex(..),Graph(..),vertexUID,vertexRes,replaceVertex,getJudgement,setJudgement)
@@ -328,14 +329,9 @@ generateCode handler trc v prop ms = do
   writeFile sourceFile prgm
   return prgm
   where 
-  prgm = generate handler prop ms trc (getEventFromMap $ eventMap trc) i f
+  prgm = generate handler prop ms trc (indexFrame trc) i f
   i    = (stmtIdentifier . vertexStmt) v
   f    = (stmtLabel . vertexStmt) v
-
-
-getEventFromMap m j = fromJust $ M.lookup j m
-
-eventMap trc = M.fromList $ map (\e -> (eventUID e, e)) trc
 
 mkPropRes :: Proposition -> ExitCode -> String -> PropRes
 mkPropRes prop (ExitFailure _) out        = Error prop out
@@ -465,10 +461,10 @@ generateMain handler prop trc getEvent i f
     cf :: PropVarGen String
     cf | handler == RestrictedBottom 
            = foldl1 (liftPV $ \acc c -> acc ++ " " ++ c)
-             [ propVarReturn $ "(" ++ genConAp (length args) f
+             ([ propVarReturn $ "(" ++ genConAp (length args) f
              , generateRes (unevalHandler handler) trc getEvent i
              , propVarReturn $ ")"
-             ]
+             ] :: [PropVarGen String])
        | otherwise = propVarReturn f
 
 generateRes :: (PropVarGen String) -> Trace -> (UID -> Event) -> UID -> PropVarGen String
@@ -522,6 +518,7 @@ generateArgs unevalGen trc getEvent i =
 nothingOrArg Nothing = True
 nothingOrArg (Just e) = isArg e
 
+noArg :: [Maybe a] -> Bool
 noArg [Nothing] = True
 noArg _         = False
 
@@ -653,7 +650,7 @@ instance (GParEq a, GParEq b) => GParEq (a :*: b) where
             | any (== (Just False)) mbs = Just False
             | all (== (Just True))  mbs = Just True
             | otherwise                 = Nothing
-            where mbs = [(catchGEq x y) `seq` (catchGEq x y), (catchGEq x' y') `seq` (catchGEq x' y')]
+            where mbs = [(catchGEq x y) `seq` (catchGEq x y), (catchGEq x' y') `seq` (catchGEq x' y')] :: [Maybe Bool]
 
 -- Unit: used for constructors without arguments
 instance GParEq U1 where

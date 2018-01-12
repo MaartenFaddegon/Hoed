@@ -21,7 +21,9 @@ module Debug.Hoed.Render
 import           Control.DeepSeq
 import           Data.Array               as Array
 import           Data.Char                (isAlpha)
+import           Data.Frame
 import           Data.List                (nub, sort)
+import           Data.Foldable
 import           Data.Strict.Tuple
 import           Debug.Hoed.Compat
 import           Debug.Hoed.Observe
@@ -141,11 +143,11 @@ normalizeCDS (CDSString s) = CDSCons 0 (show s) []
 normalizeCDS other = other
 type CDSSet = [CDS]
 
-eventsToCDS :: [Event] -> CDSSet
-eventsToCDS pairs = force $ getChild 0 0
+eventsToCDS :: Trace -> CDSSet
+eventsToCDS pairs = getChild 0 0 
    where
 
-     res = (!) out_arr
+     res = indexFrame out_arr . pred
 
      bnds = (0, length pairs)
 
@@ -154,14 +156,11 @@ eventsToCDS pairs = force $ getChild 0 0
      mid_arr :: Array Int [Pair Int CDS]
      mid_arr = accumArray cons [] bnds
                 [ (pnode, (pport :!: res node))
-                | (Event node (Parent pnode pport) change) <- pairs
+                | (Event node (Parent pnode pport) change) <- toList pairs
                 , change /= Enter
                 ]
 
-     out_arr = array bnds       -- never uses 0 index
-                [ (node,getNode'' node e change)
-                | e@(Event node _ change) <- pairs
-                ]
+     out_arr = fmap (\e -> getNode'' (eventUID e) e (change e)) pairs
 
      getNode'' ::  Int -> Event -> Change -> CDS
      getNode'' node _e change =

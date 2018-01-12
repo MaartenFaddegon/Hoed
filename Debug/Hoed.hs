@@ -245,7 +245,6 @@ debugO :: IO a -> IO Trace
 debugO program =
      do { runOnce
         ; initUniq
-        ; startEventStream
         ; let errorMsg e = "[Escaping Exception in Code : " ++ show e ++ "]"
         ; ourCatchAllIO (do { _ <- program ; return () })
                         (hPutStrLn stderr . errorMsg)
@@ -324,7 +323,7 @@ condPutStrLn Silent _    = return ()
 condPutStrLn Verbose msg = hPutStrLn stderr msg
 
 data HoedAnalysis = HoedAnalysis
-  { hoedTrace       :: [Event]
+  { hoedTrace       :: Trace
   , hoedCompTree    :: CompTree
   }
 
@@ -355,9 +354,9 @@ runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
 
   let !cdss = eventsToCDS events
       !eqs  = force $ renderCompStmts cdss
-      ti   = traceInfo e (reverse events)
-      !ds  = force $ dependencies ti
-      ct  = mkCompTree eqs ds
+  ti  <- traceInfo e events
+  let !ds   = force $ dependencies ti
+      ct    = mkCompTree eqs ds
 
 #if defined(DEBUG)
   writeFile ".Hoed/Events"     (unlines . map show . reverse $ events)
