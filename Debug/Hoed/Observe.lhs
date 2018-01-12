@@ -94,7 +94,7 @@ import Control.Monad
 import Data.Array as Array
 import Data.Proxy
 import Data.Rope.Mutable (Rope, new', write, reset, Iso(Iso))
-import Data.Indexable (Indexable)
+import Data.Indexable (Indexable, mapWithIndex)
 import Data.Vector(Vector)
 import Data.Vector.Mutable (MVector)
 import Debug.Hoed.Fields
@@ -597,13 +597,13 @@ isRootEvent :: Event -> Bool
 isRootEvent e = case change e of Observe{} -> True; _ -> False
 
 endEventStream :: IO Trace
-endEventStream = reset (Proxy :: Proxy Vector) events
+endEventStream = mapWithIndex (\uid (parent,change) -> Event uid parent change) <$> reset (Proxy :: Proxy Vector) events
 
 sendEvent :: Int -> Parent -> Change -> IO ()
-sendEvent nodeId parent change = write events nodeId (Event nodeId parent change)
+sendEvent nodeId parent change = write events nodeId (parent, change)
 
 -- local
-events :: Rope IO MVector Int Event
+events :: Rope IO MVector Int (Parent, Change)
 events = unsafePerformIO $ do
   rope <- new' 10000 (Iso pred succ)
   return rope
