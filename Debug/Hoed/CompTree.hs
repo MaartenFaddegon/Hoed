@@ -51,6 +51,7 @@ import           Debug.Hoed.Render
 
 import           Data.Bits
 import           Data.Graph.Libgraph
+import qualified Data.Set               as Set
 import           Data.IntMap.Strict     (IntMap)
 import qualified Data.IntMap.Strict     as IntMap
 import           Data.IntSet            (IntSet)
@@ -117,7 +118,9 @@ isRootVertex RootVertex = True
 isRootVertex _          = False
 
 leafs :: CompTree -> [Vertex]
-leafs g = filter (null . succs g) (vertices g)
+leafs g = filter (not . (`Set.member` nonLeafs)) (vertices g)
+  where
+    nonLeafs = Set.fromList [s | Arc s t _ <- arcs g]
 
 -- | Approximates the complexity of a computation tree by summing the length
 -- of the unjudged computation statements (i.e not Right or Wrong) in the tree.
