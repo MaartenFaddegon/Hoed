@@ -93,7 +93,7 @@ import qualified Prelude
 import Control.Monad
 import Data.Array as Array
 import Data.Proxy
-import Data.Rope.Mutable (Rope, new, insert, reset)
+import Data.Rope.Mutable (Rope, new', write, reset, Iso(Iso))
 import Data.Indexable (Indexable)
 import Data.Vector(Vector)
 import Data.Vector.Mutable (MVector)
@@ -562,7 +562,7 @@ sendObserveFnPacket fn context
 Trival output functions
 
 \begin{code}
-type Trace = Indexable Event
+type Trace = Indexable Int Event
 
 data Event = Event
                 { eventUID     :: !UID      -- my UID
@@ -600,11 +600,13 @@ endEventStream :: IO Trace
 endEventStream = reset (Proxy :: Proxy Vector) events
 
 sendEvent :: Int -> Parent -> Change -> IO ()
-sendEvent nodeId parent change = insert (Event nodeId parent change) events
+sendEvent nodeId parent change = write events nodeId (Event nodeId parent change)
 
 -- local
-events :: Rope IO MVector Event
-events = unsafePerformIO new
+events :: Rope IO MVector Int Event
+events = unsafePerformIO $ do
+  rope <- new' 10000 (Iso pred succ)
+  return rope
 
 \end{code}
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 -- This file is part of the Haskell debugger Hoed.
 --
 -- Copyright (c) Maarten Faddegon, 2016
@@ -37,7 +38,7 @@ instance Serialize StmtDetails
 instance Serialize Parent
 instance Serialize Event
 instance Serialize Change
-instance Serialize a => Serialize (Indexable a) where
+instance Serialize a => Serialize (Indexable Int a) where
   put = put . toList
   get = fromList <$> get
 

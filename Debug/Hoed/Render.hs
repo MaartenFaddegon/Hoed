@@ -20,6 +20,7 @@ module Debug.Hoed.Render
 ,sortOn
 ) where
 import           Control.DeepSeq
+import           Control.Exception        (assert)
 import           Data.Array               as Array
 import           Data.Char                (isAlpha)
 import           Data.Indexable
@@ -148,7 +149,7 @@ eventsToCDS :: Trace -> CDSSet
 eventsToCDS pairs = getChild 0 0 
    where
 
-     res = indexableAt out_arr . pred
+     res i= indexableAt out_arr i
 
      bnds = (0, length pairs)
 
@@ -161,7 +162,7 @@ eventsToCDS pairs = getChild 0 0
                 , change /= Enter
                 ]
 
-     out_arr = fmap (\e -> getNode'' (eventUID e) e (change e)) pairs
+     out_arr = fmap(\e -> getNode'' (eventUID e) e (change e)) pairs
 
      getNode'' ::  Int -> Event -> Change -> CDS
      getNode'' node _e change =
