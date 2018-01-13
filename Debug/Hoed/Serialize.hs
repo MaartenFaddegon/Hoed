@@ -17,7 +17,6 @@ import qualified Prelude as Prelude
 import Debug.Hoed.CompTree
 import Debug.Hoed.Render(CompStmt(..), StmtDetails(..))
 import Data.Serialize
-import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import GHC.Generics
 import Data.Graph.Libgraph(Judgement(..),AssistedMessage(..),mapGraph,Graph(..),Arc(..))
@@ -25,6 +24,7 @@ import Data.Graph.Libgraph(Judgement(..),AssistedMessage(..),mapGraph,Graph(..),
 --------------------------------------------------------------------------------
 -- Derive Serialize instances
 
+-- Orphan instances
 instance (Serialize a, Serialize b) => Serialize (Graph a b)
 instance (Serialize a, Serialize b) => Serialize (Arc a b)
 instance Serialize Vertex

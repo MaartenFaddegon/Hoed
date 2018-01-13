@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ImplicitParams  #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -185,10 +186,9 @@ module Debug.Hoed
   , Generic
   ) where
 
-
+import Control.DeepSeq
 import           Debug.Hoed.CompTree
 import           Debug.Hoed.Console
-import           Debug.Hoed.EventForest
 import           Debug.Hoed.Observe
 import           Debug.Hoed.Prop
 import           Debug.Hoed.Render
@@ -196,6 +196,7 @@ import           Debug.Hoed.Serialize
 
 import           Data.IORef
 import           Prelude                      hiding (Right)
+import           System.Clock
 import           System.Console.Terminal.Size
 import           System.Directory             (createDirectoryIfMissing)
 import           System.IO
@@ -313,9 +314,7 @@ condPutStrLn Verbose msg = hPutStrLn stderr msg
 
 data HoedAnalysis = HoedAnalysis
   { hoedTrace       :: [Event]
-  , hoedTraceInfo   :: TraceInfo
   , hoedCompTree    :: CompTree
-  , hoedEventForest :: EventForest
   }
 
 data HoedOptions = HoedOptions
@@ -323,49 +322,55 @@ data HoedOptions = HoedOptions
   , prettyWidth :: Int
   }
 
+defaultHoedOptions :: HoedOptions
 defaultHoedOptions = HoedOptions Silent 110
 
 -- |Entry point giving you access to the internals of Hoed. Also see: runO.
 runO' :: HoedOptions -> IO a -> IO HoedAnalysis
 runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
   createDirectoryIfMissing True ".Hoed/"
+  t1 <- getTime Monotonic
   condPutStrLn verbose "=== program output ===\n"
   events <- debugO program
-  condPutStrLn verbose"\n=== program terminated ==="
+  t2 <- getTime Monotonic
+  let programTime = toSecs(diffTimeSpec t1 t2)
+  condPutStrLn verbose $ "\n=== program terminated (" ++ show programTime ++ " seconds) ==="
   condPutStrLn verbose"Please wait while the computation tree is constructed..."
 
-  let cdss = eventsToCDS events
-  let cdss1 = rmEntrySet cdss
-  let cdss2 = simplifyCDSSet cdss1
-  let eqs   = renderCompStmts cdss2
+  let e = length events
 
-  let frt  = mkEventForest events
-      ti   = traceInfo (reverse events)
-      ds   = dependencies ti
-      ct   = mkCompTree eqs ds
+  condPutStrLn verbose "\n=== Statistics ===\n"
+  condPutStrLn verbose $ show e ++ " events"
 
-  writeFile ".Hoed/Events"     (unlines . map show . reverse $ events)
+  let !cdss = eventsToCDS events
+      !eqs  = force $ renderCompStmts cdss
+      ti   = traceInfo e (reverse events)
+      !ds  = force $ dependencies ti
+      ct  = mkCompTree eqs ds
+
 #if defined(DEBUG)
+  writeFile ".Hoed/Events"     (unlines . map show . reverse $ events)
   writeFile ".Hoed/Cdss"       (unlines . map show $ cdss2)
   writeFile ".Hoed/Eqs"        (unlines . map show $ eqs)
-  writeFile ".Hoed/compTree"   (unlines . map show $ eqs)
 #endif
 #if defined(TRANSCRIPT)
   writeFile ".Hoed/Transcript" (getTranscript events ti)
 #endif
 
-  condPutStrLn verbose "\n=== Statistics ===\n"
-  let e  = length events
-      n  = length eqs
+  let n  = length eqs
       b  = fromIntegral (length . arcs $ ct ) / fromIntegral ((length . vertices $ ct) - (length . leafs $ ct))
-  condPutStrLn verbose $ show e ++ " events"
   condPutStrLn verbose $ show n ++ " computation statements"
   condPutStrLn verbose $ show ((length . vertices $ ct) - 1) ++ " nodes + 1 virtual root node in the computation tree"
   condPutStrLn verbose $ show (length . arcs $ ct) ++ " edges in computation tree"
   condPutStrLn verbose $ "computation tree has a branch factor of " ++ show b ++ " (i.e the average number of children of non-leaf nodes)"
 
-  condPutStrLn verbose "\n=== Debug Session ===\n"
-  return $ HoedAnalysis events ti ct frt
+  t3 <- getTime Monotonic
+  let compTime = toSecs(diffTimeSpec t2 t3)
+  condPutStrLn verbose $ "\n=== Debug Session (" ++ show compTime ++ " seconds) ===\n"
+  return $ HoedAnalysis events ct
+    where
+       toSecs :: TimeSpec -> Double
+       toSecs spec = fromIntegral(sec spec) + fromIntegral(nsec spec) * 1e-9
 
 -- | Trace and write computation tree to file. Useful for regression testing.
 logO :: FilePath -> IO a -> IO ()

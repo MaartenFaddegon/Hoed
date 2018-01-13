@@ -1,5 +1,7 @@
 \begin{code}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -7,6 +9,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE CPP #-}
 
 \end{code}
@@ -87,31 +90,20 @@ module Debug.Hoed.Observe
 \begin{code}
 import Prelude hiding (Right)
 import qualified Prelude
-import System.IO
-import Data.Maybe
 import Control.Monad
 import Data.Array as Array
-import Data.List
-import Data.Char
-import System.Environment
+import Debug.Hoed.Fields
 
 import GHC.Generics
 
 import Data.IORef
 import System.IO.Unsafe
 
-import Control.Concurrent(takeMVar,putMVar,MVar,newMVar)
-import qualified Control.Concurrent as Concurrent
-\end{code}
-
-For the TracedMonad instance of IO:
-\begin{code}
-import GHC.Base hiding (mapM, Type)
 \end{code}
 
 \begin{code}
 import qualified Control.Exception as Exception
-import Control.Exception (Exception, throw, ErrorCall(..), SomeException(..))
+import Control.Exception (throw, SomeException(..))
 {-
  ( catch
                 , Exception(..)
@@ -155,6 +147,7 @@ constrainBase x c | x == c = x
                   | otherwise = error $ show x ++ " constrained by " ++ show c
 \end{code}
 
+
 A type generic definition of constrain
 
 \begin{code}
@@ -181,7 +174,8 @@ Observing the children of Data types of kind *.
 \begin{code}
 
 -- Meta: data types
-instance (GObservable a) => GObservable (M1 D d a) where
+-- FieldLimit requires undecidable instances
+instance (FieldLimit ('S ('S ('S ('S ('S ('S 'Z)))))) a, GObservable a) => GObservable (M1 D d a) where
  gdmobserver m@(M1 x) cxt = M1 (gdmobserver x cxt)
  gdmObserveArgs = gthunk
  gdmShallowShow = error "gdmShallowShow not defined on the <<data meta type>>"
@@ -513,7 +507,7 @@ unsafeWithUniq fn
 \begin{code}
 generateContext :: (a->Parent->a) -> String -> a -> (a,Int)
 generateContext f {- tti -} label orig = unsafeWithUniq $ \node ->
-     do sendEvent node (Parent 0 0) (Observe label node)
+     do sendEvent node (Parent 0 0) (Observe label)
         return (observer_ f orig (Parent
                       { parentUID      = node
                       , parentPosition = 0
@@ -573,7 +567,7 @@ data Event = Event
         deriving (Eq,Generic)
 
 data Change
-        = Observe       !String        !Int
+        = Observe       !String
         | Cons    !Int  !String
         | Enter
         | Fun
