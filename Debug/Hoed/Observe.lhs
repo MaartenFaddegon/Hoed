@@ -599,11 +599,12 @@ isRootEvent e = case change e of Observe{} -> True; _ -> False
 
 endEventStream :: IO Trace
 endEventStream =
-  mapWithIndex (\(OneBasedIndex ix) (parent,change) -> Event ix parent change) <$>
+  mapWithIndex (\(OneBasedIndex ix) (EventSansId parent change) -> Event ix parent change) <$>
   reset (Proxy :: Proxy Vector) events
 
 sendEvent :: Int -> Parent -> Change -> IO ()
-sendEvent nodeId !parent !change = write events (OneBasedIndex nodeId) (parent, change)
+sendEvent nodeId !parent !change =
+  write events (OneBasedIndex nodeId) (EventSansId parent change)
 
 newtype OneBasedIndex = OneBasedIndex Int deriving (Eq,Integral,Num,Ord,Real)
 
@@ -611,8 +612,10 @@ instance Enum OneBasedIndex where
   fromEnum (OneBasedIndex i) = i-1
   toEnum i = OneBasedIndex (i+1)
 
+data EventSansId = EventSansId {-# UNPACK #-} !Parent !Change
+
 -- local
-events :: Rope IO MVector OneBasedIndex (Parent, Change)
+events :: Rope IO MVector OneBasedIndex EventSansId
 events = unsafePerformIO $ do
   rope <- new' 10000
   return rope
