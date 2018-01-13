@@ -9,7 +9,7 @@ module Debug.Hoed.Prop where
 -- , Propositions(..)
 -- ) where
 import Data.Indexable
-import Debug.Hoed.Observe(Observable(..),Trace(..),UID,Event(..),Change(..),ourCatchAllIO,evaluate,eventParent,parentPosition)
+import Debug.Hoed.Observe(Observable(..),Trace(..),UID,Event(..),Change(..),OneBasedIndex(..),ourCatchAllIO,evaluate,eventParent,parentPosition)
 import Debug.Hoed.Render(CompStmt(..),noNewlines)
 import Debug.Hoed.CompTree(CompTree,Vertex(..),Graph(..),vertexUID,vertexRes,replaceVertex,getJudgement,setJudgement)
 import Debug.Hoed.EventForest(EventForest,mkEventForest,dfsChildren)
@@ -329,7 +329,7 @@ generateCode handler trc v prop ms = do
   writeFile sourceFile prgm
   return prgm
   where 
-  prgm = generate handler prop ms trc (indexableAt trc) i f
+  prgm = generate handler prop ms trc (indexableAt trc . OneBasedIndex) i f
   i    = (stmtIdentifier . vertexStmt) v
   f    = (stmtLabel . vertexStmt) v
 

@@ -5,6 +5,7 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -93,7 +94,7 @@ import qualified Prelude
 import Control.Monad
 import Data.Array as Array
 import Data.Proxy
-import Data.Rope.Mutable (Rope, new', write, reset, Iso(Iso))
+import Data.Rope.Mutable (Rope, new', write, reset)
 import Data.Indexable (Indexable, mapWithIndex)
 import Data.Vector(Vector)
 import Data.Vector.Mutable (MVector)
@@ -562,7 +563,7 @@ sendObserveFnPacket fn context
 Trival output functions
 
 \begin{code}
-type Trace = Indexable Int Event
+type Trace = Indexable OneBasedIndex Event
 
 data Event = Event
                 { eventUID     :: !UID      -- my UID
@@ -597,15 +598,23 @@ isRootEvent :: Event -> Bool
 isRootEvent e = case change e of Observe{} -> True; _ -> False
 
 endEventStream :: IO Trace
-endEventStream = mapWithIndex (\uid (parent,change) -> Event uid parent change) <$> reset (Proxy :: Proxy Vector) events
+endEventStream =
+  mapWithIndex (\(OneBasedIndex ix) (parent,change) -> Event ix parent change) <$>
+  reset (Proxy :: Proxy Vector) events
 
 sendEvent :: Int -> Parent -> Change -> IO ()
-sendEvent nodeId parent change = write events nodeId (parent, change)
+sendEvent nodeId !parent !change = write events (OneBasedIndex nodeId) (parent, change)
+
+newtype OneBasedIndex = OneBasedIndex Int deriving (Eq,Integral,Num,Ord,Real)
+
+instance Enum OneBasedIndex where
+  fromEnum (OneBasedIndex i) = i-1
+  toEnum i = OneBasedIndex (i+1)
 
 -- local
-events :: Rope IO MVector Int (Parent, Change)
+events :: Rope IO MVector OneBasedIndex (Parent, Change)
 events = unsafePerformIO $ do
-  rope <- new' 10000 (Iso pred succ)
+  rope <- new' 10000
   return rope
 
 \end{code}

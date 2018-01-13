@@ -149,7 +149,7 @@ eventsToCDS :: Trace -> CDSSet
 eventsToCDS pairs = getChild 0 0 
    where
 
-     res i= indexableAt out_arr i
+     res i= indexableAt out_arr (OneBasedIndex i)
 
      bnds = (0, length pairs)
 

@@ -125,7 +125,7 @@ printTrace trace =
   renderTrace' lookupEvent lookupDescs (traceToSpans lookupEvent trace, trace)
     -- fast lookup via an array
   where
-    lookupEvent = indexableAt trace
+    lookupEvent = indexableAt trace . OneBasedIndex
     lookupDescs =
       (fromMaybe [] .
        (`IntMap.lookup` (IntMap.fromListWith

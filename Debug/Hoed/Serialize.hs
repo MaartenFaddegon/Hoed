@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE FlexibleInstances #-}
 -- This file is part of the Haskell debugger Hoed.
 --
@@ -38,7 +40,8 @@ instance Serialize StmtDetails
 instance Serialize Parent
 instance Serialize Event
 instance Serialize Change
-instance Serialize a => Serialize (Indexable Int a) where
+deriving instance Serialize OneBasedIndex
+instance (Enum ix, Integral ix, Serialize a) => Serialize (Indexable ix a) where
   put = put . toList
   get = fromList <$> get
 

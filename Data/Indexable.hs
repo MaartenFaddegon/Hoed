@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -23,13 +24,13 @@ instance (Integral ix, Enum ix) => Foldable (Indexable ix) where
   foldMap f Indexable {..} =
     foldMap (f . indexableAt) [indexableLowerBound .. indexableUpperBound]
 
-instance IsList (Indexable Int a) where
-  type Item (Indexable Int a) = a
+instance (Enum ix, Integral ix) => IsList (Indexable ix a) where
+  type Item (Indexable ix a) = a
   toList = F.toList
   fromList = fromVector @Vector . V.fromList
 
-fromVector :: V.Vector v a => v a -> Indexable Int a
-fromVector v = Indexable (v V.!) 0 (V.length v)
+fromVector :: forall v ix a . Enum ix => V.Vector v a => v a -> Indexable ix a
+fromVector v = Indexable ((v V.!) . fromEnum) (toEnum 0) (toEnum $ V.length v)
 
 mapWithIndex :: (ix -> a -> b) -> Indexable ix a -> Indexable ix b
 mapWithIndex f ix = ix{indexableAt = \i -> f i (indexableAt ix i)}
