@@ -31,7 +31,7 @@ debugSession :: Trace -> CompTree -> [Propositions] -> IO ()
 debugSession trace tree ps =
   case filter (not . isRootVertex) vs of
     []    -> putStrLn $ "No functions annotated with 'observe' expressions"
-                        ++ "or annotated functions not evaluated"
+                        ++ " or annotated functions not evaluated"
     (v:_) -> do noBuffering
                 mainLoop v trace tree ps
   where

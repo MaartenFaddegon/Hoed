@@ -7,7 +7,7 @@
 {-|
 Module      : Debug.Hoed
 Description : Lighweight algorithmic debugging based on observing intermediate values.
-Copyright   : (c) 2000 Andy Gill, (c) 2010 University of Kansas, (c) 2013-2017 Maarten Faddegon
+Copyright   : (c) 2000 Andy Gill, (c) 2010 University of Kansas, (c) 2013-2018 Maarten Faddegon
 License     : BSD3
 Maintainer  : hoed@maartenfaddegon.nl
 Stability   : experimental
@@ -16,6 +16,17 @@ Portability : POSIX
 Hoed is a tracer and debugger for the programming language Haskell.
 
 To locate a defect with Hoed you annotate suspected functions and compile as usual. Then you run your program, information about the annotated functions is collected. Finally you connect to a debugging session using a console.
+
+With Hoed you can list and search observed functions applied to argument values and the result values. 
+Hoed also provides algorithmic debugging.
+An algorithmic debugger finds defects in programs by systematic search. 
+The programmer directs the search by answering a series of yes/no questions about
+the correctness of specific function applications and their results.
+Hoed also allows the use of (QuickCheck-style) properties to answer automatically
+some of the questions arising during algorithmic debugging, and to replace others
+by simpler questions.
+
+= Example usage
 
 Let us consider the following program, a defective implementation of a parity function with a test property.
 
