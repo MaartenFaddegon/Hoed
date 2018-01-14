@@ -11,6 +11,12 @@ import Test.QuickCheck.Random
 import Properties
 import Types
 
+test1 :: IO ()
+test1 = do
+  (HoedAnalysis _ ct) <- runO' defaultHoedOptions (print $ queens 8)
+  -- TODO compare ct with a stored version to do regression testing
+  return ()
+
 doit :: IO ()
 doit = testOwp properties (prop_queens_set queens) 8
 
