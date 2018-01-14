@@ -73,16 +73,23 @@ new' ropeDim = do
   return Rope{..}
 
 -- | Returns an immutable snapshot of the rope contents after resetting the rope to the empty state
-reset :: forall v a ix m . (VG.Vector v a, PrimMonad m, Enum ix) => Proxy v -> Rope m (VG.Mutable v) ix a -> m (Indexable ix a)
+reset :: forall v a ix m . (Foldable v, VG.Vector v a, PrimMonad m, Enum ix) => Proxy v -> Rope m (VG.Mutable v) ix a -> m (Indexable ix a)
 reset proxy it@Rope{..} = do
-  (ropeCount, ropeElements) <-
+  (lastIndex, ropeElements) <-
     atomicModifyMutVar' ropeState $ \RopeState {..} ->
       (RopeState 0 (-1) [] spillOver, (ropeLastIndex, ropeElements))
-  vv' :: V.Vector(v a) <- V.fromList <$> mapM VG.unsafeFreeze ropeElements
-  let indexableLowerBound = toEnum 0
-      indexableUpperBound = toEnum ropeCount
+  lv <- mapM VG.unsafeFreeze ropeElements
+  let vv' :: V.Vector(v a)  = V.fromList lv
+      indexableUpperBound = toEnum lastIndex
       l = length ropeElements - 1
       indexableAt ((`divMod` ropeDim) . fromEnum -> (d,m)) = vv' V.! (l - d) VG.! m
+      {-# INLINE indexableFoldr #-}
+      indexableFoldr :: forall b. (ix -> a -> b -> b) -> b -> b
+      indexableFoldr
+        | h:t <- lv
+        , vf <- VG.concat (reverse t) VG.++ VG.slice 0 (lastIndex `mod` ropeDim + 1) h
+        = \f x0 -> VG.ifoldr (f . toEnum) x0 vf
+        | otherwise = \f x0 -> x0
   return Indexable{..}
 
 fromList :: forall v m a. (PrimMonad m, MVector v a) => Int -> [a] -> m(Rope m v Int a)
@@ -92,4 +99,8 @@ fromList dim xx = do
   return rope
 
 propFromList dim xx =
-  (xx ==) . toList <$> (reset (Proxy @V.Vector) =<< fromList dim xx)
+  check . toList <$> (reset (Proxy @V.Vector) =<< fromList dim xx)
+  where
+    check xx'
+      | xx == xx' = True
+      | otherwise = error (show xx')
