@@ -60,6 +60,10 @@ data SpanZipper
   | SZNil
   deriving Eq
 
+cursor sz
+  | cursorUID sz > 0 = Computing (cursorUID sz)
+  | otherwise = Paused $ negate (cursorUID sz)
+
 instance IsList SpanZipper where
   type Item SpanZipper = Span
   toList SZNil = []
@@ -74,18 +78,17 @@ instance Show Verbatim where show (Verbatim s) = s
 
 instance Show SpanZipper where
   show SZNil = "[]"
-  show SZ {..} =
+  show sz@SZ {..} =
     show $
     map (Verbatim . show) (toList left) ++
-    Verbatim ('\ESC':"[4m" ++ show cursorUID ++ '\ESC':"[24m") :
+    Verbatim ('\ESC' : "[4m" ++ show (cursor sz) ++ '\ESC' : "[24m") :
     map (Verbatim . show) (toList right)
 
 startSpan :: UID -> SpanZipper -> SpanZipper
 startSpan uid SZNil = SZ [] uid []
 startSpan uid SZ{..}  = SZ [] uid (left <> SpanCons cursorUID right)
   where
-    SpanNil <> x = x
-    x <> SpanNil = x
+    SpanNil           <> x = x
     SpanCons uid rest <> x = rest <> SpanCons uid x
 
 moveLeft, moveRight :: SpanZipper -> Maybe SpanZipper
@@ -97,18 +100,18 @@ moveRight SZNil = Nothing
 moveRight SZ{right = SpanNil} = Nothing
 moveRight SZ{right = SpanCons uid r, ..} = Just $ SZ (SpanCons cursorUID left) uid r
 
--- pauseSpan always moves to the right, except when at the bottom of the stack in which case it goes left
+-- pauseSpan always moves to the right, except when at the bottom of the stack in which case it restarts from the top
 pauseSpan :: UID -> SpanZipper -> SpanZipper
-pauseSpan uid sz
-  | SZNil <- sz = sz
-  | x == uid = sz {cursorUID = negate uid}
-  | SpanNil <- right sz
-  , SpanCons a aa <- fromListWithReverse $ toList (SpanCons x (left sz)) -- this should fuse!
+pauseSpan uid initial
+  | SZNil <- initial = initial
+  | x == uid = initial {cursorUID = negate uid}
+  | SpanNil <- right initial
+  , SpanCons a aa <-
+    fromListWithReverse $ toList (SpanCons x (left initial)) -- this should fuse!
    = go (SZ [] a aa)
-  | Just sz' <- moveRight sz {cursorUID = negative x} = pauseSpan uid sz'
-  | otherwise = assert notLeft sz
+  | otherwise = go initial
   where
-    x = cursorUID sz
+    x = cursorUID initial
     negative x =
       if x < 0
         then x
@@ -118,12 +121,12 @@ pauseSpan uid sz
         f rest (Paused uid) = SpanCons (negate uid) rest
         f rest (Computing uid) = SpanCons uid rest
     notLeft =
-      (Computing uid `notElem` toList (left sz)) ||
-      error (unwords ["pauseSpan", show uid, show sz])
+      (Computing uid `notElem` toList (left initial)) ||
+      error (unwords ["pauseSpan", show uid, show initial])
     go sz
       | cursorUID sz == uid = sz {cursorUID = negate uid}
       | Just sz' <- moveRight sz {cursorUID = negative (cursorUID sz)} = go sz'
-      | otherwise = sz
+      | otherwise = assert notLeft initial
 
 -- resumeSpan moves to the left, except when at the Top of the stack in which case it goes right
 resumeSpan :: UID -> SpanZipper -> SpanZipper
@@ -147,7 +150,7 @@ stopSpan uid sz@SZ{..}
       | Just sz' <- moveLeft  sz -> sz'{right = right}
       | otherwise -> SZNil
   | Just sz' <- moveLeft sz = stopSpan uid sz'
-stopSpan uid sz = error $ unwords ["stopSpan", show uid, show sz]
+stopSpan uid sz = assert (uid `notElem` map getSpanUID (toList (right sz))) sz
 
 
 ---------------------------------------------------------
@@ -168,6 +171,9 @@ instance Arbitrary SpanZipper where
   shrink SZNil = []
   shrink (SZ l x r) = [SZ l' x r' | (l',r') <- shrink (l,r)]
 
+newtype TestUID = TestUID Int deriving Show
+instance Arbitrary TestUID where arbitrary = TestUID . succ . abs <$> arbitrary
+
 prop_SpanList1 :: [Span] -> Bool
 prop_SpanList1 xx = toList(fromList xx :: SpanList) == xx
 prop_SpanList2 :: SpanList -> Bool
@@ -181,6 +187,47 @@ prop_SpanZipper2 xx = toList(fromList @SpanZipper (toList xx)) == toList xx
 prop_LR, prop_RL :: SpanZipper -> Property
 prop_LR x = isJust(moveRight x) ==> (moveLeft  =<< moveRight x) == Just x
 prop_RL x = isJust(moveLeft  x) ==> (moveRight =<< moveLeft  x) == Just x
+
+prop_start (TestUID x) sz = toList(startSpan x sz) == Computing x : toList sz
+
+{-
+prop_pause _ SZNil = True
+prop_pause (TestUID x) sz = toList (pauseSpan x sz) == l
+  where
+    (pre, post) =
+      break (== Computing x) (toList $ SpanCons (cursorUID sz) (right sz))
+    toPaused (Computing x) = Paused x
+    toPaused other = other
+    l =
+      reverse (toList (left sz)) ++
+      case post of
+        (_:post') -> map toPaused pre ++ Paused x : post'
+        [] -> pre
+
+prop_resume _ SZNil = True
+prop_resume (TestUID x) sz = toList (resumeSpan x sz) == l
+  where
+    (pre, post) =
+      break (== Paused x) (reverse $ toList (SpanCons (cursorUID sz) (left sz)))
+    l =
+      (case post of
+         (_:post') -> pre ++ Computing x : post'
+         [] -> pre) ++
+      toList (right sz)
+
+prop_stop _ SZNil = True
+prop_stop (TestUID x) sz = toList (stopSpan x sz) == l
+  where
+    (pre, post) =
+      break
+        ((== x) . getSpanUID)
+        (reverse $ toList (SpanCons (cursorUID sz) (left sz)))
+    l =
+      (case post of
+        (_:post') -> pre ++ post'
+        [] -> pre)
+      ++ toList (right sz)
+-}
 
 return []
 runSpanTests = $quickCheckAll
