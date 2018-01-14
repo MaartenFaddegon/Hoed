@@ -206,6 +206,7 @@ import           Debug.Hoed.Prop
 import           Debug.Hoed.Render
 import           Debug.Hoed.Serialize
 
+import           Data.Foldable (toList)
 import           Data.IORef
 import           Prelude                      hiding (Right)
 import           System.Clock
@@ -367,9 +368,10 @@ runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
   putStrLn ""
 
 #if defined(DEBUG)
-  writeFile ".Hoed/Events"     (unlines . map show . reverse $ events)
-  writeFile ".Hoed/Cdss"       (unlines . map show $ cdss2)
-  writeFile ".Hoed/Eqs"        (unlines . map show $ eqs)
+  -- writeFile ".Hoed/Events"     (unlines . map show . reverse $ events)
+  -- writeFile ".Hoed/Cdss"       (unlines . map show $ cdss2)
+  writeFile ".Hoed/Eqs"        (unlines . map show $ toList eqs)
+  writeFile ".Hoed/Deps"       (unlines . map show $ toList ds)
 #endif
 #if defined(TRANSCRIPT)
   writeFile ".Hoed/Transcript" (getTranscript events ti)
