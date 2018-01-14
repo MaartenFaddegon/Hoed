@@ -16,7 +16,6 @@ category:            Debug, Trace
 build-type:          Simple
 cabal-version:       >=1.10
 extra-source-files:  changelog, README.md, configure.Demo, configure.Generic, configure.Profiling, configure.Prop, configure.Pure, run, test.Generic, test.Pure
-data-files:          img/*.png, img/*.gif
 
 source-repository head
   type:     git
@@ -59,7 +58,7 @@ Test-Suite test-queens
   type:             exitcode-stdio-1.0
   hs-source-dirs:   examples/Queens__with_properties/
   main-is:          Test1.hs
-  other-modules:    Properties
+  other-modules:    Properties, Queens, Types
   build-depends:    base >= 4 && <5
                     , QuickCheck
                     , Hoed
