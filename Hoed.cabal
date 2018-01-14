@@ -6,7 +6,7 @@ description:
     .
     To locate a defect with Hoed you annotate suspected functions and compile as usual. Then you run your program, information about the annotated functions is collected. Finally you connect to a debugging session.
     .
-homepage:            https://wiki.haskell.org/Hoed
+homepage:            https://github.com/MaartenFaddegon/Hoed
 license:             BSD3
 license-file:        LICENSE
 author:              Maarten Faddegon
