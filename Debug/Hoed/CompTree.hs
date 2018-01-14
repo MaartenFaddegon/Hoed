@@ -46,6 +46,7 @@ import           Control.Monad
 import           Control.Monad.ST
 import           Debug.Hoed.EventForest
 import           Debug.Hoed.Observe
+import           Debug.Hoed.Span
 import           Debug.Hoed.Render
 
 import           Data.Bits
@@ -272,109 +273,6 @@ mkFunDetails s e = do
         locFun 0 = not loc
         locFun 1 = loc
     return $ EventDetails (TopLvlFun top) locFun
-
-------------------------------------------------------------------------------------------------------------------------
-
-data Span = Computing !UID | Paused !UID deriving (Eq, Ord)
-
-instance Show Span where
-  show (Computing i) = show i
-  show (Paused i)    = "(" ++ show i ++ ")"
-
-getSpanUID :: Span -> UID
-getSpanUID (Computing j) = j
-getSpanUID (Paused j)    = j
-
-data SpanList = SpanCons !UID !SpanList | SpanNil
-
-instance IsList SpanList where
-  type Item SpanList = Span
-  toList = unfoldr f where
-    f SpanNil = Nothing
-    f (SpanCons uid rest)
-      | uid > 0   = Just (Computing uid, rest)
-      | otherwise = Just (Paused (negate uid), rest)
-  fromList [] = SpanNil
-  fromList (Paused uid : rest) = SpanCons (negate uid) $ fromList rest
-  fromList (Computing uid : rest) = SpanCons uid $ fromList rest
-
-instance Show SpanList where show = show . toList
-
-data SpanZipper
-  = SZ { left :: !SpanList
-      ,  cursorUID :: !UID
-      ,  right :: !SpanList}
-  | SZNil
-
-instance IsList SpanZipper where
-  type Item SpanZipper = Span
-  toList SZNil = []
-  toList (SZ l uid r) = reverse(toList l) ++ toList (SpanCons uid r)
-
-  fromList [] = SZNil
-  fromList (Paused x : xx) = SZ [] (negate x) (fromList xx)
-  fromList (Computing x : xx) = SZ [] x (fromList xx)
-
-newtype Verbatim = Verbatim String
-instance Show Verbatim where show (Verbatim s) = s
-
-instance Show SpanZipper where
-  show SZNil = "[]"
-  show SZ {..} =
-    show $
-    map (Verbatim . show) (toList left) ++
-    Verbatim ('\ESC':"[4m" ++ show cursorUID ++ '\ESC':"[24m") :
-    map (Verbatim . show) (toList right)
-
-startSpan :: UID -> SpanZipper -> SpanZipper
-startSpan uid SZNil = SZ [] uid []
-startSpan uid SZ{..}  = SZ [] uid (left <> SpanCons cursorUID right)
-  where
-    SpanNil <> x = x
-    x <> SpanNil = x
-    SpanCons uid rest <> x = rest <> SpanCons uid x
-
-moveLeft, moveRight :: SpanZipper -> Maybe SpanZipper
-moveLeft SZNil = Nothing
-moveLeft SZ{left = SpanNil} = Nothing
-moveLeft SZ{left = SpanCons uid l, ..} = Just $ SZ l uid (SpanCons cursorUID right)
-
-moveRight SZNil = Nothing
-moveRight SZ{right = SpanNil} = Nothing
-moveRight SZ{right = SpanCons uid r, ..} = Just $ SZ (SpanCons cursorUID left) uid r
-
--- pauseSpan always moves to the right
-pauseSpan :: UID -> SpanZipper -> SpanZipper
-pauseSpan uid sz
-  | x  == uid = sz{cursorUID = negate uid}
-  | otherwise = pauseSpan uid $ fromMaybe sz' $ moveRight sz{cursorUID = if x>0 then negate x else x}
-  where
-    x = cursorUID sz
-    sz' = assert (Computing uid `notElem` toList (left sz)) sz
-
--- resumeSpan moves to the left, except when at the Top of the stack in which case it goes right
-resumeSpan :: UID -> SpanZipper -> SpanZipper
-resumeSpan (negate -> uid) sz
-  | cursorUID sz == uid = sz{cursorUID = negate uid}
-  | SpanNil <- left sz, Just sz' <- moveRight sz = go moveRight sz'
-  | Just sz' <- moveLeft sz = go moveLeft sz'
-  | otherwise = err
-  where
-    err = error $ unwords ["resumeSpan", show (negate uid), show sz]
-    go move sz
-      | cursorUID sz == uid = sz{cursorUID = negate uid}
-      | Just sz' <- move sz = go move sz'
-      | otherwise = err
-
--- stopSpan moves left
-stopSpan :: UID -> SpanZipper -> SpanZipper
-stopSpan uid sz@SZ{..}
-  | uid == abs cursorUID = if
-      | Just sz' <- moveRight sz -> sz'{left = left}
-      | Just sz' <- moveLeft  sz -> sz'{right = right}
-      | otherwise -> SZNil
-  | Just sz' <- moveLeft sz = stopSpan uid sz'
-stopSpan uid sz = error $ unwords ["stopSpan", show uid, show sz]
 
 ----------------------------------------------------------------------------
 
