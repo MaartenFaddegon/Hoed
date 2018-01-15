@@ -27,6 +27,8 @@ import           Data.Indexable
 import           Data.List                (nub, sort)
 import           Data.Foldable
 import           Data.Strict.Tuple
+import           Data.Text (Text, pack, unpack)
+import qualified Data.Text as T
 import           Debug.Hoed.Compat
 import           Debug.Hoed.Observe
 import           GHC.Generics
@@ -58,20 +60,20 @@ instance Ord CompStmt where
   compare c1 c2 = compare (stmtIdentifier c1) (stmtIdentifier c2)
 
 data StmtDetails
-  = StmtCon { stmtCon :: !String
-           ,  stmtPretty :: !String}
-  | StmtLam { stmtLamArgs :: ![String]
-           ,  stmtLamRes :: !String
-           ,  stmtPretty :: !String}
+  = StmtCon { stmtCon :: Text
+           ,  stmtPretty :: Text}
+  | StmtLam { stmtLamArgs :: [Text]
+           ,  stmtLamRes :: Text
+           ,  stmtPretty :: Text}
   deriving (Generic)
 
 instance NFData StmtDetails
 
-stmtRes :: CompStmt -> String
+stmtRes :: CompStmt -> Text
 stmtRes = stmtPretty . stmtDetails
 
 instance Show CompStmt where
-  show = stmtRes
+  show = unpack . stmtRes
   showList eqs eq = unlines (map show eqs) ++ eq
 
 noNewlines :: String -> String
@@ -332,5 +334,5 @@ sep = softline  -- A space, if the following still fits on the current line, oth
 sp :: Doc
 sp = " "   -- A space, always.
 
-prettyW :: (?statementWidth::Int) => Doc -> String
-prettyW = pretty ?statementWidth
+prettyW :: (?statementWidth::Int) => Doc -> Text
+prettyW = pack . pretty ?statementWidth

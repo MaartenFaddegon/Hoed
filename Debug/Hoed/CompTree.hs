@@ -59,6 +59,8 @@ import           Data.IntSet            (IntSet)
 import           Data.List              (foldl', unfoldr)
 import           Data.Maybe
 import           Data.Semigroup
+import           Data.Text (Text, pack, unpack)
+import qualified Data.Text as T
 import           Data.Vector.Mutable as VM (IOVector)
 import qualified Data.Vector.Generic.Mutable as VM
 import qualified Data.Vector.Unboxed    as U
@@ -119,7 +121,7 @@ vertexUID (Vertex s _) = stmtIdentifier s
 
 vertexRes :: Vertex -> String
 vertexRes RootVertex = "RootVertex"
-vertexRes v          = stmtRes . vertexStmt $ v
+vertexRes v          = unpack . stmtRes . vertexStmt $ v
 
 -- | The forest of computation trees. Also see the Libgraph library.
 type CompTree = Graph Vertex ()

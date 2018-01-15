@@ -48,7 +48,8 @@ library
                        , libgraph == 1.14
                        , regex-tdfa
                        , directory
-                       , cereal, bytestring
+                       , bytestring
+                       , cereal, cereal-text
                        , QuickCheck
                        , open-browser
                        , primitive
@@ -56,6 +57,7 @@ library
                        , strict
                        , template-haskell
                        , terminal-size
+                       , text
                        , uniplate
                        , vector
   default-language:    Haskell2010

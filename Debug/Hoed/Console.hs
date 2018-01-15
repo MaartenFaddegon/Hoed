@@ -24,6 +24,7 @@ import           Data.Maybe
 import           Data.Sequence            (Seq, ViewL (..), viewl, (<|))
 import qualified Data.Sequence            as Seq
 import qualified Data.Set                 as Set
+import           Data.Text (unpack)
 import qualified Data.Vector              as V
 import           Debug.Hoed.Compat
 import           Debug.Hoed.CompTree
@@ -530,7 +531,7 @@ printStmt g = unlines $
     show(vertexStmt $ G.root g) :
     concat
       [ "  where" :
-        map ("    " ++) locals
+        map (("    " ++) . unpack) locals
       | not (null locals)]
   where
     locals =

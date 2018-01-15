@@ -21,6 +21,7 @@ import Data.Indexable
 import Debug.Hoed.CompTree
 import Debug.Hoed.Render(CompStmt(..), StmtDetails(..))
 import Data.Serialize
+import Data.Serialize.Text
 import qualified Data.ByteString as BS
 import GHC.Exts (IsList(..))
 import GHC.Generics

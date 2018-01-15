@@ -362,7 +362,7 @@ runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
   let !ds  = force $ dependencies ti
       ct   = mkCompTree eqs ds
 
-  forM_ cdss $ \x -> do
+  forM_ (zip [0..] cdss) $ \(i,x) -> do
     evaluate (force x)
     when (isPowerOf 2 i) $ putStr "."
   putStrLn ""
