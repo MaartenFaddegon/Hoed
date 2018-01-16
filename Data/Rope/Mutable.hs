@@ -79,17 +79,16 @@ reset proxy it@Rope{..} = do
     atomicModifyMutVar' ropeState $ \RopeState {..} ->
       (RopeState 0 (-1) [] spillOver, (ropeLastIndex, ropeElements))
   lv <- mapM VG.unsafeFreeze ropeElements
-  let vv' :: V.Vector(v a)  = V.fromList lv
-      indexableUpperBound = toEnum lastIndex
+  let indexableUpperBound = toEnum lastIndex
       l = length ropeElements - 1
-      indexableAt ((`divMod` ropeDim) . fromEnum -> (d,m)) = vv' V.! (l - d) VG.! m
+      joined :: v a
+        | h:t <- lv
+        = VG.concat (reverse t ++ [VG.slice 0 (lastIndex `mod` ropeDim + 1) h])
+        | otherwise = VG.empty
+      indexableAt = (joined VG.!) . fromEnum
       {-# INLINE indexableFoldr #-}
       indexableFoldr :: forall b. (ix -> a -> b -> b) -> b -> b
-      indexableFoldr
-        | h:t <- lv
-        , vf <- VG.concat (reverse t) VG.++ VG.slice 0 (lastIndex `mod` ropeDim + 1) h
-        = \f x0 -> VG.ifoldr (f . toEnum) x0 vf
-        | otherwise = \f x0 -> x0
+      indexableFoldr f x0 = VG.ifoldr (f . toEnum) x0 joined
   return Indexable{..}
 
 fromList :: forall v m a. (PrimMonad m, MVector v a) => Int -> [a] -> m(Rope m v Int a)
