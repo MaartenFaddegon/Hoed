@@ -6,6 +6,10 @@
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies  #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -91,14 +95,23 @@ module Debug.Hoed.Observe
 \begin{code}
 import Prelude hiding (Right)
 import qualified Prelude
+import Control.Concurrent.MVar
 import Control.Monad
 import Data.Array as Array
+import qualified Data.HashTable.IO as H
+import Data.List (sortOn)
+import Data.Maybe
 import Data.Proxy
 import Data.Rope.Mutable (Rope, new', write, reset)
 import Data.Indexable (Indexable, mapWithIndex)
-import Data.Vector(Vector)
-import Data.Vector.Mutable (MVector)
+import Data.Strict.Tuple (Pair(..))
+import qualified Data.Vector as V
+import Data.Vector.Unboxed (Vector)
+import Data.Vector.Unboxed.Deriving
+import Data.Vector.Unboxed.Mutable (MVector)
+import Data.Word
 import Debug.Hoed.Fields
+import Debug.Trace
 
 import GHC.Generics
 
@@ -120,8 +133,152 @@ import Data.Dynamic ( Dynamic )
 
 \end{code}
 
+%************************************************************************
+%*                                                                      *
+\subsection{Event stream}
+%*                                                                      *
+%************************************************************************
+
+Trival output functions
+
 \begin{code}
-infixl 9 <<
+
+type UID = Int
+
+data Event = Event
+                { eventUID     :: !UID      -- my UID
+                , eventParent  :: !Parent
+                , change       :: !Change
+                }
+        deriving (Eq,Generic)
+
+data Change
+        = Observe         !String
+        | Cons    !Word8  !String
+        | Enter
+        | Fun
+        deriving (Eq, Show,Generic)
+
+type ParentPosition = Word8
+
+data Parent = Parent
+        { parentUID      :: !UID            -- my parents UID
+        , parentPosition :: !ParentPosition -- my branch number (e.g. the field of a data constructor)
+        } deriving (Eq,Generic)
+
+instance Show Event where
+  show e = (show . eventUID $ e) ++ ": " ++ (show . change $ e) ++ " (" ++ (show . eventParent $ e) ++ ")"
+
+instance Show Parent where
+  show p = "P " ++ (show . parentUID $ p) ++ " " ++ (show . parentPosition $ p)
+
+root = Parent 0 0
+
+isRootEvent :: Event -> Bool
+isRootEvent e = case change e of Observe{} -> True; _ -> False
+
+data ChangeFlat  = ChangeFlat {changeType :: !Word8, consPort :: !Word8, string :: !Int}
+data EventSansId = EventSansId {-# UNPACK #-} !Parent  !ChangeFlat
+
+derivingUnbox "ChangeFlat"
+    [t| ChangeFlat -> (Word8, Word8, Int) |]
+    [| \ (ChangeFlat a b c) -> (a,b,c) |]
+    [| \ (a,b,c) -> ChangeFlat a b c |]
+
+derivingUnbox "Parent"
+    [t| Parent -> (UID, ParentPosition) |]
+    [| \ (Parent a b) -> (a,b) |]
+    [| \ (a,b) -> Parent a b |]
+
+derivingUnbox "EventSansId"
+    [t| EventSansId -> (Parent, ChangeFlat) |]
+    [| \ (EventSansId a b) -> (a,b) |]
+    [| \ (a,b) -> EventSansId a b |]
+
+\end{code}
+
+\begin{code}
+type Trace = Indexable OneBasedIndex Event
+
+endEventStream :: IO Trace
+endEventStream = do
+  (stringsCount :!: stringsHashTable) <- takeMVar strings
+  unsortedStrings <- H.toList stringsHashTable
+  putMVar strings . (0 :!:) =<< H.new
+  let stringsTable = V.unsafeAccum (\_ -> id) (V.replicate stringsCount (error "uninitialized")) [(i,s) | (s,i) <- unsortedStrings]
+  mapWithIndex (\(OneBasedIndex ix) (EventSansId parent change) ->
+                  Event ix parent (unflatten stringsTable change)) <$>
+    reset (Proxy :: Proxy Vector) events
+
+sendEvent :: Int -> Parent -> Change -> IO ()
+sendEvent nodeId !parent !change = do
+  changeFlat <- flatten change
+  write events (OneBasedIndex nodeId) (EventSansId parent changeFlat)
+
+unflatten stringsTable (ChangeFlat 0 _ s) = Observe (V.unsafeIndex stringsTable s)
+unflatten stringsTable (ChangeFlat 1 c s) = Cons c  (V.unsafeIndex stringsTable s)
+unflatten stringsTable (ChangeFlat 2 _ _) = Enter
+unflatten stringsTable (ChangeFlat 3 _ _) = Fun
+
+flatten   (Observe s) = ChangeFlat 0 0 <$> lookupOrAddString s
+flatten   (Cons c s)  = ChangeFlat 1 c <$> lookupOrAddString s
+flatten   Enter       = return $ ChangeFlat 2 0 0
+flatten   Fun         = return $ ChangeFlat 3 0 0
+
+lookupOrAddString s = do
+  (stringsCount :!: stringsTable) <- takeMVar strings
+  value <- H.lookup stringsTable s
+  (count',res) <- case value of
+            Just x -> return (stringsCount, x)
+            Nothing -> H.insert stringsTable s stringsCount >> return (stringsCount+1, stringsCount)
+  putMVar strings (count' :!: stringsTable)
+  return res
+
+newtype OneBasedIndex = OneBasedIndex Int deriving (Eq,Integral,Num,Ord,Real)
+
+instance Enum OneBasedIndex where
+  fromEnum (OneBasedIndex i) = i-1
+  toEnum i = OneBasedIndex (i+1)
+
+-- local
+{-# NOINLINE events #-}
+events :: Rope IO MVector OneBasedIndex EventSansId
+events = unsafePerformIO $ do
+  rope <- new' 10000
+  return rope
+
+{-# NOINLINE strings #-}
+strings :: MVar(Pair Int (H.CuckooHashTable String Int))
+strings = unsafePerformIO $ do
+  h <- H.newSized 1000
+  newMVar (0 :!: h)
+\end{code}
+
+
+%************************************************************************
+%*                                                                      *
+\subsection{unique name supply code}
+%*                                                                      *
+%************************************************************************
+
+Use the single threaded version
+
+\begin{code}
+
+initUniq :: IO ()
+initUniq = writeIORef uniq 1
+
+getUniq :: IO UID
+getUniq = atomicModifyIORef' uniq (\n -> (n+1,n))
+
+peepUniq :: IO UID
+peepUniq = readIORef uniq
+
+-- locals
+{-# NOINLINE uniq #-}
+uniq :: IORef UID
+uniq = unsafePerformIO $ newIORef 1
+
 \end{code}
 
 
@@ -380,7 +537,7 @@ The Observer monad, a simple state monad,
 for placing numbers on sub-observations.
 
 \begin{code}
-newtype ObserverM a = ObserverM { runMO :: Int -> Int -> (a,Int) }
+newtype ObserverM a = ObserverM { runMO :: Int -> Word8 -> (a,Word8) }
 
 instance Functor ObserverM where
     fmap  = liftM
@@ -417,6 +574,7 @@ gthunk a = ObserverM $ \ parent port ->
 (<<) :: (Observable a) => ObserverM (a -> b) -> a -> ObserverM b
 -- fn << a = do { fn' <- fn ; a' <- thunk a ; return (fn' a') }
 fn << a = gdMapM (thunk observer) fn a
+infixl 9 <<
 
 gdMapM :: (Monad m)
         => (a -> m a)  -- f
@@ -554,102 +712,6 @@ sendObserveFnPacket fn context
 \end{code}
 
 
-%************************************************************************
-%*                                                                      *
-\subsection{Event stream}
-%*                                                                      *
-%************************************************************************
-
-Trival output functions
-
-\begin{code}
-type Trace = Indexable OneBasedIndex Event
-
-data Event = Event
-                { eventUID     :: !UID      -- my UID
-                , eventParent  :: !Parent
-                , change       :: !Change
-                }
-        deriving (Eq,Generic)
-
-data Change
-        = Observe       !String
-        | Cons    !Int  !String
-        | Enter
-        | Fun
-        deriving (Eq, Show,Generic)
-
-type ParentPosition = Int
-
-data Parent = Parent
-        { parentUID      :: !UID            -- my parents UID
-        , parentPosition :: !ParentPosition -- my branch number (e.g. the field of a data constructor)
-        } deriving (Eq,Generic)
-
-instance Show Event where
-  show e = (show . eventUID $ e) ++ ": " ++ (show . change $ e) ++ " (" ++ (show . eventParent $ e) ++ ")"
-
-instance Show Parent where
-  show p = "P " ++ (show . parentUID $ p) ++ " " ++ (show . parentPosition $ p)
-
-root = Parent 0 0
-
-isRootEvent :: Event -> Bool
-isRootEvent e = case change e of Observe{} -> True; _ -> False
-
-endEventStream :: IO Trace
-endEventStream =
-  mapWithIndex (\(OneBasedIndex ix) (EventSansId parent change) -> Event ix parent change) <$>
-  reset (Proxy :: Proxy Vector) events
-
-sendEvent :: Int -> Parent -> Change -> IO ()
-sendEvent nodeId !parent !change =
-  write events (OneBasedIndex nodeId) (EventSansId parent change)
-
-newtype OneBasedIndex = OneBasedIndex Int deriving (Eq,Integral,Num,Ord,Real)
-
-instance Enum OneBasedIndex where
-  fromEnum (OneBasedIndex i) = i-1
-  toEnum i = OneBasedIndex (i+1)
-
-data EventSansId = EventSansId {-# UNPACK #-} !Parent !Change
-
--- local
-events :: Rope IO MVector OneBasedIndex EventSansId
-events = unsafePerformIO $ do
-  rope <- new' 10000
-  return rope
-
-\end{code}
-
-
-%************************************************************************
-%*                                                                      *
-\subsection{unique name supply code}
-%*                                                                      *
-%************************************************************************
-
-Use the single threaded version
-
-\begin{code}
-type UID = Int
-
-initUniq :: IO ()
-initUniq = writeIORef uniq 1
-
-getUniq :: IO UID
-getUniq = atomicModifyIORef' uniq (\n -> (n+1,n))
-
-peepUniq :: IO UID
-peepUniq = readIORef uniq
-
--- locals
-{-# NOINLINE uniq #-}
-uniq :: IORef UID
-uniq = unsafePerformIO $ newIORef 1
-
-\end{code}
-
 
 
 %************************************************************************

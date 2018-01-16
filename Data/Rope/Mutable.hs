@@ -73,7 +73,7 @@ new' ropeDim = do
   return Rope{..}
 
 -- | Returns an immutable snapshot of the rope contents after resetting the rope to the empty state
-reset :: forall v a ix m . (Foldable v, VG.Vector v a, PrimMonad m, Enum ix) => Proxy v -> Rope m (VG.Mutable v) ix a -> m (Indexable ix a)
+reset :: forall v a ix m . (VG.Vector v a, PrimMonad m, Enum ix) => Proxy v -> Rope m (VG.Mutable v) ix a -> m (Indexable ix a)
 reset proxy it@Rope{..} = do
   (lastIndex, ropeElements) <-
     atomicModifyMutVar' ropeState $ \RopeState {..} ->

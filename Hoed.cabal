@@ -50,6 +50,7 @@ library
                        , directory
                        , bytestring
                        , cereal, cereal-text
+                       , hashtables
                        , QuickCheck
                        , open-browser
                        , primitive
@@ -60,6 +61,7 @@ library
                        , text
                        , uniplate
                        , vector
+                       , vector-th-unbox
   default-language:    Haskell2010
 
 Test-Suite test-queens

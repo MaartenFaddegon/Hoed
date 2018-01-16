@@ -353,7 +353,7 @@ mkConsMap l t =
         Cons {} -> do
           let p = eventParent e
 #if __GLASGOW_HASKELL__ >= 800
-          VM.unsafeModify v (`setBit` parentPosition p) (parentUID p - 1)
+          VM.unsafeModify v (`setBit` fromIntegral(parentPosition p)) (parentUID p - 1)
 #else
           let ix = parentUID p - 1
           x <- VM.unsafeRead v ix
@@ -365,7 +365,7 @@ mkConsMap l t =
 corToCons :: ConsMap -> Event -> Bool
 corToCons cm e = case U.unsafeIndex cm (parentUID p - 1) of
                    0 -> False
-                   other -> testBit other (parentPosition p)
+                   other -> testBit other (fromIntegral $ parentPosition p)
   where p = eventParent e
 
 ------------------------------------------------------------------------------------------------------------------------

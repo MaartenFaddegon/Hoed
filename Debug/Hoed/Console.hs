@@ -26,6 +26,7 @@ import qualified Data.Sequence            as Seq
 import qualified Data.Set                 as Set
 import           Data.Text (unpack)
 import qualified Data.Vector              as V
+import           Data.Word
 import           Debug.Hoed.Compat
 import           Debug.Hoed.CompTree
 import           Debug.Hoed.Observe
@@ -272,7 +273,7 @@ data RequestDetails = RD Int Explanation
 
 data ReturnDetails
   = ReturnFun
-  | ReturnCons { constructor :: String, arity :: Int, value :: String }
+  | ReturnCons { constructor :: String, arity :: Word8, value :: String }
 
 data Explanation
   = Observation String
