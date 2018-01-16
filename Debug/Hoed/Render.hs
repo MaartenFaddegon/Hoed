@@ -22,7 +22,6 @@ import           Control.DeepSeq
 import           Control.Exception        (assert)
 import           Data.Array               as Array
 import           Data.Char                (isAlpha)
-import           Data.Indexable
 import           Data.List                (nub, sort)
 import           Data.Foldable
 import           Data.Strict.Tuple

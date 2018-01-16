@@ -15,7 +15,6 @@ import           Control.Monad
 import           Control.Arrow (first, second)
 import           Data.Char
 import           Data.Foldable            as F
-import           Data.Indexable
 import           Data.Graph.Libgraph      as G
 import           Data.List                as List (foldl', group, mapAccumL, nub, sort)
 import qualified Data.Map.Strict          as Map

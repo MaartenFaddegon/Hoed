@@ -17,7 +17,6 @@ module Debug.Hoed.Serialize
 import Debug.Hoed.Observe
 import Prelude hiding (lookup,Right)
 import qualified Prelude as Prelude
-import Data.Indexable
 import Debug.Hoed.CompTree
 import Debug.Hoed.Render(CompStmt(..), StmtDetails(..))
 import Data.Serialize

@@ -17,7 +17,6 @@ module Data.Rope.Mutable
 import Control.Monad
 import Control.Monad.Primitive
 import Data.Foldable as F
-import Data.Indexable
 import Data.Primitive.MutVar
 import Data.Proxy
 import qualified Data.Vector as V
