@@ -22,6 +22,8 @@ import Debug.Hoed.CompTree
 import Debug.Hoed.Render(CompStmt(..), StmtDetails(..))
 import Data.Serialize
 import Data.Serialize.Text
+import Data.Vector.Serialize
+
 import qualified Data.ByteString as BS
 import GHC.Exts (IsList(..))
 import GHC.Generics
@@ -41,10 +43,6 @@ instance Serialize StmtDetails
 instance Serialize Parent
 instance Serialize Event
 instance Serialize Change
-deriving instance Serialize OneBasedIndex
-instance (Enum ix, Integral ix, Serialize a) => Serialize (Indexable ix a) where
-  put = put . toList
-  get = fromList <$> get
 
 --------------------------------------------------------------------------------
 -- Tree

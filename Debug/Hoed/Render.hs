@@ -2,7 +2,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ImplicitParams    #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 -- This file is part of the Haskell debugger Hoed.
 --
@@ -29,11 +28,11 @@ import           Data.Foldable
 import           Data.Strict.Tuple
 import           Data.Text (Text, pack, unpack)
 import qualified Data.Text as T
+import qualified Data.Vector.Generic as VG
 import           Data.Word
 import           Debug.Hoed.Compat
 import           Debug.Hoed.Observe
 import           GHC.Generics
-import           Prelude                  hiding (lookup)
 import           Text.PrettyPrint.FPretty hiding (sep, (<$>))
 import           Text.Read
 
@@ -152,7 +151,7 @@ eventsToCDS :: Trace -> CDSSet
 eventsToCDS pairs = getChild 0 0 
    where
 
-     res i= indexableAt out_arr (OneBasedIndex i)
+     res i= out_arr VG.! pred i
 
      bnds = (0, length pairs)
 

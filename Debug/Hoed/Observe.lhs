@@ -103,9 +103,9 @@ import Data.List (sortOn)
 import Data.Maybe
 import Data.Proxy
 import Data.Rope.Mutable (Rope, new', write, reset)
-import Data.Indexable (Indexable, mapWithIndex)
 import Data.Strict.Tuple (Pair(..))
 import qualified Data.Vector as V
+import qualified Data.Vector.Generic as VG
 import Data.Vector.Unboxed (Vector)
 import Data.Vector.Unboxed.Deriving
 import Data.Vector.Unboxed.Mutable (MVector)
@@ -198,7 +198,7 @@ derivingUnbox "EventSansId"
 \end{code}
 
 \begin{code}
-type Trace = Indexable OneBasedIndex Event
+type Trace = V.Vector Event
 
 endEventStream :: IO Trace
 endEventStream = do
@@ -206,14 +206,14 @@ endEventStream = do
   unsortedStrings <- H.toList stringsHashTable
   putMVar strings . (0 :!:) =<< H.new
   let stringsTable = V.unsafeAccum (\_ -> id) (V.replicate stringsCount (error "uninitialized")) [(i,s) | (s,i) <- unsortedStrings]
-  mapWithIndex (\(OneBasedIndex ix) (EventSansId parent change) ->
-                  Event ix parent (unflatten stringsTable change)) <$>
+  VG.imap (\ix (EventSansId parent change) ->
+                  Event (ix+1) parent (unflatten stringsTable change)) . VG.convert <$>
     reset (Proxy :: Proxy Vector) events
 
 sendEvent :: Int -> Parent -> Change -> IO ()
 sendEvent nodeId !parent !change = do
   changeFlat <- flatten change
-  write events (OneBasedIndex nodeId) (EventSansId parent changeFlat)
+  write events (nodeId-1) (EventSansId parent changeFlat)
 
 unflatten stringsTable (ChangeFlat 0 _ s) = Observe (V.unsafeIndex stringsTable s)
 unflatten stringsTable (ChangeFlat 1 c s) = Cons c  (V.unsafeIndex stringsTable s)
@@ -234,15 +234,9 @@ lookupOrAddString s = do
   putMVar strings (count' :!: stringsTable)
   return res
 
-newtype OneBasedIndex = OneBasedIndex Int deriving (Eq,Integral,Num,Ord,Real)
-
-instance Enum OneBasedIndex where
-  fromEnum (OneBasedIndex i) = i-1
-  toEnum i = OneBasedIndex (i+1)
-
 -- local
 {-# NOINLINE events #-}
-events :: Rope IO MVector OneBasedIndex EventSansId
+events :: Rope IO MVector EventSansId
 events = unsafePerformIO $ do
   rope <- new' 10000
   return rope

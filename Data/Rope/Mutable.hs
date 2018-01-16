@@ -33,17 +33,15 @@ data RopeState m v a = RopeState
   }
 
 -- | A mutable bag-like collection with atomic O(1) inserts
-data Rope m v ix a = Rope
-  { ropeState      :: MutVar (PrimState m) (RopeState m v a)
-  , ropeDim        :: !Int -- ^ Size of internal vectors
+data Rope m v a = Rope
+  { ropeState   :: MutVar (PrimState m) (RopeState m v a)
+  , ropeDim     :: !Int -- ^ Size of internal vectors
   }
 
 defaultRopeDim = 10000
 
-type Index = Enum
-
 {-# INLINE write #-}
-write :: forall v a ix m . (Index ix, PrimMonad m, MVector v a) => Rope m v ix a -> ix -> a -> m ()
+write :: forall v a m . (PrimMonad m, MVector v a) => Rope m v a -> Int -> a -> m ()
 write Rope {..} (fromEnum -> ix) a = join $ atomicModifyMutVar' ropeState updateState
   where
     (d, r) = divMod ix ropeDim
@@ -63,35 +61,29 @@ write Rope {..} (fromEnum -> ix) a = join $ atomicModifyMutVar' ropeState update
              atomicModifyMutVar' ropeState $ \st' -> (st' {spillOver = v}, ()))
       | otherwise = error $ "index " ++ show ix ++ " too far away from the last index " ++ show ropeLastIndex
 
-new :: forall v a m . (PrimMonad m, MVector v a) => m (Rope m v Int a)
+new :: forall v a m . (PrimMonad m, MVector v a) => m (Rope m v a)
 new = new' defaultRopeDim
 
-new' :: forall v a ix m . (PrimMonad m, MVector v a, Index ix) => Int -> m (Rope m v ix a)
+new' :: forall v a m . (PrimMonad m, MVector v a) => Int -> m (Rope m v a)
 new' ropeDim = do
   spillOver  <- M.new ropeDim
   ropeState <- newMutVar (RopeState 0 (-1) [] spillOver)
   return Rope{..}
 
 -- | Returns an immutable snapshot of the rope contents after resetting the rope to the empty state
-reset :: forall v a ix m . (VG.Vector v a, PrimMonad m, Enum ix) => Proxy v -> Rope m (VG.Mutable v) ix a -> m (Indexable ix a)
+reset :: forall v a m . (VG.Vector v a, PrimMonad m) => Proxy v -> Rope m (VG.Mutable v) a -> m (v a)
 reset proxy it@Rope{..} = do
   (lastIndex, ropeElements) <-
     atomicModifyMutVar' ropeState $ \RopeState {..} ->
       (RopeState 0 (-1) [] spillOver, (ropeLastIndex, ropeElements))
   lv <- mapM VG.unsafeFreeze ropeElements
-  let indexableUpperBound = toEnum lastIndex
-      l = length ropeElements - 1
-      joined :: v a
+  let joined :: v a
         | h:t <- lv
         = VG.concat (reverse t ++ [VG.slice 0 (lastIndex `mod` ropeDim + 1) h])
         | otherwise = VG.empty
-      indexableAt = (joined VG.!) . fromEnum
-      {-# INLINE indexableFoldr #-}
-      indexableFoldr :: forall b. (ix -> a -> b -> b) -> b -> b
-      indexableFoldr f x0 = VG.ifoldr (f . toEnum) x0 joined
-  return Indexable{..}
+  return joined
 
-fromList :: forall v m a. (PrimMonad m, MVector v a) => Int -> [a] -> m(Rope m v Int a)
+fromList :: forall v m a. (PrimMonad m, MVector v a) => Int -> [a] -> m(Rope m v a)
 fromList dim xx = do
   rope <- new' dim
   forM_ (zip [0..] xx) $ \(i,x) -> write rope i x

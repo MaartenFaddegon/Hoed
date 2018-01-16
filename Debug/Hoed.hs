@@ -377,7 +377,7 @@ runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
   writeFile ".Hoed/Deps"       (unlines . map show $ toList ds)
 #endif
 #if defined(TRANSCRIPT)
-  writeFile ".Hoed/Transcript" (getTranscript events ti)
+  writeFile ".Hoed/Transcript" (getTranscript (toList events) ti)
 #endif
 
   let n  = length eqs

@@ -28,7 +28,6 @@ library
                        , Debug.NoHoed
                        , Debug.Hoed.CompTree
                        , Debug.Hoed.Render
-                       , Data.Indexable
   other-modules:       Debug.Hoed.Compat
                        , Debug.Hoed.EventForest
                        , Debug.Hoed.ReadLine
@@ -49,7 +48,7 @@ library
                        , regex-tdfa
                        , directory
                        , bytestring
-                       , cereal, cereal-text
+                       , cereal, cereal-text, cereal-vector
                        , hashtables
                        , QuickCheck
                        , open-browser

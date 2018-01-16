@@ -26,6 +26,7 @@ import qualified Data.Sequence            as Seq
 import qualified Data.Set                 as Set
 import           Data.Text (unpack)
 import qualified Data.Vector              as V
+import qualified Data.Vector.Generic      as VG
 import           Data.Word
 import           Debug.Hoed.Compat
 import           Debug.Hoed.CompTree
@@ -127,7 +128,7 @@ printTrace trace =
   renderTrace' lookupEvent lookupDescs (traceToSpans lookupEvent trace, trace)
     -- fast lookup via an array
   where
-    lookupEvent = indexableAt trace . OneBasedIndex
+    lookupEvent = (trace VG.!) . pred
     lookupDescs =
       (fromMaybe [] .
        (`IntMap.lookup` (IntMap.fromListWith
