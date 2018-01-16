@@ -352,6 +352,10 @@ runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
   condPutStrLn verbose $ "\n=== program terminated (" ++ show programTime ++ " seconds) ==="
   let e = length events
 
+#if defined(DEBUG)
+  writeFile ".Hoed/Events"     (unlines . map show $ toList events)
+#endif
+
   condPutStrLn verbose "\n=== Statistics ===\n"
   condPutStrLn verbose $ show e ++ " events"
   condPutStrLn verbose"Please wait while the computation tree is constructed..."
@@ -368,7 +372,6 @@ runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
   putStrLn ""
 
 #if defined(DEBUG)
-  -- writeFile ".Hoed/Events"     (unlines . map show . reverse $ events)
   -- writeFile ".Hoed/Cdss"       (unlines . map show $ cdss2)
   writeFile ".Hoed/Eqs"        (unlines . map show $ toList eqs)
   writeFile ".Hoed/Deps"       (unlines . map show $ toList ds)
