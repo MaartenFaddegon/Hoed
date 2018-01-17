@@ -234,17 +234,20 @@ lookupOrAddString s = do
   putMVar strings (count' :!: stringsTable)
   return res
 
--- local
+-- Global store of unboxed events.
+-- Since we cannot unbox Strings, these are represented as references to the
+--  strings table
 {-# NOINLINE events #-}
 events :: Rope IO MVector EventSansId
 events = unsafePerformIO $ do
-  rope <- new' 10000
+  rope <- new' 10000  -- size of the lazy vectors internal to the rope structure
   return rope
+
 
 {-# NOINLINE strings #-}
 strings :: MVar(Pair Int (H.CuckooHashTable String Int))
 strings = unsafePerformIO $ do
-  h <- H.newSized 1000
+  h <- H.newSized 100000  -- suggested capacity for the hash table
   newMVar (0 :!: h)
 \end{code}
 
