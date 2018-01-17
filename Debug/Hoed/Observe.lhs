@@ -154,7 +154,8 @@ data Event = Event
 
 data Change
         = Observe         !String
-        | Cons    !Word8  !String
+        | Cons     !Word8 !String
+        | ConsChar !Char
         | Enter
         | Fun
         deriving (Eq, Show,Generic)
@@ -217,13 +218,15 @@ sendEvent nodeId !parent !change = do
 
 unflatten stringsTable (ChangeFlat 0 _ s) = Observe (V.unsafeIndex stringsTable s)
 unflatten stringsTable (ChangeFlat 1 c s) = Cons c  (V.unsafeIndex stringsTable s)
-unflatten stringsTable (ChangeFlat 2 _ _) = Enter
-unflatten stringsTable (ChangeFlat 3 _ _) = Fun
+unflatten stringsTable (ChangeFlat 2 _ s) = ConsChar (toEnum s)
+unflatten stringsTable (ChangeFlat 3 _ _) = Enter
+unflatten stringsTable (ChangeFlat 4 _ _) = Fun
 
-flatten   (Observe s) = ChangeFlat 0 0 <$> lookupOrAddString s
-flatten   (Cons c s)  = ChangeFlat 1 c <$> lookupOrAddString s
-flatten   Enter       = return $ ChangeFlat 2 0 0
-flatten   Fun         = return $ ChangeFlat 3 0 0
+flatten   (Observe s)  = ChangeFlat 0 0 <$> lookupOrAddString s
+flatten   (Cons c s)   = ChangeFlat 1 c <$> lookupOrAddString s
+flatten   (ConsChar s) = return $ ChangeFlat 2 0 (fromEnum s)
+flatten   Enter        = return $ ChangeFlat 3 0 0
+flatten   Fun          = return $ ChangeFlat 4 0 0
 
 lookupOrAddString s = do
   (stringsCount :!: stringsTable) <- takeMVar strings
@@ -414,7 +417,7 @@ gdmFunObserver cxt fn arg
  The Haskell Base types
 
 \begin{code}
-instance Observable Int     where observer  = observeBase 
+instance Observable Int     where observer  = observeBase
                                   constrain = constrainBase
 instance Observable Bool    where observer  = observeBase
                                   constrain = constrainBase
@@ -424,8 +427,11 @@ instance Observable Float   where observer  = observeBase
                                   constrain = constrainBase
 instance Observable Double  where observer  = observeBase
                                   constrain = constrainBase
-instance Observable Char    where observer  = observeBase
-                                  constrain = constrainBase
+instance Observable Char    where
+  observer lit cxt = seq lit $ unsafeWithUniq $ \node -> do
+    sendEvent node cxt (ConsChar lit)
+    return lit
+  constrain = constrainBase
 instance Observable ()      where observer  = observeOpaque "()"
                                   constrain = constrainBase
 

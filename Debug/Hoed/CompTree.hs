@@ -349,8 +349,7 @@ mkConsMap l t =
   U.create $ do
     v <- VM.replicate l 0
     F.forM_ t $ \e ->
-      case change e of
-        Cons {} -> do
+      when (isCons (change e)) $ do
           let p = eventParent e
 #if __GLASGOW_HASKELL__ >= 800
           VM.unsafeModify v (`setBit` fromIntegral(parentPosition p)) (parentUID p - 1)
@@ -359,8 +358,11 @@ mkConsMap l t =
           x <- VM.unsafeRead v ix
           VM.unsafeWrite v ix (x `setBit` parentPosition p)
 #endif
-        _ -> return ()
     return v
+  where
+    isCons Cons{} = True
+    isCons ConsChar{} = True
+    isCons _ = False
 
 corToCons :: ConsMap -> Event -> Bool
 corToCons cm e = case U.unsafeIndex cm (parentUID p - 1) of
@@ -393,8 +395,8 @@ traceInfo l trc = do
                   then addDependency e . start e details $ s
                   else pause e details s
             | otherwise -> return s
-            -- Span end
-          Cons {} -> do
+            -- Span end (Cons or Char)
+          other -> do
             (loc, top) <- collectEventDetails v e
             let !details = EventDetails (TopLvlFun top) (const loc)
             setEventDetails v (eventUID e) details

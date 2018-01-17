@@ -255,6 +255,7 @@ renderTrace' lookupEvent lookupDescs (columns, events) = unlines renderedLines
 
 findValue :: (UID -> [Event]) -> Event -> String
 findValue lookupDescs = go where
+  go Event{eventUID = me, change=ConsChar c} = show c
   go Event{eventUID = me, change=Cons ar name}
     | ar == 0 = name
     | isAlpha(head name)

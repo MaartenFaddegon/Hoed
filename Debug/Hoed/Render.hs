@@ -157,6 +157,7 @@ data CDS = CDSNamed      !String !UID !CDSSet
          | CDSFun        !UID              !CDSSet !CDSSet
          | CDSEntered    !UID
          | CDSTerminated !UID
+         | CDSChar       !Char   -- only used internally in eventsToCDS
          | CDSString     !String -- only used internally in eventsToCDS
         deriving (Show,Eq,Ord,Generic)
 
@@ -164,6 +165,7 @@ instance NFData CDS
 
 normalizeCDS :: CDS -> CDS
 normalizeCDS (CDSString s) = CDSCons 0 (show s) []
+normalizeCDS (CDSChar   s) = CDSCons 0 (show s) []
 normalizeCDS other = other
 type CDSSet = [CDS]
 
@@ -194,7 +196,8 @@ eventsToCDS pairs = getChild 0 0
         Enter               -> CDSEntered node
         Fun                 -> CDSFun node (normalizeCDS <$> getChild node 0)
                                            (normalizeCDS <$> getChild node 1)
-        (Cons portc cons)
+        ConsChar char       -> CDSChar char
+        Cons portc cons
                             -> simplifyCons node cons
                                  [getChild node (fromIntegral n) | n <- [0::Int .. fromIntegral portc - 1]]
 
@@ -212,16 +215,11 @@ eventsToCDS pairs = getChild 0 0
 simplifyCons :: UID -> String -> [CDSSet] -> CDS
 simplifyCons _ "throw" [[CDSCons _ "ErrorCall" set]]
   = CDSCons 0 "error" set
-simplifyCons _ ":" [[CDSCons _ (matchChar -> Just !ch) []], [CDSCons _ "[]" []]]
+simplifyCons _ ":" [[CDSChar !ch], [CDSCons _ "[]" []]]
   = CDSString [ch]
-simplifyCons _ ":" [[CDSCons _ (matchChar -> Just !ch) []], [CDSString s]]
+simplifyCons _ ":" [[CDSChar !ch], [CDSString s]]
   = CDSString (ch:s)
 simplifyCons uid con xx = CDSCons uid con (map (map normalizeCDS) xx)
-
-matchChar :: [Char] -> Maybe Char
-matchChar ['\'', ch ,'\''] = Just ch
-matchChar special@['\'', _, _ ,'\''] = readMaybe special
-matchChar _ = Nothing
 
 render  :: Int -> Bool -> CDS -> Doc
 render prec par (CDSCons _ ":" [cds1,cds2]) =

@@ -86,6 +86,7 @@ dfsChildren :: EventForest -> Event -> [Maybe Event]
 dfsChildren frt e = case change e of
     Enter{}              -> manyByPosition 0 -- Should be Nothing?
     (Cons l _)           -> foldl (\acc x -> acc ++ manyByPosition x) [] [0..(l-1)]
+    ConsChar _           -> []
     Observe{}            -> manyByPosition 0
     Fun                  -> manyByPosition 0 ++ manyByPosition 1
 
