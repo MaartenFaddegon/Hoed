@@ -20,6 +20,7 @@ module Debug.Hoed.Render
 ) where
 import           Control.DeepSeq
 import           Control.Exception        (assert)
+import           Control.Monad.Primitive
 import           Control.Monad.ST
 import           Control.Monad.Trans.Reader
 import           Data.Array               as Array
@@ -27,6 +28,9 @@ import           Data.Char                (isAlpha)
 import           Data.List                (nub, sort)
 import           Data.Foldable
 import qualified Data.HashTable.ST.Cuckoo as H
+import           Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
+import           Data.Primitive.MutVar
 import           Data.Strict.Tuple
 import           Data.Text (Text, pack, unpack)
 import qualified Data.Text as T
@@ -90,25 +94,23 @@ noNewlines' w (s:ss)
 ------------------------------------------------------------------------
 -- Interning Text values to partially recover sharing
 
-type InternCache s = H.HashTable s Doc Text
+type InternCache s = MutVar (PrimState(ST s)) (Map Doc Text) -- H.HashTable s Doc Text
 type InternM s = ReaderT (InternCache s) (ST s)
 
 prettyW :: (?statementWidth::Int) => Doc -> InternM s Text
-prettyW doc = ReaderT $ \ht -> do
-  res <- H.lookup ht doc
-  case res of
-    Just t' -> return t'
-    Nothing -> do
+prettyW doc = ReaderT $ \ht -> atomicModifyMutVar' ht $ \m ->
+  case Map.lookup doc m of
+    Just t -> (m, t)
+    Nothing ->
       let t = pack $ pretty ?statementWidth doc
-      H.insert ht doc t
-      return t
+      in (Map.insert doc t m, t)
 
 ------------------------------------------------------------------------
 -- Render equations from CDS set
 
 renderCompStmts :: (?statementWidth::Int) => CDSSet -> [CompStmt]
 renderCompStmts cdss = runST $ do
-  internCache <- H.new
+  internCache <- newMutVar Map.empty
   flip runReaderT internCache $ concat <$> mapM renderCompStmt cdss
 
 -- renderCompStmt: an observed function can be applied multiple times, each application
