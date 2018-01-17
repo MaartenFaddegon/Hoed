@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE Safe, CPP #-}
 
 -- | 
@@ -115,6 +116,7 @@ module Text.PrettyPrint.FPretty
 import Prelude hiding ((<$>))
 #endif
 
+import Data.Hashable
 import Data.Maybe (fromJust)
 import Data.Sequence as Dequeue (Seq, (<|), viewl, viewr, ViewL(..), ViewR(..))
 import qualified Data.Sequence as Dequeue (empty)
@@ -123,6 +125,7 @@ import qualified Data.Sequence as Dequeue (empty)
   -- Efficiency probably similar, but Data.Sequence is part of the standard Haskell 
   -- libraries.
 import Data.String
+import GHC.Generics
 
 infixr 6 <>,<+>
 infixr 5 <$>,<$$>,</>,<//>
@@ -247,7 +250,9 @@ data Doc = Text Int String  -- includes length of text string
          | Group Doc
          | Nest Int Doc     -- increase current indentation
          | Align Int Doc    -- set indentation to current column plus increment
-  deriving Show
+  deriving (Eq, Generic, Ord, Show)
+
+instance Hashable Doc
 
 instance IsString Doc where
   fromString = text

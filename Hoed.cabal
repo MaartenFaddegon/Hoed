@@ -49,6 +49,7 @@ library
                        , directory
                        , bytestring
                        , cereal, cereal-text, cereal-vector
+                       , hashable
                        , hashtables
                        , QuickCheck
                        , open-browser

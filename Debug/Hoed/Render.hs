@@ -90,16 +90,17 @@ noNewlines' w (s:ss)
 ------------------------------------------------------------------------
 -- Interning Text values to partially recover sharing
 
-type InternCache s = H.HashTable s Text Text
+type InternCache s = H.HashTable s Doc Text
 type InternM s = ReaderT (InternCache s) (ST s)
 
-intern :: Text -> InternM s Text
-intern t = ReaderT $ \ht -> do
-  res <- H.lookup ht t
+prettyW :: (?statementWidth::Int) => Doc -> InternM s Text
+prettyW doc = ReaderT $ \ht -> do
+  res <- H.lookup ht doc
   case res of
     Just t' -> return t'
     Nothing -> do
-      H.insert ht t t
+      let t = pack $ pretty ?statementWidth doc
+      H.insert ht doc t
       return t
 
 ------------------------------------------------------------------------
@@ -125,13 +126,13 @@ renderNamedTop name observeUid (OutData cds) = mapM f pairs
   where
     f (args, res, Just i) =
       CompStmt name i <$>
-      (StmtLam <$> (mapM (intern . prettyW . renderSet) args) <*>
-       (intern $ prettyW $ renderSet res) <*>
-       (intern $ prettyW $ renderNamedFn name (args, res)))
+      (StmtLam <$> (mapM (prettyW . renderSet) args) <*>
+       (prettyW $ renderSet res) <*>
+       (prettyW $ renderNamedFn name (args, res)))
     f (_, cons, Nothing) =
       CompStmt name observeUid <$>
-      (StmtCon <$> (intern $ prettyW $ renderSet cons) <*>
-       (intern $ prettyW $ renderNamedCons name cons))
+      (StmtCon <$> (prettyW $ renderSet cons) <*>
+       (prettyW $ renderNamedCons name cons))
     pairs = (nubSorted . sortOn argAndRes) pairs'
     pairs' = findFn [cds]
     argAndRes (arg, res, _) = (arg, res)
@@ -176,7 +177,7 @@ eventsToCDS pairs = getChild 0 0
 
      mid_arr :: Array Int [Pair Word8 CDS]
      mid_arr = accumArray cons [] bnds
-                [ (pnode, (pport :!: res node))
+                [ (pnode, pport :!: res node)
                 | (Event node (Parent pnode pport) change) <- toList pairs
                 , change /= Enter
                 ]
@@ -350,6 +351,3 @@ sep :: Doc
 sep = softline  -- A space, if the following still fits on the current line, otherwise newline.
 sp :: Doc
 sp = " "   -- A space, always.
-
-prettyW :: (?statementWidth::Int) => Doc -> Text
-prettyW = pack . pretty ?statementWidth
