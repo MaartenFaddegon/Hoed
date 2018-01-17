@@ -184,7 +184,6 @@ module Debug.Hoed
   , UnevalHandler(..)
 
    -- * The Observable class
-  , Observer(..)
   , Observable(..)
   , (<<)
   , thunk

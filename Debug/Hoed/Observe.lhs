@@ -516,13 +516,6 @@ instance Observable Dynamic where
 %*                                                                      *
 %************************************************************************
 
-MF: why/when do we need these types?
-\begin{code}
-type Observing a = a -> a
-
-newtype Observer = O (forall a . (Observable a) => String -> a -> a)
-\end{code}
-
 
 %************************************************************************
 %*                                                                      *
