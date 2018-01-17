@@ -20,10 +20,13 @@ module Debug.Hoed.Render
 ) where
 import           Control.DeepSeq
 import           Control.Exception        (assert)
+import           Control.Monad.ST
+import           Control.Monad.Trans.Reader
 import           Data.Array               as Array
 import           Data.Char                (isAlpha)
 import           Data.List                (nub, sort)
 import           Data.Foldable
+import qualified Data.HashTable.ST.Cuckoo as H
 import           Data.Strict.Tuple
 import           Data.Text (Text, pack, unpack)
 import qualified Data.Text as T
@@ -85,35 +88,50 @@ noNewlines' w (s:ss)
  | otherwise                          = s   : noNewlines' False ss
 
 ------------------------------------------------------------------------
+-- Interning Text values to partially recover sharing
+
+type InternCache s = H.HashTable s Text Text
+type InternM s = ReaderT (InternCache s) (ST s)
+
+intern :: Text -> InternM s Text
+intern t = ReaderT $ \ht -> do
+  res <- H.lookup ht t
+  case res of
+    Just t' -> return t'
+    Nothing -> do
+      H.insert ht t t
+      return t
+
+------------------------------------------------------------------------
 -- Render equations from CDS set
 
 renderCompStmts :: (?statementWidth::Int) => CDSSet -> [CompStmt]
-renderCompStmts = concatMap renderCompStmt
+renderCompStmts cdss = runST $ do
+  internCache <- H.new
+  flip runReaderT internCache $ concat <$> mapM renderCompStmt cdss
 
 -- renderCompStmt: an observed function can be applied multiple times, each application
 -- is rendered to a computation statement
 
-renderCompStmt :: (?statementWidth::Int) => CDS -> [CompStmt]
-renderCompStmt (CDSNamed name uid set) = statements
-  where statements :: [CompStmt]
-        statements   = concatMap (renderNamedTop name uid) output
-        output       = cdssToOutput set
+renderCompStmt :: (?statementWidth::Int) => CDS -> InternM s [CompStmt]
+renderCompStmt (CDSNamed name uid set) = do
+        let output = cdssToOutput set
+        concat <$> mapM (renderNamedTop name uid) output
 
 renderCompStmt other = error $ show other
 
-renderNamedTop :: (?statementWidth::Int) => String -> UID -> Output -> [CompStmt]
-renderNamedTop name observeUid (OutData cds) = map f pairs
+renderNamedTop :: (?statementWidth::Int) => String -> UID -> Output -> InternM s [CompStmt]
+renderNamedTop name observeUid (OutData cds) = mapM f pairs
   where
     f (args, res, Just i) =
-      CompStmt name i $
-      StmtLam
-        (map (prettyW . renderSet) args)
-        (prettyW $ renderSet res)
-        (prettyW $ renderNamedFn name (args, res))
+      CompStmt name i <$>
+      (StmtLam <$> (mapM (intern . prettyW . renderSet) args) <*>
+       (intern $ prettyW $ renderSet res) <*>
+       (intern $ prettyW $ renderNamedFn name (args, res)))
     f (_, cons, Nothing) =
-      CompStmt name observeUid $
-      StmtCon (prettyW $ renderSet cons)
-              (prettyW $ renderNamedCons name cons)
+      CompStmt name observeUid <$>
+      (StmtCon <$> (intern $ prettyW $ renderSet cons) <*>
+       (intern $ prettyW $ renderNamedCons name cons))
     pairs = (nubSorted . sortOn argAndRes) pairs'
     pairs' = findFn [cds]
     argAndRes (arg, res, _) = (arg, res)

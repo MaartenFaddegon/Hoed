@@ -58,6 +58,7 @@ library
                        , template-haskell
                        , terminal-size
                        , text
+                       , transformers
                        , uniplate
                        , vector
                        , vector-th-unbox
