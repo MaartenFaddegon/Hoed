@@ -171,23 +171,23 @@ normalizeCDS other = other
 type CDSSet = [CDS]
 
 eventsToCDS :: Trace -> CDSSet
-eventsToCDS pairs = getChild 0 0 
+eventsToCDS pairs = getChild (-1) 0
    where
 
-     res i= out_arr VG.! pred i
+     res i = out_arr VG.! i
 
-     bnds = (0, length pairs)
+     bnds = (-1, length pairs - 1)
 
      cons !t !h = h : t
 
      mid_arr :: Array Int [Pair Word8 CDS]
      mid_arr = accumArray cons [] bnds
                 [ (pnode, pport :!: res node)
-                | (Event node (Parent pnode pport) change) <- toList pairs
+                | (node, Event (Parent pnode pport) change) <- VG.toList (VG.indexed pairs)
                 , change /= Enter
                 ]
 
-     out_arr = fmap(\e -> getNode'' (eventUID e) e (change e)) pairs
+     out_arr = VG.imap(\uid e -> getNode'' uid e (change e)) pairs
 
      getNode'' ::  Int -> Event -> Change -> CDS
      getNode'' node _e change =

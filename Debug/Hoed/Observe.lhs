@@ -148,12 +148,11 @@ Trival output functions
 
 type UID = Int
 
-data Event = Event
-                { eventUID     :: !UID      -- my UID
-                , eventParent  :: !Parent
-                , change       :: !Change
-                }
+data Event = Event { eventParent :: {-# UNPACK #-} !Parent
+                   , change      ::                !Change  }
         deriving (Eq,Generic)
+
+data EventWithId = EventWithId {eventUID :: !UID, event :: !Event}
 
 data Change
         = Observe          !Text
@@ -171,18 +170,23 @@ data Parent = Parent
         } deriving (Eq,Generic)
 
 instance Show Event where
-  show e = (show . eventUID $ e) ++ ": " ++ (show . change $ e) ++ " (" ++ (show . eventParent $ e) ++ ")"
+  show e = (show . change $ e) ++ " (" ++ (show . eventParent $ e) ++ ")"
+
+instance Show EventWithId where
+  show (EventWithId uid e) = (show uid) ++ ": " ++ (show . change $ e) ++ " (" ++ (show . eventParent $ e) ++ ")"
 
 instance Show Parent where
   show p = "P " ++ (show . parentUID $ p) ++ " " ++ (show . parentPosition $ p)
 
-root = Parent 0 0
+root = Parent (-1) 0
 
 isRootEvent :: Event -> Bool
 isRootEvent e = case change e of Observe{} -> True; _ -> False
 
 data ChangeFlat  = ChangeFlat {changeType :: !Word8, consPort :: !Word8, string :: !Int}
-data EventSansId = EventSansId {-# UNPACK #-} !Parent  !ChangeFlat
+data EventFlat   = EventFlat
+  { eventFlatParent :: {-# UNPACK #-} !Parent
+  , changeFlat      :: {-# UNPACK #-} !ChangeFlat  }
 
 derivingUnbox "ChangeFlat"
     [t| ChangeFlat -> (Word8, Word8, Int) |]
@@ -194,10 +198,10 @@ derivingUnbox "Parent"
     [| \ (Parent a b) -> (a,b) |]
     [| \ (a,b) -> Parent a b |]
 
-derivingUnbox "EventSansId"
-    [t| EventSansId -> (Parent, ChangeFlat) |]
-    [| \ (EventSansId a b) -> (a,b) |]
-    [| \ (a,b) -> EventSansId a b |]
+derivingUnbox "EventFlat"
+    [t| EventFlat -> (Parent, ChangeFlat) |]
+    [| \(EventFlat a b) -> (a,b) |]
+    [| \ (a,b) -> EventFlat a b |]
 
 \end{code}
 
@@ -210,14 +214,14 @@ endEventStream = do
   unsortedStrings <- H.toList stringsHashTable
   putMVar strings . (0 :!:) =<< H.new
   let stringsTable = V.unsafeAccum (\_ -> id) (V.replicate stringsCount (error "uninitialized")) [(i,s) | (s,i) <- unsortedStrings]
-  VG.imap (\ix (EventSansId parent change) ->
-                  Event (ix+1) parent (unflatten stringsTable change)) . VG.convert <$>
+  VG.map (\(EventFlat parent change) ->
+                  Event parent (unflatten stringsTable change)) . VG.convert <$>
     reset (Proxy :: Proxy Vector) events
 
 sendEvent :: Int -> Parent -> Change -> IO ()
 sendEvent nodeId !parent !change = do
   changeFlat <- flatten change
-  write events (nodeId-1) (EventSansId parent changeFlat)
+  write events nodeId (EventFlat parent changeFlat)
 
 unflatten stringsTable (ChangeFlat 0 _ s) = Observe (V.unsafeIndex stringsTable s)
 unflatten stringsTable (ChangeFlat 1 c s) = Cons c  (V.unsafeIndex stringsTable s)
@@ -244,7 +248,7 @@ lookupOrAddString s = do
 -- Since we cannot unbox Strings, these are represented as references to the
 --  strings table
 {-# NOINLINE events #-}
-events :: Rope IO MVector EventSansId
+events :: Rope IO MVector EventFlat
 events = unsafePerformIO $ do
   rope <- new' 10000  -- size of the lazy vectors internal to the rope structure
   return rope
@@ -280,7 +284,7 @@ peepUniq = readIORef uniq
 -- locals
 {-# NOINLINE uniq #-}
 uniq :: IORef UID
-uniq = unsafePerformIO $ newIORef 1
+uniq = unsafePerformIO $ newIORef 0
 
 \end{code}
 
@@ -670,7 +674,7 @@ unsafeWithUniq fn
 \begin{code}
 generateContext :: (a->Parent->a) -> Text -> a -> (a,Int)
 generateContext f {- tti -} label orig = unsafeWithUniq $ \node ->
-     do sendEvent node (Parent 0 0) (Observe label)
+     do sendEvent node root (Observe label)
         return (observer_ f orig (Parent
                       { parentUID      = node
                       , parentPosition = 0

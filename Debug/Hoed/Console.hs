@@ -65,64 +65,45 @@ type Depth = Int
 --
 --   The span in column N is contained below N other spans.
 --   The renderer should draw the columns left to right.
-traceToSpans :: (UID -> Event) -> Trace -> Spans
+traceToSpans :: (UID -> EventWithId) -> Trace -> Spans
 traceToSpans lookupEvent =
   map sort .
   Map.elems .
   Map.fromListWith (++) .
-  map (second (: [])) . snd . foldl' (traceToSpans2' lookupEvent) ([], [])
-
--- Implements a loop where the state is a stack of open spans.
--- Push into the stack when an event starts a new span.
--- Pop when an event closes a span.
--- In order to skip the Observe->Start->Fun sequence
---  , the state also carries a skip counter
--- XXX this version doesn't work well with curried functions
-traceToSpans1' :: (Seq Id, [(Depth, Span)], Int) -> Event -> (Seq Id, [(Depth, Span)], Int)
-traceToSpans1' (stack, result, n) Event{change=Observe{}} = (stack, result, n+2)
-traceToSpans1' (stack, result, 0) e@Event {..}
-  | isStart change = (eventUID <| stack, result, 0)
-  | start :< stack' <- viewl stack
-  , isEnd change =
-    (stack', (Seq.length stack', Span start eventUID True) : result, 0)
-  | otherwise = (stack, result, 0)
-  where
-    isStart Enter {} = True
-    isStart _ = False
-    isEnd Cons {} = True
-    --isEnd Fun {} = True
-    isEnd _ = False
-traceToSpans1' (stack, result, n) e = (stack, result, n-1)
+  map (second (: [])) . snd . VG.ifoldl' (traceToSpans2' lookupEvent) ([], [])
 
 -- This version tries to distinguish between Fun events that terminate a span,
 -- and Fun events that signal a second application of a function
 traceToSpans2'
-  :: (UID -> Event)
+  :: (UID -> EventWithId)
   -> (Seq Id, [(Depth, Span)])
+  -> UID
   -> Event
   -> (Seq Id, [(Depth, Span)])
-traceToSpans2' lookupEv (stack, result) e
-  | isStart (change e) = (eventUID e <| stack, result)
+traceToSpans2' lookupEv (stack, result) uid e
+  | isStart (change e) = (uid <| stack, result)
   | start :< stack' <- viewl stack
-  , isEnd lookupEv e = (stack', (Seq.length stack', Span start (eventUID e) (getPolarity e)) : result)
+  , isEnd lookupEv uid e =
+    ( stack'
+    , (Seq.length stack', Span start uid (getPolarity e)) : result)
   | otherwise = (stack, result)
   where
     isStart Enter {} = True
     isStart _ = False
-    getPolarity Event{change = Observe{}} = True
-    getPolarity Event{eventParent = Parent p 0}
-      | Event{change = Fun} <- lookupEv p
-      = not $ getPolarity (lookupEv p)
-    getPolarity Event{eventParent = Parent p _} = getPolarity (lookupEv p)
+    getPolarity Event {change = Observe {}} = True
+    getPolarity Event {eventParent = Parent p 0}
+      | Event {change = Fun} <- event $ lookupEv p =
+        not $ getPolarity (event $ lookupEv p)
+    getPolarity Event {eventParent = Parent p _} = getPolarity (event $ lookupEv p)
 
-isEnd lookupEv Event {change = Cons {}} = True
-isEnd lookupEv me@Event {change = Fun {}} =
+isEnd lookupEv _ Event {change = Cons {}} = True
+isEnd lookupEv uid me@(Event {change = Fun {}}) =
   case prevEv of
     Event{change = Enter{}} -> eventParent prevEv == eventParent me
     _ -> False
   where
-    prevEv= lookupEv (eventUID me - 1)
-isEnd _ _ = False
+    prevEv= event $ lookupEv (uid - 1)
+isEnd _ _ _ = False
 
 printTrace :: Trace -> IO ()
 printTrace trace =
@@ -130,13 +111,13 @@ printTrace trace =
   renderTrace' lookupEvent lookupDescs (traceToSpans lookupEvent trace, trace)
     -- fast lookup via an array
   where
-    lookupEvent = (trace VG.!) . pred
+    lookupEvent i = EventWithId i (trace VG.! i)
     lookupDescs =
       (fromMaybe [] .
        (`IntMap.lookup` (IntMap.fromListWith
                            (++)
-                           [ (p, [e])
-                           | e@Event {eventParent = Parent p _} <- toList trace
+                           [ (p, [EventWithId uid e])
+                           | (uid, e@Event {eventParent = Parent p _}) <- toList (VG.indexed trace)
                            ])))
 
 -- | TODO to be improved
@@ -150,13 +131,16 @@ renderTrace (spans, trace) = do
   putStrLn "-----"
   mapM_ print spans
 
-renderTrace' :: (UID -> Event) -> (UID -> [Event]) -> (Spans, Trace) -> String
+renderTrace' :: (UID -> EventWithId)
+             -> (UID -> [EventWithId])
+             -> (Spans, Trace)
+             -> String
 renderTrace' lookupEvent lookupDescs (columns, events) = unlines renderedLines
     -- roll :: State -> (Event, Maybe ColumnEvent) -> (State, String)
   where
     depth = length columns
     ((_, evWidth), renderedLines) =
-      mapAccumL roll (replicate (depth + 1) ' ', 0) $ align (toList events) columnEvents
+      mapAccumL roll (replicate (depth + 1) ' ', 0) $ align (uncurry EventWithId <$> toList (VG.indexed events)) columnEvents
     -- Merge trace events and column events
     align (ev:evs) (colEv@(rowIx, colIx, pol, isStart):colEvs)
       | eventUID ev == rowIx = (ev, Just (colIx, pol, isStart)) : align evs colEvs
@@ -198,53 +182,53 @@ renderTrace' lookupEvent lookupDescs (columns, events) = unlines renderedLines
     showWithExplains ev
       | showEv <- show ev
       , l <- length showEv =
-        (l, showEv ++ replicate (evWidth - l) ' ' ++ explain ev)
+        (l, showEv ++ replicate (evWidth - l) ' ' ++ explain (eventUID ev) (event ev))
     -- Value requests
-    explain Event {eventParent = Parent p 0, change = Enter}
-      | Event {change = Fun, eventParent = Parent p' _} <- lookupEvent p
-      , (name,dist) <- findRoot (lookupEvent p') =
+    explain uid Event {eventParent = Parent p 0, change = Enter}
+      | Event {change = Fun, eventParent = Parent p' _} <- event $ lookupEvent p
+      , (name,dist) <- findRoot (event $ lookupEvent p') =
         "-- request arg of " ++ unpack name ++ "/" ++ show (dist + 1)
-    explain Event {eventParent = Parent p 1, change = Enter}
-      | Event {change = Fun, eventParent = Parent p' _} <- lookupEvent p
-      , (name,dist) <- findRoot (lookupEvent p') =
+    explain uid Event {eventParent = Parent p 1, change = Enter}
+      | Event {change = Fun, eventParent = Parent p' _} <- event $ lookupEvent p
+      , (name,dist) <- findRoot (event $ lookupEvent p') =
         "-- request result of " ++ unpack name ++ "/" ++ show (dist+1)
-    explain Event {eventParent = Parent p 0, change = Enter}
-      | Event {change = Observe name} <- lookupEvent p =
+    explain uid Event {eventParent = Parent p 0, change = Enter}
+      | Event {change = Observe name} <- event $ lookupEvent p =
         "-- request value of " ++ unpack name
-    explain Event {eventParent = Parent p i, change = Enter}
-      | Event {change = Cons ar name} <- lookupEvent p =
+    explain uid Event {eventParent = Parent p i, change = Enter}
+      | Event {change = Cons ar name} <- event $ lookupEvent p =
         "-- request value of arg " ++ show i ++ " of constructor " ++ unpack name
     -- Arguments of functions
-    explain me@Event {eventParent = Parent p 0, change = it@FunOrCons}
-      | Event {change = Fun, eventParent = Parent p' _} <- lookupEvent p
-      , (name,dist) <- findRoot (lookupEvent p') =
+    explain uid me@Event {eventParent = Parent p 0, change = it@FunOrCons}
+      | Event {change = Fun, eventParent = Parent p' _} <- event $ lookupEvent p
+      , (name,dist) <- findRoot (event $ lookupEvent p') =
         "-- arg " ++ show (dist+1) ++ " of " ++ unpack name ++ " is " ++ showChange it
     -- Results of functions
-    explain Event {eventParent = Parent p 1, change = it@Fun}
-      | Event {change = Fun, eventParent = Parent p' _} <- lookupEvent p
-      , (name,dist) <- findRoot (lookupEvent p') =
+    explain uid Event {eventParent = Parent p 1, change = it@Fun}
+      | Event {change = Fun, eventParent = Parent p' _} <- event $ lookupEvent p
+      , (name,dist) <- findRoot (event $ lookupEvent p') =
         "-- result of " ++ unpack name ++ "/" ++ show (dist+1) ++ " is a function"
-    explain me@Event {eventParent = Parent p 1, change = Cons{}}
-      | Event {change = Fun, eventParent = Parent p' _} <- lookupEvent p
-      , (name,dist) <- findRoot (lookupEvent p')
+    explain uid me@Event {eventParent = Parent p 1, change = Cons{}}
+      | Event {change = Fun, eventParent = Parent p' _} <- event $ lookupEvent p
+      , (name,dist) <- findRoot (event $ lookupEvent p')
       , arg <- findArg p =
-        "-- " ++ unpack name ++ "/" ++ show (dist+1) ++ " " ++ arg ++" = " ++ findValue lookupDescs me
+        "-- " ++ unpack name ++ "/" ++ show (dist+1) ++ " " ++ arg ++" = " ++ findValue lookupDescs (EventWithId uid me)
     -- Descendants of Cons events
-    explain Event {eventParent = Parent p i, change = Cons _ name}
-      | Event {change = Cons ar name'} <- lookupEvent p =
+    explain uid Event {eventParent = Parent p i, change = Cons _ name}
+      | Event {change = Cons ar name'} <- event $ lookupEvent p =
         "-- arg " ++ show i ++ " of constructor " ++ unpack name' ++ " is " ++ unpack name
     -- Descendants of root events
-    explain Event {eventParent = Parent p i, change = Fun}
-      | Event {change = Observe name} <- lookupEvent p =
+    explain uid Event {eventParent = Parent p i, change = Fun}
+      | Event {change = Observe name} <- event $ lookupEvent p =
         "-- " ++ unpack name ++ " is a function"
-    explain me@Event {eventParent = Parent p i, change = Cons{}}
-      | Event {change = Observe name} <- lookupEvent p =
-        "-- " ++ unpack name ++ " = " ++ findValue lookupDescs me
-    explain _ = ""
+    explain uid me@Event {eventParent = Parent p i, change = Cons{}}
+      | Event {change = Observe name} <- event $ lookupEvent p =
+        "-- " ++ unpack name ++ " = " ++ findValue lookupDescs (EventWithId uid me)
+    explain _ _ = ""
 
     -- Returns the root observation for this event, together with the distance to it
     findRoot Event{change = Observe name} = (name, 0)
-    findRoot Event{eventParent} = succ <$> findRoot (lookupEvent $ parentUID eventParent)
+    findRoot Event{eventParent} = succ <$> findRoot (event $ lookupEvent $ parentUID eventParent)
 
     variableNames = map (:[]) ['a'..'z']
 
@@ -252,26 +236,33 @@ renderTrace' lookupEvent lookupDescs (columns, events) = unlines renderedLines
     showChange (Cons ar name) = "constructor " ++ unpack name
 
     findArg eventUID =
-      case [ e | e@Event{eventParent = Parent p 0, change = Cons{}} <- lookupDescs eventUID] of
+      case [ e | e@(event -> Event{eventParent = Parent p 0, change = Cons{}}) <- lookupDescs eventUID] of
         [cons] -> findValue lookupDescs cons
         other  -> error $ "Unexpected set of descendants of " ++ show eventUID ++ ": Fun - " ++ show other
 
-findValue :: (UID -> [Event]) -> Event -> String
-findValue lookupDescs = go where
-  go Event{eventUID = me, change=ConsChar c} = show c
-  go Event{eventUID = me, change=Cons ar name}
-    | ar == 0 = unpack name
-    | isAlpha(T.head name)
-    = unpack name ++ " " ++ unwords (map go $ sortOn (parentPosition . eventParent) [ e | e@Event{change = Cons{}} <- lookupDescs me])
-    | ar == 1
-    , [a] <- [ e | e@Event{change = Cons{}} <- lookupDescs me]
-    = unpack name ++ go a
-    | ar == 2
-    , [a,b] <- sortOn (parentPosition . eventParent) [ e | e@Event{change = Cons{}} <- lookupDescs me]
-    = unwords [go a, unpack name, go b]
-  go Event{eventUID, change=Enter{}}
-    | [e] <- lookupDescs eventUID = go e
-  go other = error $ show other
+findValue :: (UID -> [EventWithId]) -> EventWithId -> String
+findValue lookupDescs = go
+  where
+    go :: EventWithId -> String
+    go EventWithId {eventUID = me, event = Event {change = ConsChar c}} = show c
+    go EventWithId {eventUID = me, event = Event {change = Cons ar name}}
+      | ar == 0 = unpack name
+      | isAlpha (T.head name) =
+        unpack name ++
+        " " ++
+        unwords
+          (map go $
+           sortOn
+             (parentPosition . eventParent . event)
+             [e | e@EventWithId {event = Event {change = Cons {}}} <- lookupDescs me])
+      | ar == 1
+      , [a] <- [e | e@EventWithId {event = Event {change = Cons {}}} <- lookupDescs me] = unpack name ++ go a
+      | ar == 2
+      , [a, b] <- sortOn (parentPosition . eventParent . event) [e | e@(event -> Event {change = Cons {}}) <- lookupDescs me] =
+        unwords [go a, unpack name, go b]
+    go EventWithId {eventUID, event = Event {change = Enter {}}}
+      | [e] <- lookupDescs eventUID = go e
+    go other = error $ show other
 
 data RequestDetails = RD Int Explanation
 
@@ -297,16 +288,16 @@ showRequest (RD n (Return _ (ReturnCons name ar _))) = unwords ["arg", show n, "
 showReturn (RD p (Observation obs)) ReturnFun = unwords ["result of ", obs, "is a function"]
 showReturn (RD p req) (ReturnCons name ar val) = unwords [show req, "=", val]
 
-buildExplanation :: (UID -> Event) -> (UID -> [Event]) -> Event -> Explanation
-buildExplanation lookupEvent lookupDescs = go where
+buildExplanation :: (UID -> EventWithId) -> (UID -> [EventWithId]) -> EventWithId -> Explanation
+buildExplanation lookupEvent lookupDescs = go . event where
   go Event{eventParent = Parent p pos, change = Enter}
-    | par <- go (lookupEvent p)
+    | par <- go (event $ lookupEvent p)
     = Request (RD 0 par)
   go Event{eventParent = Parent p pos, change = Fun}
-    | Request rd <- go (lookupEvent p)
+    | Request rd <- go (event $ lookupEvent p)
     = Return rd ReturnFun
   go Event{eventParent = Parent p pos, change = Cons ar name}
-    | Request rd <- go (lookupEvent p)
+    | Request rd <- go (event $ lookupEvent p)
     , value <- findValue lookupDescs (lookupEvent p)
     = Return rd (ReturnCons name ar value)
 

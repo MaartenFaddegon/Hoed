@@ -62,8 +62,9 @@ import           Data.Maybe
 import           Data.Semigroup
 import           Data.Text (Text, pack, unpack)
 import qualified Data.Text as T
-import           Data.Vector.Mutable as VM (IOVector)
+import qualified Data.Vector.Generic as VG
 import qualified Data.Vector.Generic.Mutable as VM
+import           Data.Vector.Mutable as VM (IOVector)
 import qualified Data.Vector.Unboxed    as U
 import           Data.Word
 import           GHC.Exts               (IsList (..))
@@ -281,12 +282,12 @@ collectEventDetails v e = do
 -- When we see a Fun event whose parent is not a Fun event it is a top level Fun event,
 -- otherwise just copy the reference to the top level Fun event from the parent.
 -- A top level Fun event references itself.
-mkFunDetails :: EventDetailsStore s -> Event -> IO EventDetails
-mkFunDetails s e = do
+mkFunDetails :: EventDetailsStore s -> UID -> Event -> IO EventDetails
+mkFunDetails s uid e = do
     let p = eventParent e
     ed  <- getEventDetails s (parentUID p)
     let !loc = locations ed (parentPosition p)
-        !top = getTopLvlFunOr (eventUID e) ed
+        !top = getTopLvlFunOr uid ed
         locFun 0 = not loc
         locFun 1 = loc
     return $ EventDetails (TopLvlFun top) locFun
@@ -353,9 +354,9 @@ mkConsMap l t =
       when (isCons (change e)) $ do
           let p = eventParent e
 #if __GLASGOW_HASKELL__ >= 800
-          VM.unsafeModify v (`setBit` fromIntegral(parentPosition p)) (parentUID p - 1)
+          VM.unsafeModify v (`setBit` fromIntegral(parentPosition p)) (parentUID p)
 #else
-          let ix = parentUID p - 1
+          let ix = parentUID p
           x <- VM.unsafeRead v ix
           VM.unsafeWrite v ix (x `setBit` parentPosition p)
 #endif
@@ -366,7 +367,7 @@ mkConsMap l t =
     isCons _ = False
 
 corToCons :: ConsMap -> Event -> Bool
-corToCons cm e = case U.unsafeIndex cm (parentUID p - 1) of
+corToCons cm e = case U.unsafeIndex cm (parentUID p) of
                    0 -> False
                    other -> testBit other (fromIntegral $ parentPosition p)
   where p = eventParent e
@@ -376,22 +377,22 @@ corToCons cm e = case U.unsafeIndex cm (parentUID p - 1) of
 traceInfo :: Int -> Trace -> IO TraceInfo
 traceInfo l trc = do
   -- Practically speaking, event UIDs start in 1
-  v <- VM.replicate (l+1) $ EventDetails noTopLvlFun (const False)
-  let loop !s e = do
-        when (eventUID e `mod` l100 == 0) $ putStr "."
+  v <- VM.replicate l $ EventDetails noTopLvlFun (const False)
+  let loop !s uid e = do
+        when (uid `mod` l100 == 0) $ putStr "."
         case (change e) of
           Observe {} -> do
-            setEventDetails v (eventUID e) (EventDetails noTopLvlFun (const True))
+            setEventDetails v uid (EventDetails noTopLvlFun (const True))
             return s
           Fun {} -> do
-            setEventDetails v (eventUID e) =<< mkFunDetails v e
+            setEventDetails v uid =<< mkFunDetails v uid e
             return s
             -- Span start
           Enter {}
             | corToCons cs e -> do
               (loc, top) <- collectEventDetails v e
               let !details = EventDetails (TopLvlFun top) (const loc)
-              setEventDetails v (eventUID e) details
+              setEventDetails v uid details
               return $ if loc
                   then addDependency e . start e details $ s
                   else pause e details s
@@ -400,11 +401,11 @@ traceInfo l trc = do
           other -> do
             (loc, top) <- collectEventDetails v e
             let !details = EventDetails (TopLvlFun top) (const loc)
-            setEventDetails v (eventUID e) details
+            setEventDetails v uid details
             return $ if loc
               then stop e details s
               else resume e details s
-  F.foldlM loop s0 trc
+  VG.ifoldM' loop s0 trc
   where
     l100 = l `div` 100
     s0 :: TraceInfo
