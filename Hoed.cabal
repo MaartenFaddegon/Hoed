@@ -46,6 +46,7 @@ library
                        , process
                        , libgraph == 1.14
                        , regex-tdfa
+                       , regex-tdfa-text
                        , directory
                        , bytestring
                        , cereal, cereal-text, cereal-vector

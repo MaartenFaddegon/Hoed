@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 -- This file is part of the Haskell debugger Hoed.
 --
 -- Copyright (c) Maarten Faddegon 2015-2016
@@ -15,6 +16,7 @@ import Debug.Hoed.CompTree(CompTree,Vertex(..),Graph(..),vertexUID,vertexRes,rep
 import Debug.Hoed.EventForest(EventForest,mkEventForest,dfsChildren)
 import Debug.Hoed.Serialize
 import qualified Data.IntMap as M
+import qualified Data.Text as T
 import Prelude hiding (Right)
 import Data.Graph.Libgraph(Judgement(..),AssistedMessage(..),mapGraph)
 import System.Directory(createDirectoryIfMissing)
@@ -109,7 +111,7 @@ traceFilePath = ".Hoed/savedTrace."
 lookupPropositions :: [Propositions] -> Vertex -> Maybe Propositions
 lookupPropositions _ RootVertex = Nothing
 lookupPropositions ps v = lookupWith funName lbl ps
-  where lbl = (stmtLabel . vertexStmt) v
+  where lbl = (T.unpack . stmtLabel . vertexStmt) v
 
 lookupWith :: Eq a => (b->a) -> a -> [b] -> Maybe b
 lookupWith f x ys = case filter (\y -> f y == x) ys of
@@ -331,7 +333,7 @@ generateCode handler trc v prop ms = do
   where 
   prgm = generate handler prop ms trc ((trc VG.!) . pred) i f
   i    = (stmtIdentifier . vertexStmt) v
-  f    = (stmtLabel . vertexStmt) v
+  f    = (T.unpack . stmtLabel . vertexStmt) v
 
 mkPropRes :: Proposition -> ExitCode -> String -> PropRes
 mkPropRes prop (ExitFailure _) out        = Error prop out
@@ -587,7 +589,7 @@ generateExpr unevalGen _ _ _ Nothing    = unevalGen
 generateExpr unevalGen trc getEvent frt (Just e) = 
   -- (propVarReturn $ "{- generateExpr " ++ show e ++ "-}") `pvCat` 
   case change e of
-  (Cons _ s) -> let s' = if isAlpha (head s) then s else "(" ++ s ++ ")"
+  (Cons _ (T.unpack -> s)) -> let s' = if isAlpha (head s) then s else "(" ++ s ++ ")"
                 in liftPV (++) ( foldl (liftPV $ \acc c -> acc ++ " " ++ c)
                                  (propVarReturn ("(" ++ s')) cs
                                ) 

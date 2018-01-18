@@ -15,6 +15,7 @@
 --
 -- Copyright (c) Maarten Faddegon, 2015
 
+
 module Debug.Hoed.CompTree
 ( CompTree
 , Vertex(..)
@@ -139,7 +140,7 @@ leafs g = filter (not . (`Set.member` nonLeafs)) (vertices g)
 -- of the unjudged computation statements (i.e not Right or Wrong) in the tree.
 unjudgedCharacterCount :: CompTree -> Int
 unjudgedCharacterCount = sum . map characterCount . filter unjudged . vertices
-  where characterCount = length . stmtLabel . vertexStmt
+  where characterCount = fromIntegral . T.length . stmtLabel . vertexStmt
 
 unjudged :: Vertex -> Bool
 unjudged = not . judged

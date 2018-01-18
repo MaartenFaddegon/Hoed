@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 import Debug.Hoed
 import System.Process(system)
 import System.Exit(exitWith)

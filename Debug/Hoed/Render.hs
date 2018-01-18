@@ -39,7 +39,8 @@ import           Data.Word
 import           Debug.Hoed.Compat
 import           Debug.Hoed.Observe
 import           GHC.Generics
-import           Text.PrettyPrint.FPretty hiding (sep, (<$>))
+import           Text.PrettyPrint.FPretty hiding (sep, (<$>), text)
+import qualified Text.PrettyPrint.FPretty as FPretty
 import           Text.Read
 
 
@@ -53,7 +54,7 @@ import           Text.Read
 -- event that starts the observation. And stmtUIDs is the list of
 -- UIDs of all events that form the statement.
 
-data CompStmt = CompStmt { stmtLabel      :: !String
+data CompStmt = CompStmt { stmtLabel      :: !Text
                          , stmtIdentifier :: !UID
                          , stmtDetails    :: !StmtDetails
                          }
@@ -123,7 +124,7 @@ renderCompStmt (CDSNamed name uid set) = do
 
 renderCompStmt other = error $ show other
 
-renderNamedTop :: (?statementWidth::Int) => String -> UID -> Output -> InternM s [CompStmt]
+renderNamedTop :: (?statementWidth::Int) => Text -> UID -> Output -> InternM s [CompStmt]
 renderNamedTop name observeUid (OutData cds) = mapM f pairs
   where
     f (args, res, Just i) =
@@ -152,9 +153,9 @@ nubSorted (a:as)    = a : nubSorted as
 -- %*                                                                   *
 -- %************************************************************************
 
-data CDS = CDSNamed      !String !UID !CDSSet
-         | CDSCons       !UID    !String   ![CDSSet]
-         | CDSFun        !UID              !CDSSet !CDSSet
+data CDS = CDSNamed      !Text !UID    !CDSSet
+         | CDSCons       !UID  !Text   ![CDSSet]
+         | CDSFun        !UID  !CDSSet !CDSSet
          | CDSEntered    !UID
          | CDSTerminated !UID
          | CDSChar       !Char   -- only used internally in eventsToCDS
@@ -164,8 +165,8 @@ data CDS = CDSNamed      !String !UID !CDSSet
 instance NFData CDS
 
 normalizeCDS :: CDS -> CDS
-normalizeCDS (CDSString s) = CDSCons 0 (show s) []
-normalizeCDS (CDSChar   s) = CDSCons 0 (show s) []
+normalizeCDS (CDSString s) = CDSCons 0 (pack $ show s) []
+normalizeCDS (CDSChar   s) = CDSCons 0 (pack $ show s) []
 normalizeCDS other = other
 type CDSSet = [CDS]
 
@@ -212,7 +213,7 @@ eventsToCDS pairs = getChild 0 0
        , pport == pport'
        ]
 
-simplifyCons :: UID -> String -> [CDSSet] -> CDS
+simplifyCons :: UID -> Text -> [CDSSet] -> CDS
 simplifyCons _ "throw" [[CDSCons _ "ErrorCall" set]]
   = CDSCons 0 "error" set
 simplifyCons _ ":" [[CDSChar !ch], [CDSCons _ "[]" []]]
@@ -235,8 +236,8 @@ render _prec _par (CDSCons _ "," cdss) | not (null cdss) =
                             (map renderSet cdss) <>
                 ")")
 render prec _par (CDSCons _ name cdss)
-  | _:_ <- name
-  , (not . isAlpha . head) name && length cdss > 1 = -- render as infix
+  | not (T.null name)
+  , (not . isAlpha . T.head) name && length cdss > 1 = -- render as infix
         paren (prec /= 0)
                   (grp
                     (renderSet' 10 False (head cdss)
@@ -294,13 +295,13 @@ renderFn (args, res)
                 )
                )
 
-renderNamedCons :: String -> CDSSet -> Doc
+renderNamedCons :: Text -> CDSSet -> Doc
 renderNamedCons name cons
   = text name <> nest 2
      ( sep <> grp (text "= " <> renderSet cons)
      )
 
-renderNamedFn :: String -> ([CDSSet],CDSSet) -> Doc
+renderNamedFn :: Text -> ([CDSSet],CDSSet) -> Doc
 renderNamedFn name (args,res)
   = text name <> nest 2
      ( sep <> foldr (\ a b -> grp (renderSet' 10 False a) <> sep <> b) nil args
@@ -326,7 +327,7 @@ paren :: Bool -> Doc -> Doc
 paren False doc = grp doc
 paren True  doc = grp ( "(" <> doc <> ")")
 
-data Output = OutLabel String CDSSet [Output]
+data Output = OutLabel Text CDSSet [Output]
             | OutData  CDS
               deriving (Eq,Ord,Show)
 
@@ -351,3 +352,6 @@ sep :: Doc
 sep = softline  -- A space, if the following still fits on the current line, otherwise newline.
 sp :: Doc
 sp = " "   -- A space, always.
+
+-- TODO fork FPretty to build on Text instead of Strings
+text = FPretty.text . unpack

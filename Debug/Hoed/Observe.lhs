@@ -14,6 +14,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE CPP #-}
 
@@ -101,9 +102,11 @@ import Data.Array as Array
 import qualified Data.HashTable.IO as H
 import Data.List (sortOn)
 import Data.Maybe
+import Data.Monoid ((<>))
 import Data.Proxy
 import Data.Rope.Mutable (Rope, new', write, reset)
 import Data.Strict.Tuple (Pair(..))
+import Data.Text (Text, pack)
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic as VG
 import Data.Vector.Unboxed (Vector)
@@ -153,9 +156,9 @@ data Event = Event
         deriving (Eq,Generic)
 
 data Change
-        = Observe         !String
-        | Cons     !Word8 !String
-        | ConsChar !Char
+        = Observe          !Text
+        | Cons     !Word8  !Text
+        | ConsChar         !Char
         | Enter
         | Fun
         deriving (Eq, Show,Generic)
@@ -248,7 +251,7 @@ events = unsafePerformIO $ do
 
 
 {-# NOINLINE strings #-}
-strings :: MVar(Pair Int (H.CuckooHashTable String Int))
+strings :: MVar(Pair Int (H.CuckooHashTable Text Int))
 strings = unsafePerformIO $ do
   h <- H.newSized 100000  -- suggested capacity for the hash table
   newMVar (0 :!: h)
@@ -303,7 +306,7 @@ class Observable a where
 class GObservable f where
         gdmobserver :: f a -> Parent -> f a
         gdmObserveArgs :: f a -> ObserverM (f a)
-        gdmShallowShow :: f a -> String
+        gdmShallowShow :: f a -> Text
 
 constrainBase :: (Show a, Eq a) => a -> a -> a
 constrainBase x c | x == c = x
@@ -353,7 +356,7 @@ instance (GObservable a, Selector s) => GObservable (M1 S s a) where
 instance (GObservable a, Constructor c) => GObservable (M1 C c a) where
  gdmobserver m1 = send (gdmShallowShow m1) (gdmObserveArgs m1)
  gdmObserveArgs (M1 x) = do {x' <- gdmObserveArgs x; return (M1 x')}
- gdmShallowShow = conName
+ gdmShallowShow = pack . conName
 
 -- Unit: used for constructors without arguments
 instance GObservable U1 where
@@ -441,9 +444,9 @@ instance Observable ()      where observer  = observeOpaque "()"
 -- we evalute to WHNF, and not further.
 
 observeBase :: (Show a) => a -> Parent -> a
-observeBase lit cxt = seq lit $ send (show lit) (return lit) cxt
+observeBase lit cxt = seq lit $ send (pack $ show lit) (return lit) cxt
 
-observeOpaque :: String -> a -> Parent -> a
+observeOpaque :: Text -> a -> Parent -> a
 observeOpaque str val cxt = seq val $ send str (return val) cxt
 \end{code}
 
@@ -503,7 +506,7 @@ The Exception *datatype* (not exceptions themselves!).
 
 \begin{code}
 instance Observable SomeException where
-  observer e = send ("<Exception> " ++ show e) (return e)
+  observer e = send ("<Exception> " <> pack(show e)) (return e)
   constrain = undefined
 
 -- instance Observable ErrorCall where
@@ -604,7 +607,7 @@ Our principle function and class
 -- 'observe' can also observe functions as well a structural values.
 -- 
 {-# NOINLINE gobserve #-}
-gobserve :: (a->Parent->a) -> String -> a -> (a,Int)
+gobserve :: (a->Parent->a) -> Text -> a -> (a,Int)
 gobserve f name a = generateContext f name a
 
 {- | 
@@ -637,7 +640,7 @@ an Observable instance can be derived as follows:
 @
 -}
 {-# NOINLINE observe #-}
-observe ::  (Observable a) => String -> a -> a
+observe ::  (Observable a) => Text -> a -> a
 observe lbl = fst . (gobserve observer lbl)
 
 {- This gets called before observer, allowing us to mark
@@ -665,7 +668,7 @@ unsafeWithUniq fn
 \end{code}
 
 \begin{code}
-generateContext :: (a->Parent->a) -> String -> a -> (a,Int)
+generateContext :: (a->Parent->a) -> Text -> a -> (a,Int)
 generateContext f {- tti -} label orig = unsafeWithUniq $ \node ->
      do sendEvent node (Parent 0 0) (Observe label)
         return (observer_ f orig (Parent
@@ -674,7 +677,7 @@ generateContext f {- tti -} label orig = unsafeWithUniq $ \node ->
                       })
                , node)
 
-send :: String -> ObserverM a -> Parent -> a
+send :: Text -> ObserverM a -> Parent -> a
 send consLabel fn context = unsafeWithUniq $ \ node ->
      do { let (r,portCount) = runMO fn node 0
         ; sendEvent node context (Cons portCount consLabel)
@@ -746,7 +749,7 @@ ourCatchAllIO = Exception.catch
 
 handleExc :: Parent -> SomeException -> IO a
 -- handleExc context exc = return (send "throw" (return throw << exc) context)
-handleExc context exc = return (send (show exc) (return (throw exc)) context)
+handleExc context exc = return (send (pack $ show exc) (return (throw exc)) context)
 \end{code}
 
 %************************************************************************

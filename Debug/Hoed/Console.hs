@@ -23,7 +23,9 @@ import           Data.Maybe
 import           Data.Sequence            (Seq, ViewL (..), viewl, (<|))
 import qualified Data.Sequence            as Seq
 import qualified Data.Set                 as Set
-import           Data.Text (unpack)
+import           Data.Text (Text, unpack)
+import qualified Data.Text                as T
+import qualified Data.Text.IO             as T
 import qualified Data.Vector              as V
 import qualified Data.Vector.Generic      as VG
 import           Data.Word
@@ -41,6 +43,7 @@ import           System.IO
 import           System.Process
 import           Text.PrettyPrint.FPretty hiding ((<$>))
 import           Text.Regex.TDFA
+import           Text.Regex.TDFA.Text
 import           Web.Browser
 
 {-# ANN module ("HLint: ignore Use camelCase" :: String) #-}
@@ -200,43 +203,43 @@ renderTrace' lookupEvent lookupDescs (columns, events) = unlines renderedLines
     explain Event {eventParent = Parent p 0, change = Enter}
       | Event {change = Fun, eventParent = Parent p' _} <- lookupEvent p
       , (name,dist) <- findRoot (lookupEvent p') =
-        "-- request arg of " ++ name ++ "/" ++ show (dist + 1)
+        "-- request arg of " ++ unpack name ++ "/" ++ show (dist + 1)
     explain Event {eventParent = Parent p 1, change = Enter}
       | Event {change = Fun, eventParent = Parent p' _} <- lookupEvent p
       , (name,dist) <- findRoot (lookupEvent p') =
-        "-- request result of " ++ name ++ "/" ++ show (dist+1)
+        "-- request result of " ++ unpack name ++ "/" ++ show (dist+1)
     explain Event {eventParent = Parent p 0, change = Enter}
       | Event {change = Observe name} <- lookupEvent p =
-        "-- request value of " ++ name
+        "-- request value of " ++ unpack name
     explain Event {eventParent = Parent p i, change = Enter}
       | Event {change = Cons ar name} <- lookupEvent p =
-        "-- request value of arg " ++ show i ++ " of constructor " ++ name
+        "-- request value of arg " ++ show i ++ " of constructor " ++ unpack name
     -- Arguments of functions
     explain me@Event {eventParent = Parent p 0, change = it@FunOrCons}
       | Event {change = Fun, eventParent = Parent p' _} <- lookupEvent p
       , (name,dist) <- findRoot (lookupEvent p') =
-        "-- arg " ++ show (dist+1) ++ " of " ++ name ++ " is " ++ showChange it
+        "-- arg " ++ show (dist+1) ++ " of " ++ unpack name ++ " is " ++ showChange it
     -- Results of functions
     explain Event {eventParent = Parent p 1, change = it@Fun}
       | Event {change = Fun, eventParent = Parent p' _} <- lookupEvent p
       , (name,dist) <- findRoot (lookupEvent p') =
-        "-- result of " ++ name ++ "/" ++ show (dist+1) ++ " is a function"
+        "-- result of " ++ unpack name ++ "/" ++ show (dist+1) ++ " is a function"
     explain me@Event {eventParent = Parent p 1, change = Cons{}}
       | Event {change = Fun, eventParent = Parent p' _} <- lookupEvent p
       , (name,dist) <- findRoot (lookupEvent p')
       , arg <- findArg p =
-        "-- " ++ name ++ "/" ++ show (dist+1) ++ " " ++ arg ++" = " ++ findValue lookupDescs me
+        "-- " ++ unpack name ++ "/" ++ show (dist+1) ++ " " ++ arg ++" = " ++ findValue lookupDescs me
     -- Descendants of Cons events
     explain Event {eventParent = Parent p i, change = Cons _ name}
       | Event {change = Cons ar name'} <- lookupEvent p =
-        "-- arg " ++ show i ++ " of constructor " ++ name' ++ " is " ++ name
+        "-- arg " ++ show i ++ " of constructor " ++ unpack name' ++ " is " ++ unpack name
     -- Descendants of root events
     explain Event {eventParent = Parent p i, change = Fun}
       | Event {change = Observe name} <- lookupEvent p =
-        "-- " ++ name ++ " is a function"
+        "-- " ++ unpack name ++ " is a function"
     explain me@Event {eventParent = Parent p i, change = Cons{}}
       | Event {change = Observe name} <- lookupEvent p =
-        "-- " ++ name ++ " = " ++ findValue lookupDescs me
+        "-- " ++ unpack name ++ " = " ++ findValue lookupDescs me
     explain _ = ""
 
     -- Returns the root observation for this event, together with the distance to it
@@ -246,7 +249,7 @@ renderTrace' lookupEvent lookupDescs (columns, events) = unlines renderedLines
     variableNames = map (:[]) ['a'..'z']
 
     showChange Fun = "a function"
-    showChange (Cons ar name) = "constructor " ++ name
+    showChange (Cons ar name) = "constructor " ++ unpack name
 
     findArg eventUID =
       case [ e | e@Event{eventParent = Parent p 0, change = Cons{}} <- lookupDescs eventUID] of
@@ -257,15 +260,15 @@ findValue :: (UID -> [Event]) -> Event -> String
 findValue lookupDescs = go where
   go Event{eventUID = me, change=ConsChar c} = show c
   go Event{eventUID = me, change=Cons ar name}
-    | ar == 0 = name
-    | isAlpha(head name)
-    = name ++ " " ++ unwords (map go $ sortOn (parentPosition . eventParent) [ e | e@Event{change = Cons{}} <- lookupDescs me])
+    | ar == 0 = unpack name
+    | isAlpha(T.head name)
+    = unpack name ++ " " ++ unwords (map go $ sortOn (parentPosition . eventParent) [ e | e@Event{change = Cons{}} <- lookupDescs me])
     | ar == 1
     , [a] <- [ e | e@Event{change = Cons{}} <- lookupDescs me]
-    = name ++ go a
+    = unpack name ++ go a
     | ar == 2
     , [a,b] <- sortOn (parentPosition . eventParent) [ e | e@Event{change = Cons{}} <- lookupDescs me]
-    = unwords [go a, name, go b]
+    = unwords [go a, unpack name, go b]
   go Event{eventUID, change=Enter{}}
     | [e] <- lookupDescs eventUID = go e
   go other = error $ show other
@@ -274,7 +277,7 @@ data RequestDetails = RD Int Explanation
 
 data ReturnDetails
   = ReturnFun
-  | ReturnCons { constructor :: String, arity :: Word8, value :: String }
+  | ReturnCons { constructor :: Text, arity :: Word8, value :: String}
 
 data Explanation
   = Observation String
@@ -289,7 +292,7 @@ instance Show Explanation where
 showRequest (RD 0 (Observation name)) = unwords ["value of", name]
 showRequest (RD 0 (Return (RD _ (Observation name)) ReturnFun)) = unwords ["arg of", name]
 showRequest (RD 1 (Return (RD _ (Observation name)) ReturnFun)) = unwords ["result of", name]
-showRequest (RD n (Return _ (ReturnCons name ar _))) = unwords ["arg", show n, "of constructor", name ]
+showRequest (RD n (Return _ (ReturnCons name ar _))) = unwords ["arg", show n, "of constructor", unpack name ]
 
 showReturn (RD p (Observation obs)) ReturnFun = unwords ["result of ", obs, "is a function"]
 showReturn (RD p req) (ReturnCons name ar val) = unwords [show req, "=", val]
@@ -468,14 +471,14 @@ mainLoop cv trace compTree ps =
 
 listStmts :: CompTree -> Regex -> IO ()
 listStmts g regex =
-  putStrLn $
-  unlines $
+  T.putStrLn $
+  T.unlines $
   snub $
   map (stmtLabel . vertexStmt . G.root) $
   selectVertices (\v -> matchLabel v && isRelevantToUser g v) g
   where
     matchLabel RootVertex = False
-    matchLabel v          = match regex (stmtLabel $ vertexStmt v)
+    matchLabel v          = match regex (unpack $ stmtLabel $ vertexStmt v)
     snub = map head . List.group . sort
 
 -- Restricted to statements for lambda functions or top level constants.
