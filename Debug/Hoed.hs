@@ -199,6 +199,7 @@ module Debug.Hoed
 
 import Control.DeepSeq
 import Control.Monad
+import qualified Data.Vector.Generic as VG
 import           Debug.Hoed.CompTree
 import           Debug.Hoed.Console
 import           Debug.Hoed.Observe
@@ -350,7 +351,7 @@ runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
   t2 <- getTime Monotonic
   let programTime = toSecs(diffTimeSpec t1 t2)
   condPutStrLn verbose $ "\n=== program terminated (" ++ show programTime ++ " seconds) ==="
-  let e = length events
+  let e = VG.length events
 
 #if defined(DEBUG)
   writeFile ".Hoed/Events"     (unlines . map show $ toList events)

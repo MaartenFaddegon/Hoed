@@ -100,6 +100,7 @@ import Control.Concurrent.MVar
 import Control.Monad
 import Data.Array as Array
 import qualified Data.HashTable.IO as H
+import Data.IORef
 import Data.List (sortOn)
 import Data.Maybe
 import Data.Monoid ((<>))
@@ -182,31 +183,10 @@ root = Parent (-1) 0
 
 isRootEvent :: Event -> Bool
 isRootEvent e = case change e of Observe{} -> True; _ -> False
-
-data ChangeFlat  = ChangeFlat {changeType :: !Word8, consPort :: !Word8, string :: !Int}
-data EventFlat   = EventFlat
-  { eventFlatParent :: {-# UNPACK #-} !Parent
-  , changeFlat      :: {-# UNPACK #-} !ChangeFlat  }
-
-derivingUnbox "ChangeFlat"
-    [t| ChangeFlat -> (Word8, Word8, Int) |]
-    [| \ (ChangeFlat a b c) -> (a,b,c) |]
-    [| \ (a,b,c) -> ChangeFlat a b c |]
-
-derivingUnbox "Parent"
-    [t| Parent -> (UID, ParentPosition) |]
-    [| \ (Parent a b) -> (a,b) |]
-    [| \ (a,b) -> Parent a b |]
-
-derivingUnbox "EventFlat"
-    [t| EventFlat -> (Parent, ChangeFlat) |]
-    [| \(EventFlat a b) -> (a,b) |]
-    [| \ (a,b) -> EventFlat a b |]
-
 \end{code}
 
 \begin{code}
-type Trace = V.Vector Event
+type Trace = Vector Event
 
 endEventStream :: IO Trace
 endEventStream = do
@@ -214,26 +194,12 @@ endEventStream = do
   unsortedStrings <- H.toList stringsHashTable
   putMVar strings . (0 :!:) =<< H.new
   let stringsTable = V.unsafeAccum (\_ -> id) (V.replicate stringsCount (error "uninitialized")) [(i,s) | (s,i) <- unsortedStrings]
-  VG.map (\(EventFlat parent change) ->
-                  Event parent (unflatten stringsTable change)) . VG.convert <$>
-    reset (Proxy :: Proxy Vector) events
+  writeIORef stringsLookupTable stringsTable
+  reset (Proxy :: Proxy Vector) events
 
 sendEvent :: Int -> Parent -> Change -> IO ()
 sendEvent nodeId !parent !change = do
-  changeFlat <- flatten change
-  write events nodeId (EventFlat parent changeFlat)
-
-unflatten stringsTable (ChangeFlat 0 _ s) = Observe (V.unsafeIndex stringsTable s)
-unflatten stringsTable (ChangeFlat 1 c s) = Cons c  (V.unsafeIndex stringsTable s)
-unflatten stringsTable (ChangeFlat 2 _ s) = ConsChar (toEnum s)
-unflatten stringsTable (ChangeFlat 3 _ _) = Enter
-unflatten stringsTable (ChangeFlat 4 _ _) = Fun
-
-flatten   (Observe s)  = ChangeFlat 0 0 <$> lookupOrAddString s
-flatten   (Cons c s)   = ChangeFlat 1 c <$> lookupOrAddString s
-flatten   (ConsChar s) = return $ ChangeFlat 2 0 (fromEnum s)
-flatten   Enter        = return $ ChangeFlat 3 0 0
-flatten   Fun          = return $ ChangeFlat 4 0 0
+  write events nodeId (Event parent change)
 
 lookupOrAddString s = do
   (stringsCount :!: stringsTable) <- takeMVar strings
@@ -248,17 +214,49 @@ lookupOrAddString s = do
 -- Since we cannot unbox Strings, these are represented as references to the
 --  strings table
 {-# NOINLINE events #-}
-events :: Rope IO MVector EventFlat
+events :: Rope IO MVector Event
 events = unsafePerformIO $ do
   rope <- new' 10000  -- size of the lazy vectors internal to the rope structure
   return rope
-
 
 {-# NOINLINE strings #-}
 strings :: MVar(Pair Int (H.CuckooHashTable Text Int))
 strings = unsafePerformIO $ do
   h <- H.newSized 100000  -- suggested capacity for the hash table
   newMVar (0 :!: h)
+
+{-# NOINLINE stringsLookupTable #-}
+stringsLookupTable :: IORef (V.Vector Text)
+stringsLookupTable = unsafePerformIO $ newIORef  mempty
+
+lookupString id = unsafePerformIO $ (V.! id) <$> readIORef  stringsLookupTable
+
+derivingUnbox "Change"
+    [t| Change -> (Word8, Word8, Int) |]
+    [| \case
+            Observe  s -> (0,0,unsafePerformIO(lookupOrAddString s))
+            Cons c   s -> (1,c,unsafePerformIO(lookupOrAddString s))
+            ConsChar c -> (2,0,fromEnum c)
+            Enter      -> (3,0,0)
+            Fun        -> (4,0,0)
+     |]
+    [| \case (0,_,s) -> Observe (lookupString s)
+             (1,c,s) -> Cons c  (lookupString s)
+             (2,_,c) -> ConsChar (toEnum c)
+             (3,_,_) -> Enter
+             (4,_,_) -> Fun
+     |]
+
+derivingUnbox "Parent"
+    [t| Parent -> (UID, ParentPosition) |]
+    [| \ (Parent a b) -> (a,b) |]
+    [| \ (a,b) -> Parent a b |]
+
+derivingUnbox "Event"
+    [t| Event -> (Parent, Change) |]
+    [| \(Event a b) -> (a,b) |]
+    [| \ (a,b) -> Event a b |]
+
 \end{code}
 
 

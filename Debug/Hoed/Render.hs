@@ -34,6 +34,7 @@ import           Data.Primitive.MutVar
 import           Data.Strict.Tuple
 import           Data.Text (Text, pack, unpack)
 import qualified Data.Text as T
+import qualified Data.Vector as V
 import qualified Data.Vector.Generic as VG
 import           Data.Word
 import           Debug.Hoed.Compat
@@ -176,7 +177,7 @@ eventsToCDS pairs = getChild (-1) 0
 
      res i = out_arr VG.! i
 
-     bnds = (-1, length pairs - 1)
+     bnds = (-1, VG.length pairs - 1)
 
      cons !t !h = h : t
 
@@ -187,7 +188,9 @@ eventsToCDS pairs = getChild (-1) 0
                 , change /= Enter
                 ]
 
-     out_arr = VG.imap(\uid e -> getNode'' uid e (change e)) pairs
+     out_arr :: V.Vector CDS
+     out_arr =
+       VG.imap(\uid e -> getNode'' uid e (change e)) (VG.convert pairs)
 
      getNode'' ::  Int -> Event -> Change -> CDS
      getNode'' node _e change =

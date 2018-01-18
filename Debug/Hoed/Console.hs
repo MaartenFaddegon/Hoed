@@ -117,7 +117,8 @@ printTrace trace =
        (`IntMap.lookup` (IntMap.fromListWith
                            (++)
                            [ (p, [EventWithId uid e])
-                           | (uid, e@Event {eventParent = Parent p _}) <- toList (VG.indexed trace)
+                           | (uid, e@Event {eventParent = Parent p _}) <-
+                               VG.toList (VG.indexed trace)
                            ])))
 
 -- | TODO to be improved
@@ -125,7 +126,7 @@ renderTrace :: (Spans, Trace) -> IO ()
 renderTrace (spans, trace) = do
   putStrLn "Events"
   putStrLn "------"
-  mapM_ print trace
+  VG.mapM_ print trace
   putStrLn ""
   putStrLn "Spans"
   putStrLn "-----"
@@ -140,7 +141,8 @@ renderTrace' lookupEvent lookupDescs (columns, events) = unlines renderedLines
   where
     depth = length columns
     ((_, evWidth), renderedLines) =
-      mapAccumL roll (replicate (depth + 1) ' ', 0) $ align (uncurry EventWithId <$> toList (VG.indexed events)) columnEvents
+      mapAccumL roll (replicate (depth + 1) ' ', 0)
+      $ align (uncurry EventWithId <$> VG.toList (VG.indexed events)) columnEvents
     -- Merge trace events and column events
     align (ev:evs) (colEv@(rowIx, colIx, pol, isStart):colEvs)
       | eventUID ev == rowIx = (ev, Just (colIx, pol, isStart)) : align evs colEvs

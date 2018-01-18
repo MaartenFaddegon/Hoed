@@ -350,7 +350,7 @@ mkConsMap :: Int -> Trace -> ConsMap
 mkConsMap l t =
   U.create $ do
     v <- VM.replicate l 0
-    F.forM_ t $ \e ->
+    VG.forM_ t $ \e ->
       when (isCons (change e)) $ do
           let p = eventParent e
 #if __GLASGOW_HASKELL__ >= 800
