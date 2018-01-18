@@ -1,6 +1,9 @@
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ImplicitParams    #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 -- This file is part of the Haskell debugger Hoed.
@@ -25,9 +28,10 @@ import           Control.Monad.ST
 import           Control.Monad.Trans.Reader
 import           Data.Array               as Array
 import           Data.Char                (isAlpha)
-import           Data.List                (nub, sort)
-import           Data.Foldable
+import           Data.List                (nub, sort, unfoldr)
 import qualified Data.HashTable.ST.Cuckoo as H
+import           Data.IntMap.Strict (IntMap)
+import qualified Data.IntMap.Strict as IntMap
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import           Data.Primitive.MutVar
@@ -39,6 +43,7 @@ import qualified Data.Vector.Generic as VG
 import           Data.Word
 import           Debug.Hoed.Compat
 import           Debug.Hoed.Observe
+import           GHC.Exts(IsList(..))
 import           GHC.Generics
 import           Text.PrettyPrint.FPretty hiding (sep, (<$>), text)
 import qualified Text.PrettyPrint.FPretty as FPretty
@@ -171,29 +176,32 @@ normalizeCDS (CDSChar   s) = CDSCons 0 (pack $ show s) []
 normalizeCDS other = other
 type CDSSet = [CDS]
 
+-- Monomorphized [Parent] for compactness
+data ParentList = ParentCons !Int !Word8 ParentList | ParentNil
+instance IsList ParentList where
+  type Item ParentList = Parent
+  toList = unfoldr (\case ParentNil -> Nothing ; ParentCons pp pc t -> Just (Parent pp pc,t))
+  fromList = foldr (\(Parent pp pc) t -> ParentCons pp pc t) ParentNil
+
 eventsToCDS :: Trace -> CDSSet
 eventsToCDS pairs = getChild (-1) 0
    where
 
-     res i = out_arr VG.! i
+     -- res i = out_arr VG.! i
+     res i = getNode'' i (change (pairs VG.! i))
 
-     bnds = (-1, VG.length pairs - 1)
+     mid_arr :: V.Vector ParentList
+     mid_arr = VG.unsafeAccumulate
+                  (\i (Parent pp pc) -> ParentCons pp pc i)
+                  (V.replicate (VG.length pairs) ParentNil)
+                  ( VG.map (\(node, Event (Parent pnode pport) _) ->
+                              (pnode+1, Parent node pport))
+                  $ VG.filter (\(_,e) -> change e /= Enter)
+                  $ VG.convert
+                  $ VG.indexed pairs)
 
-     cons !t !h = h : t
-
-     mid_arr :: Array Int [Pair Word8 CDS]
-     mid_arr = accumArray cons [] bnds
-                [ (pnode, pport :!: res node)
-                | (node, Event (Parent pnode pport) change) <- VG.toList (VG.indexed pairs)
-                , change /= Enter
-                ]
-
-     out_arr :: V.Vector CDS
-     out_arr =
-       VG.imap(\uid e -> getNode'' uid e (change e)) (VG.convert pairs)
-
-     getNode'' ::  Int -> Event -> Change -> CDS
-     getNode'' node _e change =
+     getNode'' ::  Int -> Change -> CDS
+     getNode'' node change =
        case change of
         Observe str         -> let chd = normalizeCDS <$> getChild node 0
                                in CDSNamed str (getId chd node) chd
@@ -203,7 +211,8 @@ eventsToCDS pairs = getChild (-1) 0
         ConsChar char       -> CDSChar char
         Cons portc cons
                             -> simplifyCons node cons
-                                 [getChild node (fromIntegral n) | n <- [0::Int .. fromIntegral portc - 1]]
+                                 [ getChild node (fromIntegral n)
+                                 | n <- [0::Int .. fromIntegral portc - 1]]
 
      getId []                 i  = i
      getId (CDSFun i _ _:_) _    = i
@@ -211,8 +220,8 @@ eventsToCDS pairs = getChild (-1) 0
 
      getChild :: Int -> Word8 -> CDSSet
      getChild pnode pport =
-       [ content
-       | pport' :!: content <- (!) mid_arr pnode
+       [ res content
+       | Parent content pport' <- toList $ mid_arr VG.! succ pnode
        , pport == pport'
        ]
 
