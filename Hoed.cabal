@@ -36,6 +36,7 @@ library
                        , Debug.Hoed.Prop
                        , Debug.Hoed.Serialize
                        , Debug.Hoed.Span
+                       , Debug.Hoed.Util
                        , Data.Rope.Mutable
                        , Text.PrettyPrint.FPretty
                        , Paths_Hoed

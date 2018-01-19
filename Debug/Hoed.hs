@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ImplicitParams  #-}
@@ -206,6 +207,7 @@ import           Debug.Hoed.Observe
 import           Debug.Hoed.Prop
 import           Debug.Hoed.Render
 import           Debug.Hoed.Serialize
+import           Debug.Hoed.Util
 
 import           Data.Foldable (toList)
 import           Data.IORef
@@ -321,12 +323,6 @@ traceOnly program = do
   return ()
 
 
-data Verbosity = Verbose | Silent
-
-condPutStrLn :: Verbosity -> String -> IO ()
-condPutStrLn Silent _    = return ()
-condPutStrLn Verbose msg = hPutStrLn stderr msg
-
 data HoedAnalysis = HoedAnalysis
   { hoedTrace       :: Trace
   , hoedCompTree    :: CompTree
@@ -340,17 +336,18 @@ data HoedOptions = HoedOptions
 defaultHoedOptions :: HoedOptions
 defaultHoedOptions = HoedOptions Silent 110
 
+--------------------------------------------
+
 -- |Entry point giving you access to the internals of Hoed. Also see: runO.
 runO' :: HoedOptions -> IO a -> IO HoedAnalysis
 runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
-  hSetBuffering stdout NoBuffering
+  hSetBuffering stderr NoBuffering
   createDirectoryIfMissing True ".Hoed/"
-  t1 <- getTime Monotonic
+  tProgram <- stopWatch
   condPutStrLn verbose "=== program output ===\n"
   events <- debugO program
-  t2 <- getTime Monotonic
-  let programTime = toSecs(diffTimeSpec t1 t2)
-  condPutStrLn verbose $ "\n=== program terminated (" ++ show programTime ++ " seconds) ==="
+  programTime <- tProgram
+  condPutStrLn verbose $ "\n=== program terminated (" ++ show programTime ++ ") ==="
   let e = VG.length events
 
 #if defined(DEBUG)
@@ -361,16 +358,33 @@ runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
   condPutStrLn verbose $ show e ++ " events"
   condPutStrLn verbose"Please wait while the computation tree is constructed..."
 
-  ti  <- traceInfo e (events)
+  tTrace <- stopWatch
+  ti  <- traceInfo verbose e events
+  traceTime <- tTrace
+  condPutStrLn verbose $ " " ++ show traceTime
+
   let cdss = eventsToCDS events
       eqs  = renderCompStmts cdss
   let !ds  = force $ dependencies ti
       ct   = mkCompTree eqs ds
 
+  condPutStr verbose "Calculating the nodes of the computation graph"
+  tCds <- stopWatch
   forM_ (zip [0..] cdss) $ \(i,x) -> do
     evaluate (force x)
-    when (isPowerOf 2 i) $ putStr "."
-  putStrLn ""
+    when (isPowerOf 2 i) $ condPutStr verbose "."
+  cdsTime <- tCds
+  condPutStrLn verbose $ " " ++ show cdsTime
+
+  condPutStr verbose "Rendering the nodes of the computation graph"
+  tEqs <- stopWatch
+  forM_ (zip [0..] eqs) $ \(i,x) -> do
+    evaluate (case stmtDetails x of
+                       StmtCon c _ -> seq c ()
+                       StmtLam args res _ -> args `seq` res `seq` ())
+    when (isPowerOf 2 i) $ condPutStr verbose "."
+  eqsTime <- tEqs
+  condPutStrLn verbose $ " " ++ show eqsTime
 
 #if defined(DEBUG)
   -- writeFile ".Hoed/Cdss"       (unlines . map show $ cdss2)
@@ -388,13 +402,9 @@ runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
   condPutStrLn verbose $ show (length . arcs $ ct) ++ " edges in computation tree"
   condPutStrLn verbose $ "computation tree has a branch factor of " ++ show b ++ " (i.e the average number of children of non-leaf nodes)"
 
-  t3 <- getTime Monotonic
-  let compTime = toSecs(diffTimeSpec t2 t3)
-  condPutStrLn verbose $ "\n=== Debug Session (" ++ show compTime ++ " seconds) ===\n"
+  let compTime = traceTime + cdsTime + eqsTime
+  condPutStrLn verbose $ "\n=== Debug Session (" ++ show compTime ++ ") ===\n"
   return $ HoedAnalysis events ct
-    where
-       toSecs :: TimeSpec -> Double
-       toSecs spec = fromIntegral(sec spec) + fromIntegral(nsec spec) * 1e-9
 
 isPowerOf n 0 = False
 isPowerOf n k | n == k         = True

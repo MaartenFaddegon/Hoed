@@ -49,6 +49,7 @@ import           Debug.Hoed.EventForest
 import           Debug.Hoed.Observe
 import           Debug.Hoed.Span
 import           Debug.Hoed.Render
+import           Debug.Hoed.Util
 
 import           Data.Bits
 import qualified Data.Foldable          as F
@@ -374,12 +375,12 @@ corToCons cm e = case U.unsafeIndex cm (parentUID p) of
 
 ------------------------------------------------------------------------------------------------------------------------
 
-traceInfo :: Int -> Trace -> IO TraceInfo
-traceInfo l trc = do
-  -- Practically speaking, event UIDs start in 1
+traceInfo :: Verbosity -> Int -> Trace -> IO TraceInfo
+traceInfo verbose l trc = do
+  condPutStr verbose "Calculating the edges of the computation graph"
   v <- VM.replicate l $ EventDetails noTopLvlFun (const False)
   let loop !s uid e = do
-        when (uid `mod` l100 == 0) $ putStr "."
+        when (uid `mod` l100 == 0) $ condPutStr verbose "."
         case (change e) of
           Observe {} -> do
             setEventDetails v uid (EventDetails noTopLvlFun (const True))
@@ -407,7 +408,7 @@ traceInfo l trc = do
               else resume e details s
   VG.ifoldM' loop s0 trc
   where
-    l100 = l `div` 100
+    l100 = max 1 (l `div` 100)
     s0 :: TraceInfo
     s0 = TraceInfo [] []
 #if defined(TRANSCRIPT)

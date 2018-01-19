@@ -99,12 +99,12 @@ noNewlines' w (s:ss)
  | otherwise                          = s   : noNewlines' False ss
 
 ------------------------------------------------------------------------
--- Interning Text values to partially recover sharing
+-- Memoising pretty for perf and to partially recover sharing
 
-type InternCache s = MutVar (PrimState(ST s)) (Map Doc Text) -- H.HashTable s Doc Text
-type InternM s = ReaderT (InternCache s) (ST s)
+type PrettyMemo s = MutVar (PrimState(ST s)) (Map Doc Text)
+type PrettyMemoM s = ReaderT (PrettyMemo s) (ST s)
 
-prettyW :: (?statementWidth::Int) => Doc -> InternM s Text
+prettyW :: (?statementWidth::Int) => Doc -> PrettyMemoM s Text
 prettyW doc = ReaderT $ \ht -> atomicModifyMutVar' ht $ \m ->
   case Map.lookup doc m of
     Just t -> (m, t)
@@ -117,20 +117,20 @@ prettyW doc = ReaderT $ \ht -> atomicModifyMutVar' ht $ \m ->
 
 renderCompStmts :: (?statementWidth::Int) => CDSSet -> [CompStmt]
 renderCompStmts cdss = runST $ do
-  internCache <- newMutVar Map.empty
-  flip runReaderT internCache $ concat <$> mapM renderCompStmt cdss
+  prettyCache <- newMutVar Map.empty
+  flip runReaderT prettyCache $ concat <$> mapM renderCompStmt cdss
 
 -- renderCompStmt: an observed function can be applied multiple times, each application
 -- is rendered to a computation statement
 
-renderCompStmt :: (?statementWidth::Int) => CDS -> InternM s [CompStmt]
+renderCompStmt :: (?statementWidth::Int) => CDS -> PrettyMemoM s [CompStmt]
 renderCompStmt (CDSNamed name uid set) = do
         let output = cdssToOutput set
         concat <$> mapM (renderNamedTop name uid) output
 
 renderCompStmt other = error $ show other
 
-renderNamedTop :: (?statementWidth::Int) => Text -> UID -> Output -> InternM s [CompStmt]
+renderNamedTop :: (?statementWidth::Int) => Text -> UID -> Output -> PrettyMemoM s [CompStmt]
 renderNamedTop name observeUid (OutData cds) = mapM f pairs
   where
     f (args, res, Just i) =
