@@ -348,18 +348,17 @@ runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
   events <- debugO program
   programTime <- tProgram
   condPutStrLn verbose $ "\n=== program terminated (" ++ show programTime ++ ") ==="
-  let e = VG.length events
 
 #if defined(DEBUG)
   writeFile ".Hoed/Events"     (unlines . map show $ toList events)
 #endif
 
   condPutStrLn verbose "\n=== Statistics ===\n"
-  condPutStrLn verbose $ show e ++ " events"
+  condPutStrLn verbose $ show (VG.length events) ++ " events"
   condPutStrLn verbose"Please wait while the computation tree is constructed..."
 
   tTrace <- stopWatch
-  ti  <- traceInfo verbose e events
+  ti  <- traceInfo verbose events
   traceTime <- tTrace
   condPutStrLn verbose $ " " ++ show traceTime
 

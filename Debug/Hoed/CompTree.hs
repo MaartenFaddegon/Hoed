@@ -347,10 +347,10 @@ type ConsMap = U.Vector Word
 
 --- Iff an event is a constant then the UID of its parent and its ParentPosition
 --- are elements of the ConsMap.
-mkConsMap :: Int -> Trace -> ConsMap
-mkConsMap l t =
+mkConsMap :: Trace -> ConsMap
+mkConsMap t =
   U.create $ do
-    v <- VM.replicate l 0
+    v <- VM.replicate (VG.length t) 0
     VG.forM_ t $ \e ->
       when (isCons (change e)) $ do
           let p = eventParent e
@@ -375,8 +375,8 @@ corToCons cm e = case U.unsafeIndex cm (parentUID p) of
 
 ------------------------------------------------------------------------------------------------------------------------
 
-traceInfo :: Verbosity -> Int -> Trace -> IO TraceInfo
-traceInfo verbose l trc = do
+traceInfo :: Verbosity -> Trace -> IO TraceInfo
+traceInfo verbose trc = do
   condPutStr verbose "Calculating the edges of the computation graph"
   v <- VM.replicate l $ EventDetails noTopLvlFun (const False)
   let loop !s uid e = do
@@ -408,6 +408,7 @@ traceInfo verbose l trc = do
               else resume e details s
   VG.ifoldM' loop s0 trc
   where
+    l = VG.length trc
     l100 = max 1 (l `div` 100)
     s0 :: TraceInfo
     s0 = TraceInfo [] []
@@ -415,5 +416,5 @@ traceInfo verbose l trc = do
            IntMap.empty
 #endif
     cs :: ConsMap
-    cs = mkConsMap l trc
+    cs = mkConsMap trc
 
