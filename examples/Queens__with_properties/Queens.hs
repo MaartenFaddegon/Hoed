@@ -13,7 +13,7 @@ import Types
 
 test1 :: IO ()
 test1 = do
-  (HoedAnalysis _ ct) <- runO' defaultHoedOptions (print $ queens 8)
+  (HoedAnalysis _ ct) <- runO' defaultHoedOptions (print $ queens 7)
   -- TODO compare ct with a stored version to do regression testing
   return ()
 
