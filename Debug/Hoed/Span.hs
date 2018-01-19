@@ -1,4 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -188,7 +187,7 @@ prop_SpanList2 xx = fromList(toList xx) == xx
 prop_SpanZipper1 :: [Span] -> Bool
 prop_SpanZipper1 xx = toList(fromList xx :: SpanZipper) == xx
 prop_SpanZipper2 :: SpanZipper -> Bool
-prop_SpanZipper2 xx = toList(fromList @SpanZipper (toList xx)) == toList xx
+prop_SpanZipper2 xx = toList(fromList (toList xx) :: SpanZipper) == toList xx
 
 prop_LR, prop_RL :: SpanZipper -> Property
 prop_LR x = isJust(moveRight x) ==> (moveLeft  =<< moveRight x) == Just x
