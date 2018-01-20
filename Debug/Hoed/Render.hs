@@ -76,17 +76,17 @@ instance Ord CompStmt where
   compare c1 c2 = compare (stmtIdentifier c1) (stmtIdentifier c2)
 
 data StmtDetails
-  = StmtCon { stmtCon :: Text
-           ,  stmtPretty :: Text}
-  | StmtLam { stmtLamArgs :: [Text]
-           ,  stmtLamRes :: Text
-           ,  stmtPretty :: Text}
+  = StmtCon { stmtCon :: Hashed Text
+           ,  stmtPretty :: Hashed Text}
+  | StmtLam { stmtLamArgs :: [Hashed Text]
+           ,  stmtLamRes :: Hashed Text
+           ,  stmtPretty :: Hashed Text}
   deriving (Generic)
 
 instance NFData StmtDetails
 
 stmtRes :: CompStmt -> Text
-stmtRes = stmtPretty . stmtDetails
+stmtRes = unhashed . stmtPretty . stmtDetails
 
 instance Show CompStmt where
   show = unpack . stmtRes
@@ -104,8 +104,8 @@ noNewlines' w (s:ss)
 ------------------------------------------------------------------------
 -- Memoising pretty for perf and to partially recover sharing
 
-prettyW :: (?statementWidth::Int) => Doc -> Text
-prettyW doc = pack $ pretty ?statementWidth doc
+prettyW :: (?statementWidth::Int) => Doc -> (Hashed Text)
+prettyW doc = hashed $ pack $ pretty ?statementWidth doc
 
 ------------------------------------------------------------------------
 -- Render equations from CDS set
@@ -125,7 +125,7 @@ renderCompStmt other = error $ show other
 
 prettySet cds = prettySet_noid(coerce cds)
 
-prettySet_noid :: (?statementWidth::Int) => [CDSsansUID] -> Text
+prettySet_noid :: (?statementWidth::Int) => [CDSsansUID] -> Hashed Text
 prettySet_noid = memo (prettyW . renderSet . coerce)
 
 renderNamedTop :: (?statementWidth::Int) => Text -> UID -> Output -> [CompStmt]
