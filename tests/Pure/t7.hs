@@ -1,4 +1,6 @@
 import Debug.Hoed
+import System.Process(system)
+import System.Exit(exitWith)
 
 plus :: Int -> Int -> Int
 plus = {- observe "plus"-} (+)
@@ -15,4 +17,7 @@ ap45' :: (Int->Int->Int) -> Int
 ap45 = observe "ap45" ap45'
 ap45' f = apx (apxy f 4) 5
 
-main = logO "hoed-tests-Pure-t7.graph" $ print (ap45 plus)
+main = do
+  logO "hoed-tests-Pure-t7.graph" $ print (ap45 plus)
+  i <- system "diff hoed-tests-Pure-t7.graph tests/ref/hoed-tests-Pure-t7.graph"
+  exitWith i

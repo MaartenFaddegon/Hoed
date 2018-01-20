@@ -1,6 +1,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Main where
 import Debug.Hoed
+import System.Process(system)
+import System.Exit(exitWith)
 
 -- This test demonstrates that using the FPretty library we pretty print
 -- much bigger computation statements than with the previous implementation
@@ -17,4 +19,7 @@ ends = observe "ends" ends'
 ends' (Step t) = ends' t
 ends' End      = True
 
-main = logO "hoed-tests-Pure-t6.graph" $ print $ ends v
+main = do
+  logO "hoed-tests-Pure-t6.graph" $ print $ ends v
+  i <- system "diff hoed-tests-Pure-t6.graph tests/ref/hoed-tests-Pure-t6.graph"
+  exitWith i

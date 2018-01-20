@@ -1,6 +1,8 @@
 -- A defective implementation of a parity function with a test property.
 
 import Debug.Hoed
+import System.Process(system)
+import System.Exit(exitWith)
 
 isOdd :: Int -> Bool
 isOdd = observe "isOdd" isOdd'
@@ -22,4 +24,7 @@ prop_isOdd :: Int -> Bool
 prop_isOdd x = isOdd (2*x+1)
 
 main :: IO ()
-main = logO "hoed-tests-Pure-t4.graph" $ print (prop_isOdd 1)
+main = do
+  logO "hoed-tests-Pure-t4.graph" $ print (prop_isOdd 1)
+  i <- system "diff hoed-tests-Pure-t3.graph tests/ref/hoed-tests-Pure-t3.graph"
+  exitWith i

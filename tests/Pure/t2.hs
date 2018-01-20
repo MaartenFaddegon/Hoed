@@ -1,4 +1,6 @@
 import Debug.Hoed
+import System.Process(system)
+import System.Exit(exitWith)
 
 k :: Int -> Int
 k  = observe "k" k'
@@ -16,4 +18,7 @@ n :: Int -> Int
 n  = observe "n" n'
 n' x = x
 
-main = logO "hoed-tests-Pure-t2.graph" $ print (k 1)
+main = do
+  logO "hoed-tests-Pure-t2.graph" $ print (k 1)
+  i <- system "diff hoed-tests-Pure-t2.graph tests/ref/hoed-tests-Pure-t2.graph"
+  exitWith i

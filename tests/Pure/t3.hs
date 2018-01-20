@@ -3,6 +3,8 @@
 
 {-# LANGUAGE StandaloneDeriving #-}
 import Debug.Hoed
+import System.Process(system)
+import System.Exit(exitWith)
 
 -- Insertion sort.
 isort :: [Int] -> [Int]
@@ -19,4 +21,7 @@ insert' n (m:ms)
       | n <= m    = n : ms -- bug: `m' is missing in this case
       | otherwise = m : (insert n ms)
 
-main = logO "hoed-tests-Pure-t3.graph" $ print (isort [1,2])
+main = do
+  logO "hoed-tests-Pure-t3.graph" $ print (isort [1,2])
+  i <- system "diff hoed-tests-Pure-t3.graph tests/ref/hoed-tests-Pure-t3.graph"
+  exitWith i
