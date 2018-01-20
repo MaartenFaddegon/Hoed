@@ -1,5 +1,6 @@
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ImplicitParams    #-}
 {-# LANGUAGE LambdaCase #-}
@@ -28,14 +29,15 @@ import           Control.Monad.ST
 import           Control.Monad.Trans.Reader
 import           Data.Array               as Array
 import           Data.Char                (isAlpha)
+import           Data.Coerce
 import           Data.List                (nub, sort, unfoldr)
 import qualified Data.HashTable.ST.Cuckoo as H
 import           Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import           Data.MemoUgly
 import           Data.Primitive.MutVar
-import           Data.Strict.Tuple
 import           Data.Text (Text, pack, unpack)
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -101,46 +103,41 @@ noNewlines' w (s:ss)
 ------------------------------------------------------------------------
 -- Memoising pretty for perf and to partially recover sharing
 
-type PrettyMemo s = MutVar (PrimState(ST s)) (Map Doc Text)
-type PrettyMemoM s = ReaderT (PrettyMemo s) (ST s)
-
-prettyW :: (?statementWidth::Int) => Doc -> PrettyMemoM s Text
-prettyW doc = ReaderT $ \ht -> atomicModifyMutVar' ht $ \m ->
-  case Map.lookup doc m of
-    Just t -> (m, t)
-    Nothing ->
-      let t = pack $ pretty ?statementWidth doc
-      in (Map.insert doc t m, t)
+prettyW :: (?statementWidth::Int) => Doc -> Text
+prettyW doc = pack $ pretty ?statementWidth doc
 
 ------------------------------------------------------------------------
 -- Render equations from CDS set
 
 renderCompStmts :: (?statementWidth::Int) => CDSSet -> [CompStmt]
-renderCompStmts cdss = runST $ do
-  prettyCache <- newMutVar Map.empty
-  flip runReaderT prettyCache $ concat <$> mapM renderCompStmt cdss
+renderCompStmts cdss = concatMap renderCompStmt cdss
 
 -- renderCompStmt: an observed function can be applied multiple times, each application
 -- is rendered to a computation statement
 
-renderCompStmt :: (?statementWidth::Int) => CDS -> PrettyMemoM s [CompStmt]
-renderCompStmt (CDSNamed name uid set) = do
-        let output = cdssToOutput set
-        concat <$> mapM (renderNamedTop name uid) output
+renderCompStmt :: (?statementWidth::Int) => CDS -> [CompStmt]
+renderCompStmt (CDSNamed name uid set) =
+        let output = cdssToOutput set in
+        concatMap (renderNamedTop name uid) output
 
 renderCompStmt other = error $ show other
 
-renderNamedTop :: (?statementWidth::Int) => Text -> UID -> Output -> PrettyMemoM s [CompStmt]
-renderNamedTop name observeUid (OutData cds) = mapM f pairs
+prettySet cds = prettySet_noid(coerce cds)
+
+prettySet_noid :: (?statementWidth::Int) => [CDSsansUID] -> Text
+prettySet_noid = memo (prettyW . renderSet . coerce)
+
+renderNamedTop :: (?statementWidth::Int) => Text -> UID -> Output -> [CompStmt]
+renderNamedTop name observeUid (OutData cds) = map f pairs
   where
     f (args, res, Just i) =
-      CompStmt name i <$>
-      (StmtLam <$> (mapM (prettyW . renderSet) args) <*>
-       (prettyW $ renderSet res) <*>
+      CompStmt name i $
+      (StmtLam (map prettySet args)
+       (prettySet res)
        (prettyW $ renderNamedFn name (args, res)))
     f (_, cons, Nothing) =
-      CompStmt name observeUid <$>
-      (StmtCon <$> (prettyW $ renderSet cons) <*>
+      CompStmt name observeUid $
+      (StmtCon (prettySet cons)
        (prettyW $ renderNamedCons name cons))
     pairs = (nubSorted . sortOn argAndRes) pairs'
     pairs' = findFn [cds]
@@ -234,8 +231,15 @@ simplifyCons _ ":" [[CDSChar !ch], [CDSString s]]
   = CDSString (ch:s)
 simplifyCons uid con xx = CDSCons uid con (map (map normalizeCDS) xx)
 
-render  :: Int -> Bool -> CDS -> Doc
-render prec par (CDSCons _ ":" [cds1,cds2]) =
+render :: Int -> Bool -> CDS -> Doc
+render i b cds = render_noid i b (coerce cds)
+
+render_noid  :: Int -> Bool -> CDSsansUID -> Doc
+render_noid = uncurry3 $ memo $ \(i, b, cds) -> render' i b (coerce cds)
+  where
+    uncurry3 f a b c = f (a,b,c)
+
+render' prec par (CDSCons _ ":" [cds1,cds2]) =
         if par && not needParen
         then doc -- dont use paren (..) because we dont want a grp here!
         else paren needParen doc
@@ -243,11 +247,11 @@ render prec par (CDSCons _ ":" [cds1,cds2]) =
         doc = grp (sep <> renderSet' 5 False cds1 <> " : ") <>
               renderSet' 4 True cds2
         needParen = prec > 4
-render _prec _par (CDSCons _ "," cdss) | not (null cdss) =
+render' _prec _par (CDSCons _ "," cdss) | not (null cdss) =
         nest 2 ("(" <> foldl1 (\ a b -> a <> ", " <> b)
                             (map renderSet cdss) <>
                 ")")
-render prec _par (CDSCons _ name cdss)
+render' prec _par (CDSCons _ name cdss)
   | not (T.null name)
   , (not . isAlpha . T.head) name && length cdss > 1 = -- render as infix
         paren (prec /= 0)
@@ -297,8 +301,11 @@ renderSet' _prec _par cdss                   =
         nub (a:as)    = a : nub as
 
 renderFn :: ([CDSSet],CDSSet) -> Doc
-renderFn (args, res)
-        = grp  (nest 3
+renderFn argsres = renderFn_noid (coerce argsres)
+
+renderFn_noid :: ([[CDSsansUID]],[CDSsansUID]) -> Doc
+renderFn_noid = memo $ \(coerce -> args :: [CDSSet], coerce -> res)
+       -> grp  (nest 3
                 ("\\ " <>
                  foldr (\ a b -> nest 0 (renderSet' 10 False a) <> sp <> b)
                        nil
@@ -367,3 +374,29 @@ sp = " "   -- A space, always.
 
 -- TODO fork FPretty to build on Text instead of Strings
 text = FPretty.text . unpack
+
+-- %************************************************************************
+-- %*                                                                   *
+-- \subsection{Custom Eq and Ord instances for CDS that gloss over UIDs
+-- %*                                                                   *
+-- %************************************************************************
+
+newtype CDSsansUID = CDSsansUID CDS
+
+instance Eq CDSsansUID where
+  CDSsansUID(CDSNamed t _ xx) == CDSsansUID(CDSNamed t' _ yy) =
+    t == t' && coerce xx == (coerce yy :: [CDSsansUID])
+  CDSsansUID (CDSCons _ t xx) == CDSsansUID(CDSCons _ t' yy)  =
+    t == t'  && coerce xx == (coerce yy :: [[CDSsansUID]])
+  CDSsansUID (CDSFun _ res args) == CDSsansUID (CDSFun _ res' args') =
+    (coerce res :: [CDSsansUID]) == coerce res' && coerce args == (coerce args' :: [CDSsansUID])
+  CDSsansUID x == CDSsansUID y = x == y
+
+instance Ord CDSsansUID where
+  CDSsansUID (CDSNamed t _ xx) `compare` CDSsansUID (CDSNamed t' _ yy) =
+    (t, coerce xx :: [CDSsansUID]) `compare` (t', coerce yy)
+  CDSsansUID (CDSCons _ t xx) `compare` CDSsansUID (CDSCons _ t' yy) =
+    (t, coerce xx :: [[CDSsansUID]]) `compare` (t', coerce yy)
+  CDSsansUID (CDSFun _ args res) `compare` CDSsansUID (CDSFun _ args' res') =
+    (coerce args :: [CDSsansUID], coerce res :: [CDSsansUID]) `compare` (coerce args', coerce res')
+  CDSsansUID x `compare` CDSsansUID y = x `compare` y
