@@ -117,8 +117,8 @@ renderNamedTop name _ other = error $ show other
 -- local nub for sorted lists
 nubSorted :: Eq a => [a] -> [a]
 nubSorted []        = []
-nubSorted (a:a':as) | a == a' = nub (a' : as)
-nubSorted (a:as)    = a : nub as
+nubSorted (a:a':as) | a == a' = nubSorted (a' : as)
+nubSorted (a:as)    = a : nubSorted as
 
 -- %************************************************************************
 -- %*                                                                   *
