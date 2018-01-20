@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                   #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE LambdaCase            #-}
@@ -446,7 +447,9 @@ mainLoopCommands :: [Command State]
 mainLoopCommands =
   sortOn name
     [ adbCommand
+#ifdef DEBUG
     , eventsCommand
+#endif
     , graphCommand
     , listCommand
     , observeCommand
