@@ -1,7 +1,7 @@
 diGraph G {
-v2 [label="g 3 = 6"]
-v1 [label="f (Just 3) = 6"]
+v2 [label="f (Just 3) = 6"]
+v1 [label="g 3 = 6"]
 v0 [label="."shape=none]
-v1 -> v2 [label=""]
-v0 -> v1 [label=""]
+v2 -> v1 [label=""]
+v0 -> v2 [label=""]
 }
