@@ -30,6 +30,7 @@ import           Control.Monad.Trans.Reader
 import           Data.Array               as Array
 import           Data.Char                (isAlpha)
 import           Data.Coerce
+import           Data.Hashable
 import           Data.List                (nub, sort, unfoldr)
 import qualified Data.HashTable.ST.Cuckoo as H
 import           Data.IntMap.Strict (IntMap)
@@ -400,3 +401,8 @@ instance Ord CDSsansUID where
   CDSsansUID (CDSFun _ args res) `compare` CDSsansUID (CDSFun _ args' res') =
     (coerce args :: [CDSsansUID], coerce res :: [CDSsansUID]) `compare` (coerce args', coerce res')
   CDSsansUID x `compare` CDSsansUID y = x `compare` y
+
+instance Hashable CDSsansUID where
+  s `hashWithSalt` CDSsansUID (CDSNamed t _ xx) = s `hashWithSalt` t `hashWithSalt` (coerce xx :: [CDSsansUID])
+  s `hashWithSalt` CDSsansUID (CDSCons _  t xx) = s `hashWithSalt` t `hashWithSalt` (coerce xx :: [[CDSsansUID]])
+  s `hashWithSalt` CDSsansUID (CDSFun _ args res) = s `hashWithSalt` (coerce args :: [CDSsansUID]) `hashWithSalt` (coerce res :: [CDSsansUID])
