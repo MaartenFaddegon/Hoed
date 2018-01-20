@@ -1,6 +1,5 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -89,7 +88,7 @@ fromList dim xx = do
   return rope
 
 propFromList dim xx =
-  check . toList <$> (reset (Proxy @V.Vector) =<< fromList dim xx)
+  check . toList <$> (reset (Proxy :: Proxy V.Vector) =<< fromList dim xx)
   where
     check xx'
       | xx == xx' = True
