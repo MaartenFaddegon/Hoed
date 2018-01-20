@@ -51,7 +51,7 @@ library
                        , directory
                        , bytestring
                        , cereal, cereal-text, cereal-vector
-                       , hashable
+                       , hashable >= 1.2.5
                        , hashtables
                        , QuickCheck
                        , open-browser
