@@ -62,7 +62,6 @@ library
                        , terminal-size
                        , text
                        , transformers
-                       , uglymemo
                        , uniplate
                        , vector
                        , vector-th-unbox
