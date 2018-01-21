@@ -434,7 +434,9 @@ logOwp handler filePath properties program = do
 
 
 #if __GLASGOW_HASKELL__ >= 710
--- A catch-all instance for non observable types
+-- NOTE: This instance is orphaned here deliberately.
+--       Moving it will break polymorphic observations in GHC 8.2x
+-- | A catch-all instance for non observable types that produces the opaque observation @<?>@.
 instance {-# OVERLAPPABLE #-} Observable a where
   observer = observeOpaque "<?>"
   constrain _ _ = error "constrained by untraced value"
