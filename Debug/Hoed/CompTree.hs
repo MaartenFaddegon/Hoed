@@ -55,6 +55,7 @@ import           Data.Bits
 import qualified Data.Foldable          as F
 import           Data.Graph.Libgraph
 import qualified Data.Set               as Set
+import           Data.Hashable
 import           Data.IntMap.Strict     (IntMap)
 import qualified Data.IntMap.Strict     as IntMap
 import           Data.IntSet            (IntSet)
@@ -80,9 +81,15 @@ instance Eq Vertex where
   v1@Vertex{} == v2@Vertex{} = vertexStmt v1 == vertexStmt v2
   _ == _ = False
 
+instance Hashable Vertex where
+  hashWithSalt s RootVertex    = s `hashWithSalt` (-1 :: Int)
+  hashWithSalt s (Vertex cs _) = s `hashWithSalt` cs
+
+instance NFData Vertex
+
+-- FIXME These orphan instances should be moved to libgraph
 instance NFData AssistedMessage
 instance NFData Judgement
-instance NFData Vertex
 instance (NFData a, NFData b) => NFData (Arc a b)
 
 getJudgement :: Vertex -> Judgement

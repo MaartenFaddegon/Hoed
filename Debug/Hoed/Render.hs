@@ -76,6 +76,9 @@ instance Eq CompStmt where c1 == c2 = stmtIdentifier c1 == stmtIdentifier c2
 instance Ord CompStmt where
   compare c1 c2 = compare (stmtIdentifier c1) (stmtIdentifier c2)
 
+instance Hashable CompStmt where
+  hashWithSalt s cs = hashWithSalt s (stmtIdentifier cs)
+
 data StmtDetails
   = StmtCon { stmtCon :: Hashed Text
            ,  stmtPretty :: Hashed Text}
