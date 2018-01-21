@@ -359,7 +359,7 @@ mkConsMap t =
 #else
           let ix = parentUID p
           x <- VM.unsafeRead v ix
-          VM.unsafeWrite v ix (x `setBit` parentPosition p)
+          VM.unsafeWrite v ix (x `setBit` fromIntegral(parentPosition p))
 #endif
     return v
   where
