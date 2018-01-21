@@ -296,8 +296,17 @@ uniq = unsafePerformIO $ newIORef 0
 The generic implementation of the observer function.
 
 \begin{code}
+-- | A type class for observable values.
+--
+--    * For 'Generic' datatypes it can be derived automatically.
+--    * For opaque datatypes, use 'observeOpaque' or rely on the catch-all @<?>@ instance.
+--    * Custom implementations can exclude one or more fields from the observation:
+--
+--    @ instance (Observable a, Observable b) => Observable (excluded, a,b) where
+--        observe (excluded,a,b) = send "(,,)" (return (,,) excluded << a << b)
+--    @
 class Observable a where
-        observer  :: a -> Parent -> a 
+        observer  :: a -> Parent -> a
         default observer :: (Generic a, GObservable (Rep a)) => a -> Parent -> a
         observer x c = to (gdmobserver (from x) c)
 
