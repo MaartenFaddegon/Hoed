@@ -206,13 +206,13 @@ render prec par (CDSCons _ ":" [cds1,cds2]) =
         then doc -- dont use paren (..) because we dont want a grp here!
         else paren needParen doc
    where
-        doc = grp (sep <> renderSet' 5 False cds1 <> " : ") <>
+        doc = grp (renderSet' 5 False cds1 <> text " : ") <>
               renderSet' 4 True cds2
         needParen = prec > 4
-render _prec _par (CDSCons _ "," cdss) | not (null cdss) =
-        nest 2 ("(" <> foldl1 (\ a b -> a <> ", " <> b)
+render prec par (CDSCons _ "," cdss) | length cdss > 0 =
+        nest 2 (text "(" <> foldl1 (\ a b -> a <> text ", " <> b)
                             (map renderSet cdss) <>
-                ")")
+                text ")")
 render prec _par (CDSCons _ name cdss)
   | _:_ <- name
   , (not . isAlpha . head) name && length cdss > 1 = -- render as infix
@@ -245,13 +245,13 @@ renderSet :: CDSSet -> Doc
 renderSet = renderSet' 0 False
 
 renderSet' :: Int -> Bool -> CDSSet -> Doc
-renderSet' _ _      [] = "_"
-renderSet' prec par [cons@CDSCons {}]    = render prec par cons
-renderSet' _prec _par cdss                   =
-         "{ " <> foldl1 (\ a b -> a <> line <>
-                                    ", " <> b)
+renderSet' _ _      [] = text "_"
+renderSet' prec par [cons@(CDSCons {})]    = render prec par cons
+renderSet' prec par cdss                   =
+        nest 0 (text "{ " <> foldl1 (\ a b -> a <> line <>
+                                    text ", " <> b)
                                     (map renderFn pairs) <>
-                line <> "}"
+                line <> text "}")
 
    where
         findFn_noUIDs :: CDSSet -> [([CDSSet],CDSSet)]
@@ -265,11 +265,11 @@ renderSet' _prec _par cdss                   =
 renderFn :: ([CDSSet],CDSSet) -> Doc
 renderFn (args, res)
         = grp  (nest 3
-                ("\\ " <>
+                (text "\\ " <>
                  foldr (\ a b -> nest 0 (renderSet' 10 False a) <> sp <> b)
                        nil
-                       args <> sep <>
-                 "-> " <> renderSet res
+                       args <> softline <>
+                 text "-> " <> renderSet' 0 False res
                 )
                )
 
@@ -302,8 +302,8 @@ findFn' (CDSFun i arg res) rest =
 findFn' other rest = ([],[other], Nothing) : rest
 
 paren :: Bool -> Doc -> Doc
-paren False doc = grp doc
-paren True  doc = grp ( "(" <> doc <> ")")
+paren False doc = grp (nest 0 doc)
+paren True  doc = grp (text "(" <> doc <> text ")")
 
 data Output = OutLabel String CDSSet [Output]
             | OutData  CDS
@@ -329,7 +329,7 @@ grp = Text.PrettyPrint.FPretty.group
 sep :: Doc
 sep = softline  -- A space, if the following still fits on the current line, otherwise newline.
 sp :: Doc
-sp = " "   -- A space, always.
+sp = text " "   -- A space, always.
 
 prettyW :: (?statementWidth::Int) => Doc -> String
 prettyW = pretty ?statementWidth
