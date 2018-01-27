@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 -- Haskell version of the buggy insertion sort as shown in Lee Naish
 -- A Declarative Debugging Scheme.
 
