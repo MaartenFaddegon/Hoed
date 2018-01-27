@@ -6,6 +6,8 @@ module Debug.Hoed.TH (debug, obs) where
 import           Control.Monad
 import           Data.Generics.Uniplate.Data
 import           Data.List                   (group, nub, sort, (\\))
+import           Data.Text (pack)
+import           Debug.Hoed
 import           Debug.Hoed
 import           Debug.Hoed.Compat
 import           Language.Haskell.TH
@@ -40,7 +42,7 @@ obs decs = do
       FunD n xx -> do
         let Just n' = lookup n names
             nb = nameBase n
-        newDecl <- funD n [clause [] (normalB [| observe nb $(varE n')|]) []]
+        newDecl <- funD n [clause [] (normalB [| observe (pack nb) $(varE n')|]) []]
         return [newDecl, FunD n' xx]
       SigD n ty | Just n' <- lookup n names -> do
         dec' <- adjustSig n ty
@@ -78,7 +80,7 @@ debug q = do
       FunD n clauses -> do
         let Just n' = lookup n names
             nb = nameBase n
-        newDecl <- funD n [clause [] (normalB [| observe nb $(varE n')|]) []]
+        newDecl <- funD n [clause [] (normalB [| observe (pack nb) $(varE n')|]) []]
         let clauses' = transformBi adjustValD clauses
         return [newDecl, FunD n' clauses']
       SigD n ty | Just n' <- lookup n names -> do
@@ -111,7 +113,7 @@ adjustSig name other = adjustSig name $ ForallT [] [] other
 adjustValD decl@ValD{} = transformBi adjustPat decl
 adjustValD other       = other
 
-adjustPat (VarP x) = ViewP (VarE 'observe `AppE` toLit x) (VarP x)
+adjustPat (VarP x) = ViewP (VarE 'observe `AppE` (VarE 'pack `AppE` toLit x)) (VarP x)
 adjustPat x        = x
 
 toLit (Name (OccName x) _) = LitE $ StringL x

@@ -3,10 +3,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE MultiWayIf            #-}
--- This file is part of the Haskell debugger Hoed.
---
--- Copyright (c) Maarten Faddegon, 2015
-
 {-# LANGUAGE BangPatterns          #-}
 {-# LANGUAGE CPP                   #-}
 {-# LANGUAGE DeriveGeneric         #-}
@@ -14,6 +10,11 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedLists       #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+
+-- This file is part of the Haskell debugger Hoed.
+--
+-- Copyright (c) Maarten Faddegon, 2015
+
 
 module Debug.Hoed.CompTree
 ( CompTree
@@ -41,25 +42,31 @@ module Debug.Hoed.CompTree
 , traceInfo
 , Graph(..) -- re-export from LibGraph
 )where
-import           Control.Exception
+import           Control.DeepSeq
+import           Control.Exception as E
 import           Control.Monad
-import           Control.Monad.ST
 import           Debug.Hoed.EventForest
 import           Debug.Hoed.Observe
 import           Debug.Hoed.Span
 import           Debug.Hoed.Render
+import           Debug.Hoed.Util
 
 import           Data.Bits
+import qualified Data.Foldable          as F
 import           Data.Graph.Libgraph
 import qualified Data.Set               as Set
+import           Data.Hashable
 import           Data.IntMap.Strict     (IntMap)
 import qualified Data.IntMap.Strict     as IntMap
 import           Data.IntSet            (IntSet)
 import           Data.List              (foldl', unfoldr)
 import           Data.Maybe
 import           Data.Semigroup
-import           Data.Vector.Mutable as VM (STVector)
+import           Data.Text (Text, pack, unpack)
+import qualified Data.Text as T
+import qualified Data.Vector.Generic as VG
 import qualified Data.Vector.Generic.Mutable as VM
+import           Data.Vector.Mutable as VM (IOVector)
 import qualified Data.Vector.Unboxed    as U
 import           Data.Word
 import           GHC.Exts               (IsList (..))
@@ -67,7 +74,23 @@ import           GHC.Generics
 import           Prelude                hiding (Right)
 
 data Vertex = RootVertex | Vertex {vertexStmt :: CompStmt, vertexJmt :: Judgement}
-  deriving (Eq,Show,Ord,Generic)
+  deriving (Show,Ord,Generic)
+
+instance Eq Vertex where
+  RootVertex == RootVertex   = True
+  v1@Vertex{} == v2@Vertex{} = vertexStmt v1 == vertexStmt v2
+  _ == _ = False
+
+instance Hashable Vertex where
+  hashWithSalt s RootVertex    = s `hashWithSalt` (-1 :: Int)
+  hashWithSalt s (Vertex cs _) = s `hashWithSalt` cs
+
+instance NFData Vertex
+
+-- FIXME These orphan instances should be moved to libgraph
+instance NFData AssistedMessage
+instance NFData Judgement
+instance (NFData a, NFData b) => NFData (Arc a b)
 
 getJudgement :: Vertex -> Judgement
 getJudgement RootVertex = Right
@@ -108,7 +131,7 @@ vertexUID (Vertex s _) = stmtIdentifier s
 
 vertexRes :: Vertex -> String
 vertexRes RootVertex = "RootVertex"
-vertexRes v          = stmtRes . vertexStmt $ v
+vertexRes v          = unpack . stmtRes . vertexStmt $ v
 
 -- | The forest of computation trees. Also see the Libgraph library.
 type CompTree = Graph Vertex ()
@@ -126,7 +149,7 @@ leafs g = filter (not . (`Set.member` nonLeafs)) (vertices g)
 -- of the unjudged computation statements (i.e not Right or Wrong) in the tree.
 unjudgedCharacterCount :: CompTree -> Int
 unjudgedCharacterCount = sum . map characterCount . filter unjudged . vertices
-  where characterCount = length . stmtLabel . vertexStmt
+  where characterCount = fromIntegral . T.length . stmtLabel . vertexStmt
 
 unjudged :: Vertex -> Bool
 unjudged = not . judged
@@ -197,12 +220,12 @@ data EventDetails = EventDetails
 topLvlFun :: EventDetails -> UID
 topLvlFun EventDetails{topLvlFun_ = TopLvlFun x} = x
 
-type EventDetailsStore s = VM.STVector s EventDetails
+type EventDetailsStore s = VM.IOVector EventDetails
 
-getEventDetails :: EventDetailsStore s -> UID -> ST s EventDetails
+getEventDetails :: EventDetailsStore s -> UID -> IO EventDetails
 getEventDetails = VM.unsafeRead
 
-setEventDetails :: EventDetailsStore s -> UID -> EventDetails -> ST s ()
+setEventDetails :: EventDetailsStore s -> UID -> EventDetails -> IO ()
 setEventDetails = VM.unsafeWrite
 
 
@@ -256,7 +279,7 @@ addMessage _ _ t = t
 #endif
 ------------------------------------------------------------------------------------------------------------------------
 
-collectEventDetails :: EventDetailsStore s -> Event -> ST s (Bool,UID)
+collectEventDetails :: EventDetailsStore s -> Event -> IO (Bool,UID)
 collectEventDetails v e = do
             let !p = eventParent e
             parentDetails <- getEventDetails v (parentUID p)
@@ -267,12 +290,12 @@ collectEventDetails v e = do
 -- When we see a Fun event whose parent is not a Fun event it is a top level Fun event,
 -- otherwise just copy the reference to the top level Fun event from the parent.
 -- A top level Fun event references itself.
-mkFunDetails :: EventDetailsStore s -> Event -> ST s EventDetails
-mkFunDetails s e = do
+mkFunDetails :: EventDetailsStore s -> UID -> Event -> IO EventDetails
+mkFunDetails s uid e = do
     let p = eventParent e
     ed  <- getEventDetails s (parentUID p)
     let !loc = locations ed (parentPosition p)
-        !top = getTopLvlFunOr (eventUID e) ed
+        !top = getTopLvlFunOr uid ed
         locFun 0 = not loc
         locFun 1 = loc
     return $ EventDetails (TopLvlFun top) locFun
@@ -331,69 +354,74 @@ type ConsMap = U.Vector Word
 
 --- Iff an event is a constant then the UID of its parent and its ParentPosition
 --- are elements of the ConsMap.
-mkConsMap :: Int -> Trace -> ConsMap
-mkConsMap l t =
+mkConsMap :: Trace -> ConsMap
+mkConsMap t =
   U.create $ do
-    v <- VM.replicate l 0
-    forM_ t $ \e ->
-      case change e of
-        Cons {} -> do
+    v <- VM.replicate (VG.length t) 0
+    VG.forM_ t $ \e ->
+      when (isCons (change e)) $ do
           let p = eventParent e
 #if __GLASGOW_HASKELL__ >= 800
-          VM.unsafeModify v (`setBit` parentPosition p) (parentUID p - 1)
+          VM.unsafeModify v (`setBit` fromIntegral(parentPosition p)) (parentUID p)
 #else
-          let ix = parentUID p - 1
+          let ix = parentUID p
           x <- VM.unsafeRead v ix
-          VM.unsafeWrite v ix (x `setBit` parentPosition p)
+          VM.unsafeWrite v ix (x `setBit` fromIntegral(parentPosition p))
 #endif
-        _ -> return ()
     return v
+  where
+    isCons Cons{} = True
+    isCons ConsChar{} = True
+    isCons _ = False
 
 corToCons :: ConsMap -> Event -> Bool
-corToCons cm e = case U.unsafeIndex cm (parentUID p - 1) of
+corToCons cm e = case U.unsafeIndex cm (parentUID p) of
                    0 -> False
-                   other -> testBit other (parentPosition p)
+                   other -> testBit other (fromIntegral $ parentPosition p)
   where p = eventParent e
 
 ------------------------------------------------------------------------------------------------------------------------
 
-traceInfo :: Int -> Trace -> TraceInfo
-traceInfo l trc = runST $ do
-  -- Practically speaking, event UIDs start in 1
-  v <- VM.replicate (l+1) $ EventDetails noTopLvlFun (const False)
-  let loop !s e =
-        case change e of
+traceInfo :: Verbosity -> Trace -> IO TraceInfo
+traceInfo verbose trc = do
+  condPutStr verbose "Calculating the edges of the computation graph"
+  v <- VM.replicate l $ EventDetails noTopLvlFun (const False)
+  let loop !s uid e = do
+        when (uid `mod` l100 == 0) $ condPutStr verbose "."
+        case (change e) of
           Observe {} -> do
-            setEventDetails v (eventUID e) (EventDetails noTopLvlFun (const True))
+            setEventDetails v uid (EventDetails noTopLvlFun (const True))
             return s
           Fun {} -> do
-            setEventDetails v (eventUID e) =<< mkFunDetails v e
+            setEventDetails v uid =<< mkFunDetails v uid e
             return s
             -- Span start
           Enter {}
             | corToCons cs e -> do
               (loc, top) <- collectEventDetails v e
               let !details = EventDetails (TopLvlFun top) (const loc)
-              setEventDetails v (eventUID e) details
+              setEventDetails v uid details
               return $ if loc
                   then addDependency e . start e details $ s
                   else pause e details s
             | otherwise -> return s
-            -- Span end
-          Cons {} -> do
+            -- Span end (Cons or Char)
+          other -> do
             (loc, top) <- collectEventDetails v e
             let !details = EventDetails (TopLvlFun top) (const loc)
-            setEventDetails v (eventUID e) details
+            setEventDetails v uid details
             return $ if loc
               then stop e details s
               else resume e details s
-  foldM loop s0 trc
+  VG.ifoldM' loop s0 trc
   where
+    l = VG.length trc
+    l100 = max 1 (l `div` 100)
     s0 :: TraceInfo
     s0 = TraceInfo [] []
 #if defined(TRANSCRIPT)
            IntMap.empty
 #endif
     cs :: ConsMap
-    cs = mkConsMap l trc
+    cs = mkConsMap trc
 

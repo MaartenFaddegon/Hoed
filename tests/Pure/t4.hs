@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 -- A defective implementation of a parity function with a test property.
 
 import Debug.Hoed

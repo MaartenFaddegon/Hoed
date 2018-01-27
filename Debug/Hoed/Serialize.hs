@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 -- This file is part of the Haskell debugger Hoed.
 --
 -- Copyright (c) Maarten Faddegon, 2016
@@ -16,8 +17,13 @@ import Prelude hiding (lookup,Right)
 import qualified Prelude as Prelude
 import Debug.Hoed.CompTree
 import Debug.Hoed.Render(CompStmt(..), StmtDetails(..))
+import Data.Hashable
 import Data.Serialize
+import Data.Serialize.Text
+import Data.Vector.Serialize
+
 import qualified Data.ByteString as BS
+import GHC.Exts (IsList(..))
 import GHC.Generics
 import Data.Graph.Libgraph(Judgement(..),AssistedMessage(..),mapGraph,Graph(..),Arc(..))
 
@@ -35,6 +41,9 @@ instance Serialize StmtDetails
 instance Serialize Parent
 instance Serialize Event
 instance Serialize Change
+instance (Hashable a, Serialize a) => Serialize (Hashed a) where
+  get = hashed <$> get
+  put = put . unhashed
 
 --------------------------------------------------------------------------------
 -- Tree

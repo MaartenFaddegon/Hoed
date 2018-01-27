@@ -5,10 +5,16 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies  #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE CPP #-}
 
@@ -90,9 +96,26 @@ module Debug.Hoed.Observe
 \begin{code}
 import Prelude hiding (Right)
 import qualified Prelude
+import Control.Concurrent.MVar
 import Control.Monad
 import Data.Array as Array
+import qualified Data.HashTable.IO as H
+import Data.IORef
+import Data.List (sortOn)
+import Data.Maybe
+import Data.Monoid ((<>))
+import Data.Proxy
+import Data.Rope.Mutable (Rope, new', write, reset)
+import Data.Strict.Tuple (Pair(..))
+import Data.Text (Text, pack)
+import qualified Data.Vector as V
+import qualified Data.Vector.Generic as VG
+import Data.Vector.Unboxed (Vector)
+import Data.Vector.Unboxed.Deriving
+import Data.Vector.Unboxed.Mutable (MVector)
+import Data.Word
 import Debug.Hoed.Fields
+import Debug.Trace
 
 import GHC.Generics
 
@@ -114,8 +137,153 @@ import Data.Dynamic ( Dynamic )
 
 \end{code}
 
+%************************************************************************
+%*                                                                      *
+\subsection{Event stream}
+%*                                                                      *
+%************************************************************************
+
+Trival output functions
+
 \begin{code}
-infixl 9 <<
+
+type UID = Int
+
+data Event = Event { eventParent :: {-# UNPACK #-} !Parent
+                   , change      ::                !Change  }
+        deriving (Eq,Generic)
+
+data EventWithId = EventWithId {eventUID :: !UID, event :: !Event}
+
+data Change
+        = Observe          !Text
+        | Cons     !Word8  !Text
+        | ConsChar         !Char
+        | Enter
+        | Fun
+        deriving (Eq, Show,Generic)
+
+type ParentPosition = Word8
+
+data Parent = Parent
+        { parentUID      :: !UID            -- my parents UID
+        , parentPosition :: !ParentPosition -- my branch number (e.g. the field of a data constructor)
+        } deriving (Eq,Generic)
+
+instance Show Event where
+  show e = (show . change $ e) ++ " (" ++ (show . eventParent $ e) ++ ")"
+
+instance Show EventWithId where
+  show (EventWithId uid e) = (show uid) ++ ": " ++ (show . change $ e) ++ " (" ++ (show . eventParent $ e) ++ ")"
+
+instance Show Parent where
+  show p = "P " ++ (show . parentUID $ p) ++ " " ++ (show . parentPosition $ p)
+
+root = Parent (-1) 0
+
+isRootEvent :: Event -> Bool
+isRootEvent e = case change e of Observe{} -> True; _ -> False
+\end{code}
+
+\begin{code}
+type Trace = Vector Event
+
+endEventStream :: IO Trace
+endEventStream = do
+  (stringsCount :!: stringsHashTable) <- takeMVar strings
+  unsortedStrings <- H.toList stringsHashTable
+  putMVar strings . (0 :!:) =<< H.new
+  let stringsTable = V.unsafeAccum (\_ -> id) (V.replicate stringsCount (error "uninitialized")) [(i,s) | (s,i) <- unsortedStrings]
+  writeIORef stringsLookupTable stringsTable
+  reset (Proxy :: Proxy Vector) events
+
+sendEvent :: Int -> Parent -> Change -> IO ()
+sendEvent nodeId !parent !change = do
+  write events nodeId (Event parent change)
+
+lookupOrAddString s = do
+  (stringsCount :!: stringsTable) <- takeMVar strings
+  value <- H.lookup stringsTable s
+  (count',res) <- case value of
+            Just x -> return (stringsCount, x)
+            Nothing -> H.insert stringsTable s stringsCount >> return (stringsCount+1, stringsCount)
+  putMVar strings (count' :!: stringsTable)
+  return res
+
+-- Global store of unboxed events.
+-- Since we cannot unbox Strings, these are represented as references to the
+--  strings table
+{-# NOINLINE events #-}
+events :: Rope IO MVector Event
+events = unsafePerformIO $ do
+  rope <- new' 10000  -- size of the lazy vectors internal to the rope structure
+  return rope
+
+{-# NOINLINE strings #-}
+strings :: MVar(Pair Int (H.CuckooHashTable Text Int))
+strings = unsafePerformIO $ do
+  h <- H.newSized 100000  -- suggested capacity for the hash table
+  newMVar (0 :!: h)
+
+{-# NOINLINE stringsLookupTable #-}
+stringsLookupTable :: IORef (V.Vector Text)
+stringsLookupTable = unsafePerformIO $ newIORef  mempty
+
+lookupString id = unsafePerformIO $ (V.! id) <$> readIORef  stringsLookupTable
+
+derivingUnbox "Change"
+    [t| Change -> (Word8, Word8, Int) |]
+    [| \case
+            Observe  s -> (0,0,unsafePerformIO(lookupOrAddString s))
+            Cons c   s -> (1,c,unsafePerformIO(lookupOrAddString s))
+            ConsChar c -> (2,0,fromEnum c)
+            Enter      -> (3,0,0)
+            Fun        -> (4,0,0)
+     |]
+    [| \case (0,_,s) -> Observe (lookupString s)
+             (1,c,s) -> Cons c  (lookupString s)
+             (2,_,c) -> ConsChar (toEnum c)
+             (3,_,_) -> Enter
+             (4,_,_) -> Fun
+     |]
+
+derivingUnbox "Parent"
+    [t| Parent -> (UID, ParentPosition) |]
+    [| \ (Parent a b) -> (a,b) |]
+    [| \ (a,b) -> Parent a b |]
+
+derivingUnbox "Event"
+    [t| Event -> (Parent, Change) |]
+    [| \(Event a b) -> (a,b) |]
+    [| \ (a,b) -> Event a b |]
+
+\end{code}
+
+
+%************************************************************************
+%*                                                                      *
+\subsection{unique name supply code}
+%*                                                                      *
+%************************************************************************
+
+Use the single threaded version
+
+\begin{code}
+
+initUniq :: IO ()
+initUniq = writeIORef uniq 1
+
+getUniq :: IO UID
+getUniq = atomicModifyIORef' uniq (\n -> (n+1,n))
+
+peepUniq :: IO UID
+peepUniq = readIORef uniq
+
+-- locals
+{-# NOINLINE uniq #-}
+uniq :: IORef UID
+uniq = unsafePerformIO $ newIORef 0
+
 \end{code}
 
 
@@ -128,8 +296,17 @@ infixl 9 <<
 The generic implementation of the observer function.
 
 \begin{code}
+-- | A type class for observable values.
+--
+--    * For 'Generic' datatypes it can be derived automatically.
+--    * For opaque datatypes, use 'observeOpaque' or rely on the catch-all @<?>@ instance.
+--    * Custom implementations can exclude one or more fields from the observation:
+--
+--    @ instance (Observable a, Observable b) => Observable (excluded, a,b) where
+--        observe (excluded,a,b) = send "(,,)" (return (,,) excluded << a << b)
+--    @
 class Observable a where
-        observer  :: a -> Parent -> a 
+        observer  :: a -> Parent -> a
         default observer :: (Generic a, GObservable (Rep a)) => a -> Parent -> a
         observer x c = to (gdmobserver (from x) c)
 
@@ -140,7 +317,7 @@ class Observable a where
 class GObservable f where
         gdmobserver :: f a -> Parent -> f a
         gdmObserveArgs :: f a -> ObserverM (f a)
-        gdmShallowShow :: f a -> String
+        gdmShallowShow :: f a -> Text
 
 constrainBase :: (Show a, Eq a) => a -> a -> a
 constrainBase x c | x == c = x
@@ -190,7 +367,7 @@ instance (GObservable a, Selector s) => GObservable (M1 S s a) where
 instance (GObservable a, Constructor c) => GObservable (M1 C c a) where
  gdmobserver m1 = send (gdmShallowShow m1) (gdmObserveArgs m1)
  gdmObserveArgs (M1 x) = do {x' <- gdmObserveArgs x; return (M1 x')}
- gdmShallowShow = conName
+ gdmShallowShow = pack . conName
 
 -- Unit: used for constructors without arguments
 instance GObservable U1 where
@@ -254,7 +431,7 @@ gdmFunObserver cxt fn arg
  The Haskell Base types
 
 \begin{code}
-instance Observable Int     where observer  = observeBase 
+instance Observable Int     where observer  = observeBase
                                   constrain = constrainBase
 instance Observable Bool    where observer  = observeBase
                                   constrain = constrainBase
@@ -264,8 +441,11 @@ instance Observable Float   where observer  = observeBase
                                   constrain = constrainBase
 instance Observable Double  where observer  = observeBase
                                   constrain = constrainBase
-instance Observable Char    where observer  = observeBase
-                                  constrain = constrainBase
+instance Observable Char    where
+  observer lit cxt = seq lit $ unsafeWithUniq $ \node -> do
+    sendEvent node cxt (ConsChar lit)
+    return lit
+  constrain = constrainBase
 instance Observable ()      where observer  = observeOpaque "()"
                                   constrain = constrainBase
 
@@ -275,9 +455,9 @@ instance Observable ()      where observer  = observeOpaque "()"
 -- we evalute to WHNF, and not further.
 
 observeBase :: (Show a) => a -> Parent -> a
-observeBase lit cxt = seq lit $ send (show lit) (return lit) cxt
+observeBase lit cxt = seq lit $ send (pack $ show lit) (return lit) cxt
 
-observeOpaque :: String -> a -> Parent -> a
+observeOpaque :: Text -> a -> Parent -> a
 observeOpaque str val cxt = seq val $ send str (return val) cxt
 \end{code}
 
@@ -337,7 +517,7 @@ The Exception *datatype* (not exceptions themselves!).
 
 \begin{code}
 instance Observable SomeException where
-  observer e = send ("<Exception> " ++ show e) (return e)
+  observer e = send ("<Exception> " <> pack(show e)) (return e)
   constrain = undefined
 
 -- instance Observable ErrorCall where
@@ -356,13 +536,6 @@ instance Observable Dynamic where
 %*                                                                      *
 %************************************************************************
 
-MF: why/when do we need these types?
-\begin{code}
-type Observing a = a -> a
-
-newtype Observer = O (forall a . (Observable a) => String -> a -> a)
-\end{code}
-
 
 %************************************************************************
 %*                                                                      *
@@ -374,7 +547,7 @@ The Observer monad, a simple state monad,
 for placing numbers on sub-observations.
 
 \begin{code}
-newtype ObserverM a = ObserverM { runMO :: Int -> Int -> (a,Int) }
+newtype ObserverM a = ObserverM { runMO :: Int -> Word8 -> (a,Word8) }
 
 instance Functor ObserverM where
     fmap  = liftM
@@ -411,6 +584,7 @@ gthunk a = ObserverM $ \ parent port ->
 (<<) :: (Observable a) => ObserverM (a -> b) -> a -> ObserverM b
 -- fn << a = do { fn' <- fn ; a' <- thunk a ; return (fn' a') }
 fn << a = gdMapM (thunk observer) fn a
+infixl 9 <<
 
 gdMapM :: (Monad m)
         => (a -> m a)  -- f
@@ -444,7 +618,7 @@ Our principle function and class
 -- 'observe' can also observe functions as well a structural values.
 -- 
 {-# NOINLINE gobserve #-}
-gobserve :: (a->Parent->a) -> String -> a -> (a,Int)
+gobserve :: (a->Parent->a) -> Text -> a -> (a,Int)
 gobserve f name a = generateContext f name a
 
 {- | 
@@ -477,7 +651,7 @@ an Observable instance can be derived as follows:
 @
 -}
 {-# NOINLINE observe #-}
-observe ::  (Observable a) => String -> a -> a
+observe ::  (Observable a) => Text -> a -> a
 observe lbl = fst . (gobserve observer lbl)
 
 {- This gets called before observer, allowing us to mark
@@ -505,16 +679,16 @@ unsafeWithUniq fn
 \end{code}
 
 \begin{code}
-generateContext :: (a->Parent->a) -> String -> a -> (a,Int)
+generateContext :: (a->Parent->a) -> Text -> a -> (a,Int)
 generateContext f {- tti -} label orig = unsafeWithUniq $ \node ->
-     do sendEvent node (Parent 0 0) (Observe label)
+     do sendEvent node root (Observe label)
         return (observer_ f orig (Parent
                       { parentUID      = node
                       , parentPosition = 0
                       })
                , node)
 
-send :: String -> ObserverM a -> Parent -> a
+send :: Text -> ObserverM a -> Parent -> a
 send consLabel fn context = unsafeWithUniq $ \ node ->
      do { let (r,portCount) = runMO fn node 0
         ; sendEvent node context (Cons portCount consLabel)
@@ -548,102 +722,6 @@ sendObserveFnPacket fn context
 \end{code}
 
 
-%************************************************************************
-%*                                                                      *
-\subsection{Event stream}
-%*                                                                      *
-%************************************************************************
-
-Trival output functions
-
-\begin{code}
-type Trace = [Event]
-
-data Event = Event
-                { eventUID     :: !UID      -- my UID
-                , eventParent  :: !Parent
-                , change       :: !Change
-                }
-        deriving (Eq,Generic)
-
-data Change
-        = Observe       !String
-        | Cons    !Int  !String
-        | Enter
-        | Fun
-        deriving (Eq, Show,Generic)
-
-type ParentPosition = Int
-
-data Parent = Parent
-        { parentUID      :: !UID            -- my parents UID
-        , parentPosition :: !ParentPosition -- my branch number (e.g. the field of a data constructor)
-        } deriving (Eq,Generic)
-
-instance Show Event where
-  show e = (show . eventUID $ e) ++ ": " ++ (show . change $ e) ++ " (" ++ (show . eventParent $ e) ++ ")"
-
-instance Show Parent where
-  show p = "P " ++ (show . parentUID $ p) ++ " " ++ (show . parentPosition $ p)
-
-root = Parent 0 0
-
-isRootEvent :: Event -> Bool
-isRootEvent e = case change e of Observe{} -> True; _ -> False
-
-startEventStream :: IO ()
-startEventStream = writeIORef events []
-
-endEventStream :: IO Trace
-endEventStream =
-        do { es <- readIORef events
-           ; writeIORef events badEvents 
-           ; return es
-           }
-
-sendEvent :: Int -> Parent -> Change -> IO ()
-sendEvent nodeId parent change =
-        do { let !event = Event nodeId parent change
-           ; atomicModifyIORef' events (\es -> (event : es, ()))
-           }
-
--- local
-events :: IORef Trace
-events = unsafePerformIO $ newIORef badEvents
-
-badEvents :: Trace
-badEvents = error "Bad Event Stream"
-
-\end{code}
-
-
-%************************************************************************
-%*                                                                      *
-\subsection{unique name supply code}
-%*                                                                      *
-%************************************************************************
-
-Use the single threaded version
-
-\begin{code}
-type UID = Int
-
-initUniq :: IO ()
-initUniq = writeIORef uniq 1
-
-getUniq :: IO UID
-getUniq = atomicModifyIORef' uniq (\n -> (n+1,n))
-
-peepUniq :: IO UID
-peepUniq = readIORef uniq
-
--- locals
-{-# NOINLINE uniq #-}
-uniq :: IORef UID
-uniq = unsafePerformIO $ newIORef 1
-
-\end{code}
-
 
 
 %************************************************************************
@@ -682,7 +760,7 @@ ourCatchAllIO = Exception.catch
 
 handleExc :: Parent -> SomeException -> IO a
 -- handleExc context exc = return (send "throw" (return throw << exc) context)
-handleExc context exc = return (send (show exc) (return (throw exc)) context)
+handleExc context exc = return (send (pack $ show exc) (return (throw exc)) context)
 \end{code}
 
 %************************************************************************

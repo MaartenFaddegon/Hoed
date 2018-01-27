@@ -1,19 +1,22 @@
+{-# LANGUAGE ViewPatterns #-}
 -- This file is part of the Haskell debugger Hoed.
 --
 -- Copyright (c) Maarten Faddegon 2015-2016
 
-{-# LANGUAGE DefaultSignatures, TypeOperators, FlexibleContexts, FlexibleInstances, StandaloneDeriving, CPP, DeriveGeneric #-}
+{-# LANGUAGE OverloadedLists, DefaultSignatures, TypeOperators, FlexibleContexts, FlexibleInstances, StandaloneDeriving, CPP, DeriveGeneric #-}
 
 module Debug.Hoed.Prop where
 -- ( judge
 -- , Propositions(..)
 -- ) where
-import Debug.Hoed.Observe(Observable(..),Trace(..),UID,Event(..),Change(..),ourCatchAllIO,evaluate,eventParent,parentPosition)
+import qualified Data.Vector.Generic as VG
+import Debug.Hoed.Observe(EventWithId(..), Observable(..),Trace(..),UID,Event(..),Change(..),ourCatchAllIO,evaluate,eventParent,parentPosition)
 import Debug.Hoed.Render(CompStmt(..),noNewlines)
 import Debug.Hoed.CompTree(CompTree,Vertex(..),Graph(..),vertexUID,vertexRes,replaceVertex,getJudgement,setJudgement)
 import Debug.Hoed.EventForest(EventForest,mkEventForest,dfsChildren)
 import Debug.Hoed.Serialize
 import qualified Data.IntMap as M
+import qualified Data.Text as T
 import Prelude hiding (Right)
 import Data.Graph.Libgraph(Judgement(..),AssistedMessage(..),mapGraph)
 import System.Directory(createDirectoryIfMissing)
@@ -108,7 +111,7 @@ traceFilePath = ".Hoed/savedTrace."
 lookupPropositions :: [Propositions] -> Vertex -> Maybe Propositions
 lookupPropositions _ RootVertex = Nothing
 lookupPropositions ps v = lookupWith funName lbl ps
-  where lbl = (stmtLabel . vertexStmt) v
+  where lbl = (T.unpack . stmtLabel . vertexStmt) v
 
 lookupWith :: Eq a => (b->a) -> a -> [b] -> Maybe b
 lookupWith f x ys = case filter (\y -> f y == x) ys of
@@ -328,14 +331,9 @@ generateCode handler trc v prop ms = do
   writeFile sourceFile prgm
   return prgm
   where 
-  prgm = generate handler prop ms trc (getEventFromMap $ eventMap trc) i f
+  prgm = generate handler prop ms trc (\i -> EventWithId i (trc VG.! i)) i f
   i    = (stmtIdentifier . vertexStmt) v
-  f    = (stmtLabel . vertexStmt) v
-
-
-getEventFromMap m j = fromJust $ M.lookup j m
-
-eventMap trc = M.fromList $ map (\e -> (eventUID e, e)) trc
+  f    = (T.unpack . stmtLabel . vertexStmt) v
 
 mkPropRes :: Proposition -> ExitCode -> String -> PropRes
 mkPropRes prop (ExitFailure _) out        = Error prop out
@@ -414,7 +412,7 @@ generatePrint p = case propositionType p of
 
 ------------------------------------------------------------------------------------------------------------------------
 
-generate :: UnevalHandler -> Proposition -> [Module ] -> Trace -> (UID->Event) -> UID -> String -> String
+generate :: UnevalHandler -> Proposition -> [Module ] -> Trace -> (UID->EventWithId) -> UID -> String -> String
 generate handler prop ms trc getEvent i f = generateHeading prop ms ++ generateMain handler prop trc getEvent i f
 
 generateHeading :: Proposition -> [Module] -> String
@@ -441,7 +439,7 @@ generateHeading prop ms =
 generateImport :: Module -> String
 generateImport m =  "import " ++ (moduleName m) ++ "\n"
 
-generateMain :: UnevalHandler -> Proposition -> Trace -> (UID->Event) -> UID -> String -> String
+generateMain :: UnevalHandler -> Proposition -> Trace -> (UID->EventWithId) -> UID -> String -> String
 generateMain handler prop trc getEvent i f
   = "main = Hoed.runOstore \"" ++ (propName prop) ++"\" $ "
             ++ propVarBind handler (foldl accSig ((propName prop) ++ " ",unevalState handler) (signature prop)) prop
@@ -465,13 +463,13 @@ generateMain handler prop trc getEvent i f
     cf :: PropVarGen String
     cf | handler == RestrictedBottom 
            = foldl1 (liftPV $ \acc c -> acc ++ " " ++ c)
-             [ propVarReturn $ "(" ++ genConAp (length args) f
+             ([ propVarReturn $ "(" ++ genConAp (length args) f
              , generateRes (unevalHandler handler) trc getEvent i
              , propVarReturn $ ")"
-             ]
+             ] :: [PropVarGen String])
        | otherwise = propVarReturn f
 
-generateRes :: (PropVarGen String) -> Trace -> (UID -> Event) -> UID -> PropVarGen String
+generateRes :: (PropVarGen String) -> Trace -> (UID -> EventWithId) -> UID -> PropVarGen String
 generateRes unevalGen trc getEvent i
  | areFun mres = (propVarReturn " {- generateRes -} ") `pvCat`
                  (generateRes unevalGen trc getEvent (eventUID . head . justFuns $ mres)) -- (*)
@@ -486,10 +484,10 @@ generateRes unevalGen trc getEvent i
  frt = (mkEventForest trc)
  e   = getEvent i
 
-generateRes' :: PropVarGen String -> Trace -> (UID->Event) -> Maybe Event -> PropVarGen String
+generateRes' :: PropVarGen String -> Trace -> (UID->EventWithId) -> Maybe EventWithId -> PropVarGen String
 generateRes' unevalGen trc getEvent Nothing = unevalGen
 generateRes' unevalGen trc getEvent (Just e)
- | change e == Fun = 
+ | change (event e) == Fun = 
   case dfsChildren frt e of 
    [_,_    ,_,mr] -> 
     generateRes' unevalGen trc getEvent mr
@@ -502,7 +500,7 @@ generateRes' unevalGen trc getEvent (Just e)
  where
  frt = (mkEventForest trc)
 
-generateArgs :: (PropVarGen String) -> Trace -> (UID -> Event) -> UID -> [PropVarGen String]
+generateArgs :: (PropVarGen String) -> Trace -> (UID -> EventWithId) -> UID -> [PropVarGen String]
 generateArgs unevalGen trc getEvent i =
  (propVarReturn " {- generateArgs -} ") `pvCat`
  pvArg `pvCat` (propVarReturn $ " {- more: " ++ show mres ++ " -} ") 
@@ -522,21 +520,22 @@ generateArgs unevalGen trc getEvent i =
 nothingOrArg Nothing = True
 nothingOrArg (Just e) = isArg e
 
+noArg :: [Maybe a] -> Bool
 noArg [Nothing] = True
 noArg _         = False
 
-areFun :: [Maybe Event] -> Bool
+areFun :: [Maybe EventWithId] -> Bool
 areFun (_:e:_) = isJustFun e
 areFun _       = False
 
-justFuns :: [Maybe Event] -> [Event]
-justFuns = map fromJust . filter isJustFun 
+justFuns :: [Maybe EventWithId] -> [EventWithId]
+justFuns = map fromJust . filter isJustFun
 
-isJustFun :: Maybe Event -> Bool
-isJustFun (Just e) = change e == Fun
+isJustFun :: Maybe EventWithId -> Bool
+isJustFun (Just e) = change (event e) == Fun
 isJustFun Nothing  = False
 
-generateFunMap :: (PropVarGen String) -> Trace -> (UID -> Event) -> [Event] -> PropVarGen String
+generateFunMap :: (PropVarGen String) -> Trace -> (UID -> EventWithId) -> [EventWithId] -> PropVarGen String
 generateFunMap unevalGen trc getEvent funs 
  | length funs > 0 = caseOf `pvCat` (pvConcat cases') `pvCat` esac
  | otherwise       = propVarReturn "{- a fun without applications? -}"
@@ -548,7 +547,7 @@ generateFunMap unevalGen trc getEvent funs
  cases  = map (\fun -> generateCase unevalGen trc getEvent fun) funs
  cases' = intersperse (propVarReturn "; ") cases
 
-generateCase :: (PropVarGen String) -> Trace -> (UID -> Event) -> Event -> PropVarGen String
+generateCase :: (PropVarGen String) -> Trace -> (UID -> EventWithId) -> EventWithId -> PropVarGen String
 generateCase unevalGen trc getEvent fun =
  (propVarReturn $ " {- CASE " ++ show fun ++ " -} ") `pvCat`
  case args of 
@@ -571,7 +570,7 @@ isRes = hasParentPos 1
 isJustRes (Just e) = isRes e
 isJustRes Nothing  = False
 
-hasParentPos i = (==i) . parentPosition . eventParent
+hasParentPos i = (==i) . parentPosition . eventParent . event
 
 pvCat :: PropVarGen String -> PropVarGen String -> PropVarGen String
 pvCat = liftPV (++)
@@ -579,18 +578,18 @@ pvCat = liftPV (++)
 pvConcat :: [PropVarGen String] -> PropVarGen String
 pvConcat = foldl pvCat (propVarReturn "")
 
-moreArgs :: PropVarGen String -> Trace -> (UID->Event) -> Maybe Event -> [PropVarGen String]
+moreArgs :: PropVarGen String -> Trace -> (UID->EventWithId) -> Maybe EventWithId -> [PropVarGen String]
 moreArgs _ trc getEvent Nothing = []
 moreArgs unevalGen trc getEvent (Just e)
-  | change e == Fun = generateArgs unevalGen trc getEvent (eventUID e)
+  | change (event e) == Fun = generateArgs unevalGen trc getEvent (eventUID e)
   | otherwise       = []
 
-generateExpr :: PropVarGen String -> Trace -> (UID -> Event) -> EventForest -> Maybe Event -> PropVarGen String
+generateExpr :: PropVarGen String -> Trace -> (UID -> EventWithId) -> EventForest -> Maybe EventWithId -> PropVarGen String
 generateExpr unevalGen _ _ _ Nothing    = unevalGen
 generateExpr unevalGen trc getEvent frt (Just e) = 
   -- (propVarReturn $ "{- generateExpr " ++ show e ++ "-}") `pvCat` 
-  case change e of
-  (Cons _ s) -> let s' = if isAlpha (head s) then s else "(" ++ s ++ ")"
+  case change (event e) of
+  (Cons _ (T.unpack -> s)) -> let s' = if isAlpha (head s) then s else "(" ++ s ++ ")"
                 in liftPV (++) ( foldl (liftPV $ \acc c -> acc ++ " " ++ c)
                                  (propVarReturn ("(" ++ s')) cs
                                ) 
@@ -653,7 +652,7 @@ instance (GParEq a, GParEq b) => GParEq (a :*: b) where
             | any (== (Just False)) mbs = Just False
             | all (== (Just True))  mbs = Just True
             | otherwise                 = Nothing
-            where mbs = [(catchGEq x y) `seq` (catchGEq x y), (catchGEq x' y') `seq` (catchGEq x' y')]
+            where mbs = [(catchGEq x y) `seq` (catchGEq x y), (catchGEq x' y') `seq` (catchGEq x' y')] :: [Maybe Bool]
 
 -- Unit: used for constructors without arguments
 instance GParEq U1 where

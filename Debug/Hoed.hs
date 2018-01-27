@@ -1,6 +1,8 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ImplicitParams  #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
@@ -184,7 +186,6 @@ module Debug.Hoed
   , UnevalHandler(..)
 
    -- * The Observable class
-  , Observer(..)
   , Observable(..)
   , (<<)
   , thunk
@@ -198,13 +199,17 @@ module Debug.Hoed
   ) where
 
 import Control.DeepSeq
+import Control.Monad
+import qualified Data.Vector.Generic as VG
 import           Debug.Hoed.CompTree
 import           Debug.Hoed.Console
 import           Debug.Hoed.Observe
 import           Debug.Hoed.Prop
 import           Debug.Hoed.Render
 import           Debug.Hoed.Serialize
+import           Debug.Hoed.Util
 
+import           Data.Foldable (toList)
 import           Data.IORef
 import           Prelude                      hiding (Right)
 import           System.Clock
@@ -245,11 +250,12 @@ debugO :: IO a -> IO Trace
 debugO program =
      do { runOnce
         ; initUniq
-        ; startEventStream
         ; let errorMsg e = "[Escaping Exception in Code : " ++ show e ++ "]"
         ; ourCatchAllIO (do { _ <- program ; return () })
                         (hPutStrLn stderr . errorMsg)
-        ; endEventStream
+        ; res <- endEventStream
+        ; initUniq
+        ; return res
         }
 
 -- | The main entry point; run some IO code, and debug inside it.
@@ -317,14 +323,8 @@ traceOnly program = do
   return ()
 
 
-data Verbosity = Verbose | Silent
-
-condPutStrLn :: Verbosity -> String -> IO ()
-condPutStrLn Silent _    = return ()
-condPutStrLn Verbose msg = hPutStrLn stderr msg
-
 data HoedAnalysis = HoedAnalysis
-  { hoedTrace       :: [Event]
+  { hoedTrace       :: Trace
   , hoedCompTree    :: CompTree
   }
 
@@ -336,36 +336,62 @@ data HoedOptions = HoedOptions
 defaultHoedOptions :: HoedOptions
 defaultHoedOptions = HoedOptions Silent 110
 
+--------------------------------------------
+
 -- |Entry point giving you access to the internals of Hoed. Also see: runO.
 runO' :: HoedOptions -> IO a -> IO HoedAnalysis
 runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
+  hSetBuffering stderr NoBuffering
   createDirectoryIfMissing True ".Hoed/"
-  t1 <- getTime Monotonic
+  tProgram <- stopWatch
   condPutStrLn verbose "=== program output ===\n"
   events <- debugO program
-  t2 <- getTime Monotonic
-  let programTime = toSecs(diffTimeSpec t1 t2)
-  condPutStrLn verbose $ "\n=== program terminated (" ++ show programTime ++ " seconds) ==="
-  condPutStrLn verbose"Please wait while the computation tree is constructed..."
-
-  let e = length events
-
-  condPutStrLn verbose "\n=== Statistics ===\n"
-  condPutStrLn verbose $ show e ++ " events"
-
-  let !cdss = eventsToCDS events
-      !eqs  = force $ renderCompStmts cdss
-      ti   = traceInfo e (reverse events)
-      !ds  = force $ dependencies ti
-      ct  = mkCompTree eqs ds
+  programTime <- tProgram
+  condPutStrLn verbose $ "\n=== program terminated (" ++ show programTime ++ ") ==="
 
 #if defined(DEBUG)
-  writeFile ".Hoed/Events"     (unlines . map show . reverse $ events)
-  writeFile ".Hoed/Cdss"       (unlines . map show $ cdss2)
-  writeFile ".Hoed/Eqs"        (unlines . map show $ eqs)
+  writeFile ".Hoed/Events"     (unlines . map show $ toList events)
+#endif
+
+  condPutStrLn verbose "\n=== Statistics ===\n"
+  condPutStrLn verbose $ show (VG.length events) ++ " events"
+  condPutStrLn verbose"Please wait while the computation tree is constructed..."
+
+  tTrace <- stopWatch
+  ti  <- traceInfo verbose events
+  traceTime <- tTrace
+  condPutStrLn verbose $ " " ++ show traceTime
+
+  let cdss = eventsToCDS events
+      eqs  = renderCompStmts cdss
+  let !ds  = force $ dependencies ti
+      ct   = mkCompTree eqs ds
+
+  condPutStr verbose "Calculating the nodes of the computation graph"
+  tCds <- stopWatch
+  forM_ (zip [0..] cdss) $ \(i,x) -> do
+    evaluate (force x)
+    when (isPowerOf 2 i) $ condPutStr verbose "."
+  cdsTime <- tCds
+  condPutStrLn verbose $ " " ++ show cdsTime
+
+  condPutStr verbose "Rendering the nodes of the computation graph"
+  tEqs <- stopWatch
+  forM_ (zip [0..] eqs) $ \(i,x) -> do
+    evaluate (case stmtDetails x of
+                       StmtCon c _ -> seq c ()
+                       StmtLam args res _ -> args `seq` res `seq` ())
+    when (isPowerOf 2 i) $ condPutStr verbose "."
+  eqsTime <- tEqs
+  condPutStrLn verbose $ " " ++ show eqsTime
+
+#if defined(DEBUG)
+  -- writeFile ".Hoed/Cdss"       (unlines . map show $ cdss2)
+  writeFile ".Hoed/Eqs"        (unlines . map show $ toList eqs)
+  writeFile ".Hoed/Deps"       (unlines . map show $ toList ds)
 #endif
 #if defined(TRANSCRIPT)
-  writeFile ".Hoed/Transcript" (getTranscript events ti)
+  writeFile ".Hoed/Transcript" (getTranscript (toList events) ti)
 #endif
 
   let n  = length eqs
@@ -375,13 +401,14 @@ runO' HoedOptions{..} program = let ?statementWidth = prettyWidth in do
   condPutStrLn verbose $ show (length . arcs $ ct) ++ " edges in computation tree"
   condPutStrLn verbose $ "computation tree has a branch factor of " ++ show b ++ " (i.e the average number of children of non-leaf nodes)"
 
-  t3 <- getTime Monotonic
-  let compTime = toSecs(diffTimeSpec t2 t3)
-  condPutStrLn verbose $ "\n=== Debug Session (" ++ show compTime ++ " seconds) ===\n"
+  let compTime = traceTime + cdsTime + eqsTime
+  condPutStrLn verbose $ "\n=== Debug Session (" ++ show compTime ++ ") ===\n"
   return $ HoedAnalysis events ct
-    where
-       toSecs :: TimeSpec -> Double
-       toSecs spec = fromIntegral(sec spec) + fromIntegral(nsec spec) * 1e-9
+
+isPowerOf n 0 = False
+isPowerOf n k | n == k         = True
+              | k `mod` n == 0 = isPowerOf n (k `div` n)
+              | otherwise      = False
 
 -- | Trace and write computation tree to file. Useful for regression testing.
 logO :: FilePath -> IO a -> IO ()
@@ -389,12 +416,6 @@ logO filePath program = {- SCC "logO" -} do
   HoedAnalysis{..} <- runO' defaultHoedOptions{verbose=Verbose} program
   writeFile filePath (showGraph hoedCompTree)
   return ()
-
-  where showGraph g        = showWith g showVertex showArc
-        showVertex RootVertex = ("\".\"","shape=none")
-        showVertex v       = ("\"" ++ (escape . showCompStmt) v ++ "\"", "")
-        showArc _          = ""
-        showCompStmt       = show . vertexStmt
 
 -- | As logO, but with property-based judging.
 logOwp :: UnevalHandler -> FilePath -> [Propositions] -> IO a -> IO ()
@@ -413,7 +434,9 @@ logOwp handler filePath properties program = do
 
 
 #if __GLASGOW_HASKELL__ >= 710
--- A catch-all instance for non observable types
+-- NOTE: This instance is orphaned here deliberately.
+--       Moving it will break polymorphic observations in GHC 8.2x
+-- | A catch-all instance for non observable types that produces the opaque observation @<?>@.
 instance {-# OVERLAPPABLE #-} Observable a where
   observer = observeOpaque "<?>"
   constrain _ _ = error "constrained by untraced value"
