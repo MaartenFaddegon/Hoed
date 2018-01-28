@@ -1,3 +1,15 @@
+0.4.2 Future
+
+  * Improved rendering of parens in computation statements
+  * A graph command contributed by Pepe Iborra
+  * Space improvements contributed by Pepe Iborra
+
+0.4.1 Maarten Faddegon 20 Jan 2018
+
+  * Improved documentation for the new interface
+  * Several bugfixes contributed by Pepe Iborra
+  * Performance improvement contributed by Pepe Iborra
+
 0.4.0 Maarten Faddegon 9 Sep 2017
 
   * Text based interface to the debugger for closer integration with an interpreter (e.g. ghci)
