@@ -34,7 +34,6 @@ import           Data.Char                (isAlpha)
 import           Data.Coerce
 import           Data.Hashable
 import           Data.List                (nub, sort, unfoldr)
-import qualified Data.HashTable.ST.Cuckoo as H
 import           Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap
 import           Data.Map.Strict (Map)
