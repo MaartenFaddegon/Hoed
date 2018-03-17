@@ -99,7 +99,8 @@ import qualified Prelude
 import Control.Concurrent.MVar
 import Control.Monad
 import Data.Array as Array
-import qualified Data.HashTable.IO as H
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as H
 import Data.IORef
 import Data.List (sortOn)
 import Data.Maybe
@@ -191,8 +192,8 @@ type Trace = Vector Event
 endEventStream :: IO Trace
 endEventStream = do
   (stringsCount :!: stringsHashTable) <- takeMVar strings
-  unsortedStrings <- H.toList stringsHashTable
-  putMVar strings . (0 :!:) =<< H.new
+  let unsortedStrings = H.toList stringsHashTable
+  putMVar strings (0 :!: mempty)
   let stringsTable = V.unsafeAccum (\_ -> id) (V.replicate stringsCount (error "uninitialized")) [(i,s) | (s,i) <- unsortedStrings]
   writeIORef stringsLookupTable stringsTable
   reset (Proxy :: Proxy Vector) events
@@ -201,14 +202,20 @@ sendEvent :: Int -> Parent -> Change -> IO ()
 sendEvent nodeId !parent !change = do
   write events nodeId (Event parent change)
 
+lookupOrAddString :: Text -> IO Int
 lookupOrAddString s = do
-  (stringsCount :!: stringsTable) <- takeMVar strings
-  value <- H.lookup stringsTable s
-  (count',res) <- case value of
-            Just x -> return (stringsCount, x)
-            Nothing -> H.insert stringsTable s stringsCount >> return (stringsCount+1, stringsCount)
-  putMVar strings (count' :!: stringsTable)
-  return res
+  (stringsCount :!: stringsTable) <- readMVar strings
+  case H.lookup s stringsTable of
+    Just x  -> return x
+    Nothing -> do
+      (stringsCount :!: stringsTable) <- takeMVar strings
+      let (count',table', res) =
+            case H.lookup s stringsTable of
+              Just x -> (stringsCount, stringsTable, x)
+              Nothing ->
+                (stringsCount+1, H.insert s stringsCount stringsTable, stringsCount)
+      putMVar strings (count' :!: table')
+      return res
 
 -- Global store of unboxed events.
 -- Since we cannot unbox Strings, these are represented as references to the
@@ -220,10 +227,9 @@ events = unsafePerformIO $ do
   return rope
 
 {-# NOINLINE strings #-}
-strings :: MVar(Pair Int (H.CuckooHashTable Text Int))
+strings :: MVar(Pair Int (HashMap Text Int))
 strings = unsafePerformIO $ do
-  h <- H.newSized 100000  -- suggested capacity for the hash table
-  newMVar (0 :!: h)
+  newMVar (0 :!: mempty)
 
 {-# NOINLINE stringsLookupTable #-}
 stringsLookupTable :: IORef (V.Vector Text)

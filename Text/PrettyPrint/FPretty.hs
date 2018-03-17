@@ -118,6 +118,7 @@ import Prelude hiding ((<$>))
 
 import Data.Hashable
 import Data.Maybe (fromJust)
+import Data.Semigroup
 import Data.Sequence as Dequeue (Seq, (<|), viewl, viewr, ViewL(..), ViewR(..))
 import qualified Data.Sequence as Dequeue (empty)
   -- Originally used Banker's dequeue from Okasaki's book 
@@ -127,7 +128,7 @@ import qualified Data.Sequence as Dequeue (empty)
 import Data.String
 import GHC.Generics
 
-infixr 6 <>,<+>
+infixr 6 <+>
 infixr 5 <$>,<$$>,</>,<//>
 
 ----------------------
@@ -218,10 +219,6 @@ line :: Doc
 -- | Either nothing ('empty') or a new line.
 linebreak :: Doc
 
--- | Horizontal composition of two documents. 
--- Is associative with identity 'empty'.
-(<>) :: Doc -> Doc -> Doc
-
 -- | Mark document as group, that is, layout as a single line if possible.
 -- Within a group for all basic documents with several layouts the same layout
 -- is chosen, that is, they are all horizontal or all new lines.
@@ -257,11 +254,19 @@ instance Hashable Doc
 instance IsString Doc where
   fromString = text
 
+instance Semigroup Doc where
+  -- | Horizontal composition of two documents.
+  (<>) = (:<>)
+
+instance Monoid Doc where
+  mempty = empty
+#if !(MIN_VERSION_base(4,11,0))
+  mappend = (<>)
+#endif
 empty = Nil
 text t = Text (length t) t
 line = Line 1 " "
 linebreak = Line 0 ""
-(<>) = (:<>)
 group = Group
 nest = Nest
 align = Align 0

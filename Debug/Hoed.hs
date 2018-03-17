@@ -328,11 +328,13 @@ data HoedAnalysis = HoedAnalysis
   , hoedCompTree    :: CompTree
   }
 
+-- | Configuration options for running Hoed
 data HoedOptions = HoedOptions
   { verbose     :: Verbosity
   , prettyWidth :: Int
   }
 
+-- | The default is to run silent and pretty print with a width of 110 characters
 defaultHoedOptions :: HoedOptions
 defaultHoedOptions = HoedOptions Silent 110
 
