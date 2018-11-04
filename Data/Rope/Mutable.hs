@@ -16,6 +16,8 @@ module Data.Rope.Mutable
 import Control.Monad
 import Control.Monad.Primitive
 import Data.Foldable as F
+import Data.IntMap.Strict (IntMap)
+import qualified Data.IntMap as Map
 import Data.Primitive.MutVar
 import Data.Proxy
 import qualified Data.Vector as V
@@ -24,9 +26,8 @@ import qualified Data.Vector.Generic.Mutable as M
 import Data.Vector.Generic.Mutable as M (MVector, read, new)
 
 data RopeState m v a = RopeState
-  { ropeDepth :: !Int
-  , ropeLastIndex :: !Int
-  , ropeElements :: [v (PrimState m) a]
+  { ropeLastIndex :: !Int
+  , ropeElements :: IntMap (v (PrimState m) a)
   , spillOver :: v (PrimState m) a
   }
 
@@ -45,19 +46,17 @@ write Rope {..} (fromEnum -> ix) a = join $ atomicModifyMutVar' ropeState update
     (d, r) = divMod ix ropeDim
     updateState :: RopeState m v a -> (RopeState m v a, m ())
     updateState st@RopeState {..}
-      | d < ropeDepth =
+      | Just v <- Map.lookup d ropeElements =
         ( st {ropeLastIndex = max ropeLastIndex ix}
-        , M.unsafeWrite (ropeElements !! (ropeDepth - 1 - d)) r a)
-      | d == ropeDepth =
+        , M.unsafeWrite v r a)
+      | otherwise =
         ( st
-          { ropeElements = spillOver : ropeElements
-          , ropeDepth = d + 1
+          { ropeElements = Map.insert d spillOver ropeElements
           , ropeLastIndex = max ropeLastIndex ix
           }
         , do M.unsafeWrite spillOver r a
              v <- M.new ropeDim
              atomicModifyMutVar' ropeState $ \st' -> (st' {spillOver = v}, ()))
-      | otherwise = error $ "index " ++ show ix ++ " too far away from the last index " ++ show ropeLastIndex
 
 new :: forall v a m . (PrimMonad m, MVector v a) => m (Rope m v a)
 new = new' defaultRopeDim
@@ -65,19 +64,26 @@ new = new' defaultRopeDim
 new' :: forall v a m . (PrimMonad m, MVector v a) => Int -> m (Rope m v a)
 new' ropeDim = do
   spillOver  <- M.new ropeDim
-  ropeState <- newMutVar (RopeState 0 (-1) [] spillOver)
+  ropeState <- newMutVar (RopeState (-1) mempty spillOver)
   return Rope{..}
 
 -- | Returns an immutable snapshot of the rope contents after resetting the rope to the empty state
-reset :: forall v a m . (VG.Vector v a, PrimMonad m) => Proxy v -> Rope m (VG.Mutable v) a -> m (v a)
-reset proxy it@Rope{..} = do
-  (lastIndex, ropeElements) <-
+reset :: forall v a m .
+  (VG.Vector v a, PrimMonad m) => Proxy v -> Rope m (VG.Mutable v) a -> m (v a)
+reset proxy it@Rope {..} = do
+  (lastIndex, ropeDim, ropeElements) <-
     atomicModifyMutVar' ropeState $ \RopeState {..} ->
-      (RopeState 0 (-1) [] spillOver, (ropeLastIndex, ropeElements))
-  lv <- mapM VG.unsafeFreeze ropeElements
+      (RopeState (-1) mempty spillOver, (ropeLastIndex, ropeDim, ropeElements))
+  lv <-
+    forM
+      [0 .. if Map.null ropeElements
+              then -1
+              else maximum (Map.keys ropeElements)] $ \i ->
+      case Map.lookup i ropeElements of
+        Just x -> VG.unsafeFreeze x
+        Nothing -> fail $ "block missing: " ++ show i -- VG.new ropeDim
   let joined :: v a
-        | h:t <- lv
-        = VG.concat (reverse t ++ [VG.slice 0 (lastIndex `mod` ropeDim + 1) h])
+        | h:t <- lv = VG.slice 0 (lastIndex + 1) $ VG.concat lv
         | otherwise = VG.empty
   return joined
 
@@ -86,10 +92,3 @@ fromList dim xx = do
   rope <- new' dim
   forM_ (zip [0..] xx) $ \(i,x) -> write rope i x
   return rope
-
-propFromList dim xx =
-  check . toList <$> (reset (Proxy :: Proxy V.Vector) =<< fromList dim xx)
-  where
-    check xx'
-      | xx == xx' = True
-      | otherwise = error (show xx')
